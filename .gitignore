@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Session artifacts. Sessions are created outside the repo by default
+# (~/interview-sim-sessions), but never commit one if a --workspace override
+# puts it here.
+sessions/
+sim-sessions/
+.sim/
+
+# OS
+.DS_Store
+
+# Personal planning and research notes. Kept on disk, never published:
+# schedule, launch strategy, and go/no-go thresholds.
+interview-sim-build-plan.md
+day1-verified-spec.md
+CLAUDE.md
