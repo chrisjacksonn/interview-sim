@@ -1,0 +1,12 @@
+{
+  "id": "pack-combinations",
+  "format": "gca",
+  "slot": 4,
+  "difficulty": "hard",
+  "title": "Pack Combinations",
+  "time_hint_minutes": 25,
+  "entrypoint": "solve",
+  "topics": ["dynamic programming", "counting", "combinatorics"],
+  "original": true,
+  "authored": "2026-08-11"
+}

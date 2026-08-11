@@ -1,0 +1,12 @@
+{
+  "id": "merge-feeds",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Merge Feeds",
+  "time_hint_minutes": 20,
+  "entrypoint": "solve",
+  "topics": ["heaps", "merging", "sorting"],
+  "original": true,
+  "authored": "2026-08-11"
+}

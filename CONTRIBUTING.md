@@ -97,6 +97,19 @@ caught here rather than by review.
 If the gate rejects a mutant as *passing*, consider that it may not actually be
 wrong. One "mutant" here turned out to be a correct if wasteful implementation.
 
+And if the gate says your **reference** fails, check the test before the code.
+Every time that has happened in this repository the expected value was wrong, not
+the solution. Work out expected values with a throwaway brute-force
+implementation rather than in your head:
+
+```python
+def brute(items):
+    """Obviously correct, far too slow, only used to check the real answers."""
+```
+
+Hand-computed answers for anything with an off-by-one or a window in it are how
+you end up asserting that a wrong solution is right.
+
 ## Adding a company preset
 
 `skills/sim/presets.json`. Every entry must carry:
