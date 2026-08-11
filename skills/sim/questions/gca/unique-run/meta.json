@@ -1,0 +1,12 @@
+{
+  "id": "unique-run",
+  "format": "gca",
+  "slot": 2,
+  "difficulty": "medium",
+  "title": "Unique Run",
+  "time_hint_minutes": 16,
+  "entrypoint": "solve",
+  "topics": ["sliding window", "hash map"],
+  "original": true,
+  "authored": "2026-08-11"
+}

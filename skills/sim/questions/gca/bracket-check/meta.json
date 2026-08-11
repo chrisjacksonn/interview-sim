@@ -1,0 +1,12 @@
+{
+  "id": "bracket-check",
+  "format": "gca",
+  "slot": 1,
+  "difficulty": "warmup",
+  "title": "Bracket Check",
+  "time_hint_minutes": 12,
+  "entrypoint": "solve",
+  "topics": ["stacks", "strings"],
+  "original": true,
+  "authored": "2026-08-11"
+}
