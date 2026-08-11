@@ -1,0 +1,12 @@
+{
+  "id": "file-store",
+  "format": "ica",
+  "levels": 4,
+  "difficulty": "progressive",
+  "title": "File Store",
+  "time_hint_minutes": 90,
+  "entrypoint": "FileStore",
+  "topics": ["design", "state management", "refactoring"],
+  "original": true,
+  "authored": "2026-08-11"
+}
