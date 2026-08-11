@@ -158,12 +158,14 @@ Every question here is written from scratch against a public format description.
 Real assessment items are not copied, paraphrased, or reconstructed. If you
 recognise one as real, open an issue and it gets replaced.
 
-See [ETHICS.md](ETHICS.md) for what this tool will and will not do.
+See [ETHICS.md](ETHICS.md) for what this tool will and will not do, and
+[METHODOLOGY.md](METHODOLOGY.md) for exactly what is being measured.
 
 ## Contributing
 
-Not yet. The question quality gate needs to exist before contributions can be
-accepted against it. Issues and bug reports are welcome now.
+Questions especially. The quality gate is automated, so a question PR either
+passes or tells you why it did not. Read [CONTRIBUTING.md](CONTRIBUTING.md)
+first, in particular the rule about original questions only.
 
 ## Licence
 
