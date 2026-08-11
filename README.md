@@ -9,13 +9,17 @@ affiliated with or endorsed by CodeSignal or LeetCode.
 
 Early. What works today:
 
-- `start`, `status`, and `submit`
-- hidden-test grading with partial credit
-- deterministic timing, and submissions refused once the clock runs out
-- one GCA-slot question, validated by the quality gate below
+A full GCA-format run works end to end: four questions, seventy minutes, graded
+against hidden tests, with a hard stop at the buzzer.
 
-Not built yet: `unlock`, `report`, ICA mode, and company presets. The bank is one
-question. If you want a finished tool, come back in a couple of weeks.
+- `start`, `status`, `submit`, and `report`
+- hidden-test grading with partial credit per question
+- deterministic timing, and submissions refused once the clock runs out
+- four questions ramping from warm-up to hard, all passing the quality gate below
+
+Not built yet: ICA mode (one project, four gated levels) and company presets. The
+bank is four questions, which is one sitting. If you want a filled-out question
+bank, come back in a couple of weeks.
 
 ## Why it exists
 
@@ -68,9 +72,10 @@ Ask for a session in whatever words you like ("start a GCA mock", "give me an OA
 practice run"), or run the engine directly:
 
 ```
-python3 skills/sim/scripts/session.py start --format gca --questions 1
+python3 skills/sim/scripts/session.py start --format gca
 python3 skills/sim/scripts/session.py status
 python3 skills/sim/scripts/session.py submit --question q1
+python3 skills/sim/scripts/session.py report
 ```
 
 `start` builds a workspace under `~/interview-sim-sessions/` with a real
@@ -88,7 +93,18 @@ of its tests passed, and nothing else: which ones failed is the part you are
 meant to work out. Resubmit as often as you like, it only costs time.
 
 Once the deadline passes the session is over, and a submission after that is
-refused even if it is correct.
+refused even if it is correct. `report` then summarises the sitting.
+
+## On the score
+
+There isn't one. CodeSignal's 200-600 scale is proprietary and calibrated against
+data that is not public, so no third-party tool can reproduce it, and this one does
+not pretend to. `report` tells you which questions you solved, how many hidden
+tests passed, and a qualitative band. A question that timed out or was never
+attempted counts as a zero rather than being quietly dropped from the average.
+
+That is less satisfying than a number and considerably more useful for working out
+what to practise.
 
 ## How questions are validated
 
