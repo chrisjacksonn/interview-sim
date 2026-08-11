@@ -1,0 +1,12 @@
+{
+  "id": "token-budget",
+  "format": "gca",
+  "slot": 4,
+  "difficulty": "hard",
+  "title": "Token Budget",
+  "time_hint_minutes": 25,
+  "entrypoint": "solve",
+  "topics": ["dynamic programming", "knapsack", "optimization"],
+  "original": true,
+  "authored": "2026-08-11"
+}

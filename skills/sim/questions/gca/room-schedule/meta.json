@@ -1,0 +1,12 @@
+{
+  "id": "room-schedule",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Room Schedule",
+  "time_hint_minutes": 18,
+  "entrypoint": "solve",
+  "topics": ["sorting", "sweep line", "intervals"],
+  "original": true,
+  "authored": "2026-08-11"
+}
