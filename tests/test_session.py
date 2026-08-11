@@ -242,7 +242,7 @@ class TestStatus(SessionTestCase):
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()
-        self.assertEqual(self.state()["schema_version"], 1)
+        self.assertEqual(self.state()["schema_version"], 2)
 
     def test_corrupt_state_is_reported_not_crashed(self):
         workspace = self.start()
@@ -251,13 +251,129 @@ class TestStateFile(SessionTestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("corrupt", err.lower())
 
-    def test_grading_seams_exist_unused(self):
-        """submit and grade.py land in these fields; they should already exist."""
+    def test_starts_ungraded(self):
         self.start()
         question = self.state()["questions"][0]
         self.assertEqual(question["attempts"], 0)
         self.assertIsNone(question["result"])
         self.assertEqual(question["state"], "unlocked")
+
+
+BANK = REPO / "skills" / "sim" / "questions" / "gca" / "shelf-tally"
+
+
+class TestSubmit(SessionTestCase):
+    def solve_with(self, workspace, source):
+        shutil.copyfile(str(source), str(workspace / "q1" / "solution.py"))
+
+    def test_correct_solution_scores_full_marks(self):
+        workspace = self.start()
+        self.solve_with(workspace, BANK / "reference.py")
+        code, out, err = self.run_session("submit", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK, err)
+        report = json.loads(out)
+        self.assertEqual(report["outcome"], "pass")
+        self.assertEqual(report["passed"], report["total"])
+        self.assertEqual(report["credit"], 1.0)
+        self.assertEqual(report["attempt"], 1)
+
+    def test_untouched_starter_scores_zero(self):
+        self.start()
+        code, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK)
+        self.assertEqual(json.loads(out)["passed"], 0)
+
+    def test_partial_credit_is_between(self):
+        workspace = self.start()
+        # Case-folds the aisle label, so roughly half the suite should fail.
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(entries):\n"
+            "    totals = {}\n"
+            "    for raw in entries:\n"
+            "        e = raw.strip()\n"
+            "        if e.count('-') != 1 or e.count(':') != 1:\n"
+            "            continue\n"
+            "        d, c = e.index('-'), e.index(':')\n"
+            "        if d > c:\n"
+            "            continue\n"
+            "        a, s, n = e[:d].lower(), e[d+1:c], e[c+1:]\n"
+            "        if not a or not s.isdigit() or not n.isdigit():\n"
+            "            continue\n"
+            "        totals[a] = totals.get(a, 0) + int(n)\n"
+            "    return totals\n"
+        )
+        _, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
+        report = json.loads(out)
+        self.assertGreater(report["passed"], 0)
+        self.assertLess(report["passed"], report["total"])
+        self.assertEqual(report["outcome"], "partial")
+
+    def test_unimportable_solution_is_reported_not_crashed(self):
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text("def solve(entries)\n    return {}\n")
+        code, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK)
+        self.assertEqual(json.loads(out)["outcome"], "import_error")
+
+    def test_non_terminating_solution_times_out(self):
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(entries):\n    while True:\n        pass\n"
+        )
+        code, out, _ = self.run_session(
+            "submit", "--now", T0 + 60, "--timeout", "3", "--json"
+        )
+        self.assertEqual(code, 8)
+        self.assertEqual(json.loads(out)["outcome"], "timeout")
+
+    def test_results_are_recorded_in_state(self):
+        workspace = self.start()
+        self.solve_with(workspace, BANK / "reference.py")
+        self.run_session("submit", "--now", T0 + 60)
+        self.run_session("submit", "--now", T0 + 120)
+        question = self.state()["questions"][0]
+        self.assertEqual(question["attempts"], 2)
+        self.assertEqual(question["result"]["outcome"], "pass")
+        self.assertEqual(question["last_submit_epoch"], T0 + 120)
+
+    def test_late_submission_is_rejected_even_when_perfect(self):
+        """The lockout. A correct answer after the buzzer is still not accepted."""
+        workspace = self.start()
+        self.solve_with(workspace, BANK / "reference.py")
+        code, _, err = self.run_session("submit", "--now", T0 + 70 * 60 + 1)
+        self.assertEqual(code, EXIT_EXPIRED)
+        self.assertIn("Time is up", err)
+
+        question = self.state()["questions"][0]
+        self.assertEqual(question["attempts"], 0, "late attempt was recorded")
+        self.assertIsNone(question["result"], "late work was graded")
+
+    def test_submit_with_no_session(self):
+        code, _, _ = self.run_session("submit", cwd=str(self.root))
+        self.assertEqual(code, EXIT_NO_SESSION)
+
+    def test_unknown_question(self):
+        self.start()
+        code, _, err = self.run_session("submit", "--question", "q9", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("q1", err)
+
+    def test_hidden_test_names_never_appear_in_output(self):
+        """Counts only. A test name describes the edge case it guards."""
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text("def solve(entries):\n    return {}\n")
+        _, out, err = self.run_session("submit", "--now", T0 + 60)
+        _, jout, _ = self.run_session("submit", "--now", T0 + 90, "--json")
+        hidden = (BANK / "tests_hidden.py").read_text()
+        names = [
+            line.split("def ")[1].split("(")[0]
+            for line in hidden.splitlines()
+            if line.strip().startswith("def test_")
+        ]
+        self.assertGreater(len(names), 10)
+        for name in names:
+            for stream in (out, err, jout):
+                self.assertNotIn(name, stream, "leaked %s" % name)
 
 
 if __name__ == "__main__":

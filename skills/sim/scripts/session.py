@@ -22,12 +22,13 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
 # changing one is a breaking change.
@@ -38,6 +39,7 @@ EXIT_EXPIRED = 4
 EXIT_ACTIVE_SESSION = 5
 EXIT_BANK = 6
 EXIT_ENVIRONMENT = 7
+EXIT_TIMEOUT = 8
 
 # Session states. EXPIRED is deliberately never written to disk: it exists only
 # in the window between the deadline passing and the next command noticing,
@@ -330,6 +332,7 @@ def load_bank(fmt: str) -> List[Dict[str, Any]]:
             if not (entry / source).exists():
                 raise SessionError("%s is missing %s" % (entry, source), EXIT_BANK)
         meta["_dir"] = entry
+        meta["_format"] = fmt
         questions.append(meta)
 
     questions.sort(key=lambda item: (item.get("slot", 99), item.get("id", "")))
@@ -374,6 +377,11 @@ def materialize(workspace: Path, questions: List[Dict[str, Any]]) -> List[Dict[s
                 "slot": index,
                 "id": question.get("id", directory_name),
                 "dir": directory_name,
+                # Where the hidden suite lives, relative to the bank root.
+                # Recorded rather than reconstructed from the id so that
+                # renaming or removing a question breaks loudly at submit time
+                # instead of silently grading against the wrong thing.
+                "source": "%s/%s" % (question["_format"], question["_dir"].name),
                 "title": question.get("title", ""),
                 "difficulty": question.get("difficulty", ""),
                 "state": "unlocked",
@@ -467,6 +475,7 @@ def status_payload(state: Dict[str, Any], now: float, phase: str) -> Dict[str, A
                 "title": q["title"],
                 "state": q["state"],
                 "attempts": q["attempts"],
+                "result": q.get("result"),
             }
             for q in state["questions"]
         ],
@@ -498,9 +507,16 @@ def print_status(payload: Dict[str, Any], as_json: bool) -> None:
     print("workspace %s" % (payload["workspace"],))
     print("")
     for question in payload["questions"]:
+        result = question.get("result")
+        if result and result.get("total"):
+            score = "%d/%d" % (result["passed"], result["total"])
+        elif question["attempts"]:
+            score = result.get("outcome", "?") if result else "?"
+        else:
+            score = "not submitted"
         print(
-            "  %-4s %-10s %s"
-            % (question["dir"], question["state"], question["title"] or question["id"])
+            "  %-4s %-14s %s"
+            % (question["dir"], score, question["title"] or question["id"])
         )
 
 
@@ -615,6 +631,160 @@ def command_start(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def find_question(state: Dict[str, Any], wanted: Optional[str]) -> Dict[str, Any]:
+    """Resolve a question by directory name, slot number, or id."""
+    questions = state["questions"]
+    if wanted is None:
+        if len(questions) == 1:
+            return questions[0]
+        raise SessionError(
+            "Which question? Pass --question with one of: %s"
+            % (", ".join(q["dir"] for q in questions),),
+            EXIT_USAGE,
+        )
+    needle = str(wanted).strip().lower()
+    for question in questions:
+        if needle in (question["dir"].lower(), str(question["slot"]), question["id"].lower()):
+            return question
+    raise SessionError(
+        "No question %r in this session. Have: %s"
+        % (wanted, ", ".join(q["dir"] for q in questions)),
+        EXIT_USAGE,
+    )
+
+
+def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict[str, Any]:
+    """Shell out to grade.py.
+
+    A subprocess rather than an import, so the candidate's code never executes
+    inside the process holding the state file open.
+    """
+    grader = Path(__file__).resolve().parent / "grade.py"
+    if not grader.exists():
+        raise SessionError("Grader missing at %s" % (grader,), EXIT_ENVIRONMENT)
+
+    bank_dir = QUESTIONS_DIR / question["source"]
+    if not bank_dir.is_dir():
+        raise SessionError(
+            "Question %s is no longer in the bank at %s. It was renamed or "
+            "removed after this session started." % (question["id"], bank_dir),
+            EXIT_BANK,
+        )
+
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            str(grader),
+            "--question",
+            str(bank_dir),
+            "--solution",
+            str(solution),
+            "--timeout",
+            str(timeout),
+            "--json",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
+    out, err = proc.communicate()
+    try:
+        return json.loads(out)
+    except ValueError:
+        raise SessionError(
+            "Grader failed: %s" % ((err or out).strip() or "no output",),
+            EXIT_ENVIRONMENT,
+        )
+
+
+def command_submit(args: argparse.Namespace) -> int:
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+
+    # The lockout. The architecture contract says the script rejects late work,
+    # so this decision lives here and not in anything that could be talked out
+    # of it.
+    if phase == STATE_ENDED:
+        reason = state["clock"].get("end_reason")
+        if reason == END_REASON_TIME:
+            message = "Time is up. This submission was not accepted."
+        else:
+            message = "This session is over (%s). Nothing more can be submitted." % (reason,)
+        sys.stderr.write(message + "\n")
+        return EXIT_EXPIRED
+
+    question = find_question(state, args.question)
+    solution = workspace / question["dir"] / "solution.py"
+
+    report = run_grader(question, solution, args.timeout)
+
+    question["attempts"] = question.get("attempts", 0) + 1
+    question["last_submit_epoch"] = now
+    question["result"] = {
+        "passed": report.get("passed", 0),
+        "total": report.get("total", 0),
+        "credit": report.get("credit", 0.0),
+        "outcome": report.get("outcome", "unknown"),
+        "at_epoch": now,
+    }
+    add_event(
+        state,
+        now,
+        "submitted",
+        question=question["dir"],
+        attempt=question["attempts"],
+        outcome=question["result"]["outcome"],
+        passed=question["result"]["passed"],
+        total=question["result"]["total"],
+    )
+    write_state(workspace, state)
+
+    payload = {
+        "question": question["dir"],
+        "id": question["id"],
+        "attempt": question["attempts"],
+        "remaining_display": format_duration(state["clock"]["deadline_epoch"] - now),
+        "accepted": True,
+    }
+    payload.update(question["result"])
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        outcome = report.get("outcome")
+        if outcome == "missing":
+            print("No solution.py found in %s/." % (question["dir"],))
+        elif outcome == "import_error":
+            print(
+                "%s/solution.py did not import (%s). Nothing could be graded."
+                % (question["dir"], report.get("detail"))
+            )
+        elif outcome == "timeout":
+            print("%s/solution.py did not finish. Something is not terminating." % (question["dir"],))
+        else:
+            print(
+                "%s  %d of %d hidden tests passed (%.0f%%)."
+                % (
+                    question["dir"],
+                    report["passed"],
+                    report["total"],
+                    report["credit"] * 100,
+                )
+            )
+        print("")
+        print("attempt %d, %s left on the clock." % (question["attempts"], payload["remaining_display"]))
+
+    if report.get("outcome") == "timeout":
+        return EXIT_TIMEOUT
+    return EXIT_OK
+
+
 def command_status(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
@@ -661,6 +831,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common(start)
     start.set_defaults(func=command_start)
+
+    submit = subparsers.add_parser("submit", help="grade a solution against the hidden tests")
+    submit.add_argument("--question", default=None, help="q1, a slot number, or a question id")
+    submit.add_argument("--workspace", default=None)
+    submit.add_argument("--session", default=None)
+    submit.add_argument("--timeout", type=float, default=30.0)
+    add_common(submit)
+    submit.set_defaults(func=command_submit)
 
     status = subparsers.add_parser("status", help="show time remaining")
     status.add_argument("--workspace", default=None)

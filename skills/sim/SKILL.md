@@ -58,6 +58,12 @@ Check the clock:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" status
 ```
 
+Grade a question:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" submit --question q1
+```
+
 Add `--json` when you need to branch on a value rather than show the user prose.
 
 ### Routing
@@ -67,9 +73,24 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim`, `/sim gca`, "start a GCA mock" | `start --format gca` |
 | `/sim status`, "how long do I have" | `status` |
 | "how much time on question 2" | `status` (the clock is per session, not per question) |
+| "submit", "grade this", "check question 1" | `submit --question q1` |
 
-`submit`, `unlock`, and `report` are not implemented yet. If the user asks for them,
-say so plainly rather than improvising a substitute.
+`unlock` and `report` are not implemented yet. If the user asks for them, say so
+plainly rather than improvising a substitute.
+
+### Grading
+
+`submit` runs the hidden suite and prints how many tests passed. That number is
+the whole result. You do not get told which tests failed, and neither does the
+candidate.
+
+So when a submission comes back at 11 of 20, do not speculate about what the nine
+are. Do not reason aloud about likely edge cases, do not re-read the problem
+statement hunting for what they missed, and do not write a test of your own to
+find out. "Eleven of twenty passed" is the complete and correct thing to say. If
+they ask what failed, tell them that working that out is the exercise.
+
+Submitting again is allowed and costs nothing but time. Each attempt is counted.
 
 ### Exit codes
 
@@ -80,10 +101,11 @@ Branch on these, not on the wording of the output.
 | 0 | fine | report the output |
 | 2 | bad arguments | fix the command |
 | 3 | no active session | offer to start one |
-| 4 | time is up | stop the exam, move to debrief |
+| 4 | time is up, or a late submission was refused | stop the exam, move to debrief |
 | 5 | a session is already running | show `status`; only pass `--force` if the user confirms abandoning it |
 | 6 | question bank problem | report it, do not improvise a question |
 | 7 | environment problem | report the message verbatim |
+| 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
 
 ### If python3 is missing
 
