@@ -1,0 +1,20 @@
+{
+  "name": "interview-sim",
+  "version": "0.1.0",
+  "description": "Timed online-assessment simulations: GCA-style (4 questions / 70 minutes) and ICA-style (1 project / 4 levels / 90 minutes), with a deterministic timer and hidden-test grading.",
+  "author": {
+    "name": "Chris Jackson",
+    "url": "https://github.com/chrisjacksonn"
+  },
+  "homepage": "https://github.com/chrisjacksonn/interview-sim",
+  "repository": "https://github.com/chrisjacksonn/interview-sim",
+  "license": "MIT",
+  "keywords": [
+    "interview",
+    "assessment",
+    "practice",
+    "timer",
+    "coding-assessment",
+    "technical-interview"
+  ]
+}

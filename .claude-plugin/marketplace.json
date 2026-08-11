@@ -1,0 +1,17 @@
+{
+  "name": "interview-sim",
+  "description": "Timed technical-assessment simulations that run in your terminal.",
+  "owner": {
+    "name": "Chris Jackson",
+    "url": "https://github.com/chrisjacksonn"
+  },
+  "plugins": [
+    {
+      "name": "interview-sim",
+      "source": "./",
+      "description": "Timed online-assessment simulations with a deterministic timer and hidden-test grading. Original questions only.",
+      "category": "productivity",
+      "homepage": "https://github.com/chrisjacksonn/interview-sim"
+    }
+  ]
+}
