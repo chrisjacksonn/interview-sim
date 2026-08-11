@@ -5,11 +5,9 @@ Timed technical-assessment practice that runs in your terminal, as an Agent Skil
 CodeSignal-style and LeetCode-style practice, simulated in your IDE. Not
 affiliated with or endorsed by CodeSignal or LeetCode.
 
-## Status: day one
+## Status
 
-Early. What works today:
-
-Both formats run end to end.
+The engine is complete. Both formats run end to end.
 
 - **GCA-style**: four questions, seventy minutes, all unlocked at once
 - **ICA-style**: one project, four levels, ninety minutes, levels gated by hidden
@@ -18,9 +16,15 @@ Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-Not built yet: company presets, so `/sim ramp` does not work. The bank is four
-GCA questions and one ICA project, which is one sitting of each. If you want a
-filled-out question bank, come back in a couple of weeks.
+The bank is **six GCA questions and one ICA project**, which is a couple of
+sittings. Growing it is the current work. A session takes one question per
+difficulty slot and picks at random where a slot has several, so two sittings are
+not the same exam twice.
+
+Company presets are wired up but the table is empty, so `/sim <company>` has
+nothing to look up yet. That is deliberate: every entry needs a real source and a
+confirmation date before it ships, and inventing them would have been quicker and
+dishonest.
 
 ## Why it exists
 
