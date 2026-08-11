@@ -38,7 +38,13 @@ REQUIRED_FILES = (
     "tests_hidden.py",
     "reference.py",
 )
+# ICA projects are one evolving file across several gated levels, so the
+# per-level material lives in levelN/ and there is a single starter and
+# reference at the top.
+REQUIRED_ICA_FILES = ("meta.json", "starter.py", "reference.py")
+REQUIRED_ICA_LEVEL_FILES = ("problem.md", "tests_public.py", "tests_hidden.py")
 REQUIRED_META = ("id", "slot", "difficulty", "title")
+REQUIRED_ICA_META = ("id", "levels", "title")
 MIN_MUTANTS = 3
 TIMEOUT = 30.0
 
@@ -127,7 +133,110 @@ def check_mutants(question):
     return caught
 
 
+def level_dirs(project):
+    return sorted(project.glob("level*"), key=lambda p: int(p.name[5:]))
+
+
+def check_ica(project, verbose):
+    """Validate a multi-level ICA project.
+
+    Same two halves as a GCA question, applied per level, plus the thing that
+    makes ICA different: the reference has to satisfy every level at once, since
+    the candidate is extending one file rather than starting fresh each time. A
+    reference that passes level 4 but broke level 1 would let a question ship
+    that punishes the candidate for doing exactly what was asked.
+    """
+    for name in REQUIRED_ICA_FILES:
+        if not (project / name).exists():
+            raise Failure("missing %s" % (name,))
+
+    with open(str(project / "meta.json")) as handle:
+        meta = json.load(handle)
+    for key in REQUIRED_ICA_META:
+        if key not in meta:
+            raise Failure("meta.json has no %r" % (key,))
+    if meta["id"] != project.name:
+        raise Failure(
+            "meta.json id is %r but the directory is %r" % (meta["id"], project.name)
+        )
+
+    levels = level_dirs(project)
+    if len(levels) != meta["levels"]:
+        raise Failure(
+            "meta.json says %d levels but %d level directories exist"
+            % (meta["levels"], len(levels))
+        )
+    if not levels:
+        raise Failure("no level directories")
+
+    for level in levels:
+        for name in REQUIRED_ICA_LEVEL_FILES:
+            if not (level / name).exists():
+                raise Failure("%s is missing %s" % (level.name, name))
+
+    total = 0
+    for level in levels:
+        report = grade.grade(level, project / "reference.py", TIMEOUT)
+        if report["outcome"] != "pass":
+            raise Failure(
+                "reference fails %s: %d/%d (%s)"
+                % (level.name, report["passed"], report["total"], report["outcome"])
+            )
+        total += report["total"]
+
+    starter = grade.grade(levels[0], project / "starter.py", TIMEOUT)
+    if starter["outcome"] == "pass":
+        raise Failure("the untouched starter passes level 1")
+
+    mutants = sorted(
+        p for p in (project / "mutants").glob("*.py") if not p.name.startswith("_")
+    ) if (project / "mutants").is_dir() else []
+    if len(mutants) < MIN_MUTANTS:
+        raise Failure("only %d mutants, need at least %d" % (len(mutants), MIN_MUTANTS))
+
+    survivors = []
+    caught = []
+    for mutant in mutants:
+        # A mutant counts as caught if any level catches it. Breaking level 1
+        # while adding level 4 is the failure this is really looking for.
+        worst = None
+        for level in levels:
+            report = grade.grade(level, mutant, TIMEOUT)
+            if report["outcome"] != "pass":
+                worst = (level.name, report)
+                break
+        if worst is None:
+            survivors.append(mutant.name)
+        else:
+            level_name, report = worst
+            score = (
+                "%s %d/%d" % (level_name, report["passed"], report["total"])
+                if report["total"]
+                else "%s %s" % (level_name, report["outcome"])
+            )
+            caught.append((mutant.name, score))
+
+    if survivors:
+        raise Failure(
+            "these wrong answers passed every level: %s" % (", ".join(survivors),)
+        )
+
+    if verbose:
+        print("    %d levels, %d hidden tests, reference passes all" % (len(levels), total))
+        for name, score in caught:
+            print("    caught %-26s %s" % (name, score))
+    return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught)}
+
+
 def check_question(question, verbose):
+    if (question / "meta.json").exists():
+        try:
+            with open(str(question / "meta.json")) as handle:
+                if json.load(handle).get("format") == "ica":
+                    return check_ica(question, verbose)
+        except ValueError as exc:
+            raise Failure("meta.json is not valid JSON: %s" % (exc,))
+
     check_files(question)
     meta = check_meta(question)
     total = check_reference(question)
