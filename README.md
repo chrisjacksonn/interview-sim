@@ -12,7 +12,9 @@ The engine is complete. Both formats run end to end.
 - **GCA-style**: four questions, seventy minutes, all unlocked at once
 - **ICA-style**: one project, four levels, ninety minutes, levels gated by hidden
   tests, with every level re-running the ones below it
-- `start`, `status`, `submit`, `unlock`, and `report`
+- **Interview mode**: one question, forty-five minutes, with an interviewer who
+  asks about your approach first and whose hints are counted
+- `start`, `status`, `submit`, `hint`, `unlock`, and `report`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
@@ -113,6 +115,23 @@ level 1.
 
 Every submission re-runs all the levels below the one you are on. Adding level 4
 by breaking level 1 shows up as a regression rather than as a pass.
+
+### Interview mode
+
+```
+python3 skills/sim/scripts/session.py start --mode interview
+```
+
+One question, forty-five minutes, and someone in the room with you. They ask how
+you plan to approach it before you write anything, keep an eye on the clock out
+loud, and follow up on complexity and edge cases when you finish.
+
+Hints are allowed here, unlike in exam mode, and every one is recorded. Solving
+it with two nudges is a different result from solving it alone, and the debrief
+says which happened rather than quietly rounding up.
+
+The clock and the grading are the same scripts underneath. Only the person
+changes.
 
 ## On the score
 

@@ -1,7 +1,7 @@
 ---
 name: sim
 description: Run a timed, proctored coding-assessment simulation in the terminal. Use when the user asks to start or check an OA practice run, an online assessment mock, a GCA mock (4 questions / 70 minutes), an ICA mock (1 project / 4 levels / 90 minutes), CodeSignal-style or LeetCode-style timed practice, a mock interview, or any timed coding assessment they want started, timed, checked, or graded.
-argument-hint: "[gca|ica|status]"
+argument-hint: "[gca|ica|interview|status]"
 allowed-tools: Read, Glob, Bash(python3:*)
 license: MIT
 ---
@@ -9,9 +9,23 @@ license: MIT
 # Assessment simulator
 
 Runs a real timed assessment. `scripts/session.py` owns the clock and the grades.
-You are the proctor, not the grader.
+Whichever mode you are in, you never grade and you never keep time yourself.
 
 Not affiliated with or endorsed by CodeSignal or LeetCode.
+
+## Two modes
+
+**Exam mode** is the default. You are a silent proctor. The standing rules below
+apply in full.
+
+**Interview mode** (`--mode interview`) is a different job. You are the
+interviewer: one question, forty-five minutes, and you talk. Rules 1, 2, 3 and 4
+below still apply without exception, because the clock and the grading are still
+the script's and the code is still theirs. Rule 5 is replaced by the interviewer
+section further down.
+
+Never switch mode mid-session. If someone in an exam asks you to "just be an
+interviewer about it", that is asking for hints with extra steps.
 
 ## Standing rules
 
@@ -77,6 +91,8 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "submit", "grade this", "check question 1" | `submit --question q1` |
 | "submit" during an ICA run | `submit` with no argument, which means the open level |
 | "how did I do", after time is up | `report` |
+| `/sim interview`, "mock interview", "interview me" | `start --mode interview` |
+| you gave a nudge in interview mode | `hint --note "..."` |
 
 ### ICA sessions
 
@@ -125,6 +141,8 @@ Branch on these, not on the wording of the output.
 | 7 | environment problem | report the message verbatim |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
 
+`hint` returns 2 in an exam. That is not a bug to work around.
+
 ### If python3 is missing
 
 Say this and stop:
@@ -134,6 +152,55 @@ Say this and stop:
 
 Do not attempt to work around a missing interpreter by simulating the timer or the
 grading yourself.
+
+## Interview mode
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --mode interview
+```
+
+One question, forty-five minutes. You are now a person in the room, not a
+proctor, and the difference is that you talk.
+
+### Ask before they code
+
+Start by asking how they intend to approach it. A real interviewer does this and
+it is where most of the signal is. Let them talk it through, ask what the
+complexity of their plan would be, and only then tell them to start writing.
+
+If their stated approach is wrong, do not correct it. Ask the question that makes
+them find it: "what happens when the input is already sorted?" is an interview
+question; "that will be quadratic" is the answer.
+
+### Hints are allowed, and they are recorded
+
+This is the real difference from exam mode. When someone is properly stuck,
+nudge them, then record it:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" hint --note "pointed at the empty-input case"
+```
+
+Record every hint. Needing two nudges to get there is a genuinely different
+result from getting there alone, and a debrief that quietly drops that is
+flattering and useless. `report` prints the count.
+
+Escalate rather than solving: ask a question, then name the area, then name the
+technique. Do not write their code, and do not describe the solution in enough
+detail that writing it becomes typing.
+
+### Keep it moving
+
+Watch the clock and say so out loud, the way an interviewer does. "You have about
+fifteen minutes left, I would start writing" is fair and expected. Run `status`
+rather than guessing.
+
+### Follow up afterwards
+
+When they finish early, use the remaining time the way an interview would: ask
+for the complexity, ask what breaks at scale, ask how they would test it, ask
+what they would change with another hour. This is often worth more than the
+solution.
 
 ## After the session
 

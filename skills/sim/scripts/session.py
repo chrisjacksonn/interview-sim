@@ -64,6 +64,15 @@ STATE_LOCKED = "locked"
 STATE_UNLOCKED = "unlocked"
 STATE_PASSED = "passed"
 
+# Interview mode is the same engine with a different set of defaults and a
+# different person running it. One question rather than four, more time on it,
+# and hints are available at a cost instead of refused outright. The scripts
+# still own the clock and the grades; only the persona changes.
+MODE_DEFAULTS = {
+    "exam": {},
+    "interview": {"questions": 1, "minutes": 45},
+}
+
 SKILL_DIR = Path(__file__).resolve().parent.parent
 QUESTIONS_DIR = SKILL_DIR / "questions"
 PRESETS_FILE = SKILL_DIR / "presets.json"
@@ -502,6 +511,7 @@ def materialize(workspace: Path, questions: List[Dict[str, Any]]) -> List[Dict[s
                 "difficulty": question.get("difficulty", ""),
                 "state": "unlocked",
                 "attempts": 0,
+                "hints": 0,
                 "last_submit_epoch": None,
                 "result": None,
             }
@@ -546,6 +556,7 @@ def materialize_ica(workspace: Path, meta: Dict[str, Any], count: int) -> List[D
                 "difficulty": "level%d" % (index,),
                 "state": STATE_UNLOCKED if index == 1 else STATE_LOCKED,
                 "attempts": 0,
+                "hints": 0,
                 "last_submit_epoch": None,
                 "result": None,
             }
@@ -690,11 +701,6 @@ def print_status(payload: Dict[str, Any], as_json: bool) -> None:
 def command_start(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
 
-    if args.mode == "interview":
-        raise SessionError(
-            "Interview mode is not implemented in v1. Use --mode exam.", EXIT_USAGE
-        )
-
     preset = resolve_preset(args.preset) if args.preset else None
     fmt = preset["format"] if preset else args.format
     if fmt not in FORMATS:
@@ -705,12 +711,19 @@ def command_start(args: argparse.Namespace) -> int:
     config = FORMATS[fmt]
 
     # Explicit flags beat the preset, the preset beats the format default.
+    # Explicit flags beat the preset, the preset beats the mode's defaults, and
+    # those beat the format's.
+    mode_defaults = MODE_DEFAULTS.get(args.mode, {})
     count = args.questions
     if count is None:
-        count = (preset or {}).get("questions", config["questions"])
+        count = (preset or {}).get(
+            "questions", mode_defaults.get("questions", config["questions"])
+        )
     minutes = args.minutes
     if minutes is None:
-        minutes = (preset or {}).get("minutes", config["minutes"])
+        minutes = (preset or {}).get(
+            "minutes", mode_defaults.get("minutes", config["minutes"])
+        )
     if count < 1:
         raise SessionError("--questions must be at least 1", EXIT_USAGE)
     if minutes <= 0:
@@ -1230,6 +1243,7 @@ def command_report(args: argparse.Namespace) -> int:
                 "title": question["title"] or question["id"],
                 "difficulty": question.get("difficulty", ""),
                 "attempts": question.get("attempts", 0),
+                "hints": question.get("hints", 0),
                 "summary": summary,
                 "credit": (result or {}).get("credit", 0.0),
                 "last_submit_epoch": question.get("last_submit_epoch"),
@@ -1242,6 +1256,7 @@ def command_report(args: argparse.Namespace) -> int:
     # "60 of 60 passed" and called itself strong. A question that did not run is
     # a zero, not an absence.
     credit = sum(line["credit"] for line in lines) / count if count else 0.0
+    hints_given = sum(line["hints"] for line in lines)
     clock = state["clock"]
     used = (clock.get("ended_epoch") or min(now, clock["deadline_epoch"])) - clock["started_epoch"]
 
@@ -1258,6 +1273,7 @@ def command_report(args: argparse.Namespace) -> int:
         "tests_total": total_tests,
         "credit": round(credit, 4),
         "band": band_for(credit, solved, count),
+        "hints": hints_given,
         "time_used_display": format_duration(used),
         "duration_display": format_duration(clock["duration_seconds"]),
         "detail": lines,
@@ -1303,10 +1319,75 @@ def command_report(args: argparse.Namespace) -> int:
             )
     print(
         "Overall: %.0f%% credit across all %d %s, %s."
-        % (credit * 100, count, "levels" if gated else "questions", payload["band"])
+        % (
+            credit * 100,
+            count,
+            ("level" if count == 1 else "levels")
+            if gated
+            else ("question" if count == 1 else "questions"),
+            payload["band"],
+        )
     )
+    if state["mode"] == "interview":
+        if hints_given:
+            print(
+                "%d hint%s given. Solving it with help is a different result "
+                "from solving it alone, and the debrief should say so."
+                % (hints_given, "" if hints_given == 1 else "s")
+            )
+        else:
+            print("No hints given.")
     print("")
     print(payload["score_note"])
+    return EXIT_OK
+
+
+def command_hint(args: argparse.Namespace) -> int:
+    """Record that the interviewer gave a nudge.
+
+    Interview mode allows hints because a real interviewer does, but needing one
+    is signal, and signal that vanishes is useless. The count and the wording go
+    into the session so the debrief can say "you got there, with two nudges on
+    the data structure" rather than just reporting a pass.
+
+    Exam mode refuses. A proctor who hands out hints is not proctoring.
+    """
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+
+    if state["mode"] != "interview":
+        raise SessionError(
+            "Hints are an interview-mode thing. This is an exam: clarify the "
+            "wording if it is ambiguous, but do not give the approach away.",
+            EXIT_USAGE,
+        )
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+    if phase == STATE_ENDED:
+        sys.stderr.write("Time is up. Nothing more to record.\n")
+        return EXIT_EXPIRED
+
+    question = find_question(state, args.question)
+    question["hints"] = question.get("hints", 0) + 1
+    add_event(state, now, "hint", question=question["dir"], note=args.note or "")
+    write_state(workspace, state)
+
+    payload = {
+        "question": question["dir"],
+        "hints": question["hints"],
+        "note": args.note or "",
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            "Noted: hint %d on %s.%s"
+            % (question["hints"], question["dir"], (" " + args.note) if args.note else "")
+        )
     return EXIT_OK
 
 
@@ -1367,6 +1448,14 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--timeout", type=float, default=30.0)
     add_common(submit)
     submit.set_defaults(func=command_submit)
+
+    hint = subparsers.add_parser("hint", help="record an interviewer hint")
+    hint.add_argument("--question", default=None)
+    hint.add_argument("--note", default=None, help="what the hint actually was")
+    hint.add_argument("--workspace", default=None)
+    hint.add_argument("--session", default=None)
+    add_common(hint)
+    hint.set_defaults(func=command_hint)
 
     unlock = subparsers.add_parser("unlock", help="reveal the next ICA level")
     unlock.add_argument("--workspace", default=None)

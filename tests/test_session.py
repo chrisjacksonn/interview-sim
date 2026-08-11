@@ -155,16 +155,9 @@ class TestStart(SessionTestCase):
         self.start(extra=["--minutes", "5"])
         self.assertEqual(self.state()["clock"]["duration_seconds"], 300)
 
-    def test_mode_is_recorded_from_day_one(self):
+    def test_mode_defaults_to_exam(self):
         self.start()
         self.assertEqual(self.state()["mode"], "exam")
-
-    def test_interview_mode_is_refused(self):
-        code, _, err = self.run_session(
-            "start", "--format", "gca", "--mode", "interview", "--now", T0
-        )
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("not implemented", err)
 
     def test_short_bank_is_an_error_not_a_silent_short_session(self):
         """Asking for more questions than exist must fail loudly.
@@ -529,6 +522,106 @@ class TestICA(SessionTestCase):
     def test_ica_duration_is_ninety_minutes(self):
         self.start_ica()
         self.assertEqual(self.state()["clock"]["duration_seconds"], 90 * 60)
+
+
+class TestInterviewMode(BankAwareTestCase):
+    def start_interview(self, now=T0):
+        code, _, err = self.run_session("start", "--mode", "interview", "--now", now)
+        self.assertEqual(code, EXIT_OK, err)
+        return self.workspace()
+
+    def test_defaults_to_one_question_and_forty_five_minutes(self):
+        self.start_interview()
+        state = self.state()
+        self.assertEqual(state["mode"], "interview")
+        self.assertEqual(len(state["questions"]), 1)
+        self.assertEqual(state["clock"]["duration_seconds"], 45 * 60)
+
+    def test_explicit_flags_still_win(self):
+        code, _, err = self.run_session(
+            "start", "--mode", "interview", "--questions", "2",
+            "--minutes", "20", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(len(self.state()["questions"]), 2)
+        self.assertEqual(self.state()["clock"]["duration_seconds"], 20 * 60)
+
+    def test_hints_are_recorded(self):
+        self.start_interview()
+        code, out, err = self.run_session(
+            "hint", "--note", "nudged toward a dictionary", "--now", T0 + 60, "--json"
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(json.loads(out)["hints"], 1)
+        self.assertEqual(self.state()["questions"][0]["hints"], 1)
+
+    def test_hints_accumulate(self):
+        self.start_interview()
+        for step in range(3):
+            self.run_session("hint", "--now", T0 + 60 * (step + 1))
+        self.assertEqual(self.state()["questions"][0]["hints"], 3)
+
+    def test_hint_wording_is_kept_in_the_event_log(self):
+        """A count alone cannot tell you whether the nudge was small or huge."""
+        self.start_interview()
+        self.run_session("hint", "--note", "pointed at the empty case", "--now", T0 + 60)
+        notes = [e.get("note") for e in self.state()["events"] if e["type"] == "hint"]
+        self.assertEqual(notes, ["pointed at the empty case"])
+
+    def test_report_surfaces_hints(self):
+        workspace = self.start_interview()
+        self.run_session("hint", "--now", T0 + 60)
+        self.install_reference(workspace)
+        self.run_session("submit", "--now", T0 + 120)
+        code, out, _ = self.run_session("report", "--now", T0 + 200, "--json")
+        self.assertEqual(code, EXIT_OK)
+        payload = json.loads(out)
+        self.assertEqual(payload["hints"], 1)
+        self.assertEqual(payload["detail"][0]["hints"], 1)
+
+        _, text, _ = self.run_session("report", "--now", T0 + 200)
+        self.assertIn("1 hint given", text)
+
+    def test_report_says_so_when_no_hints_were_given(self):
+        workspace = self.start_interview()
+        self.install_reference(workspace)
+        self.run_session("submit", "--now", T0 + 120)
+        _, text, _ = self.run_session("report", "--now", T0 + 200)
+        self.assertIn("No hints given", text)
+
+    def test_hints_are_refused_in_exam_mode(self):
+        """A proctor who hands out hints is not proctoring."""
+        self.run_session("start", "--format", "gca", "--now", T0)
+        code, _, err = self.run_session("hint", "--question", "q1", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("interview-mode", err)
+        self.assertEqual(self.state()["questions"][0]["hints"], 0)
+
+    def test_hints_are_refused_after_time(self):
+        self.start_interview()
+        code, _, err = self.run_session("hint", "--now", T0 + 46 * 60)
+        self.assertEqual(code, EXIT_EXPIRED)
+        self.assertIn("Time is up", err)
+
+    def test_grading_is_unchanged_by_the_mode(self):
+        """Only the persona changes. The scripts still own the grades."""
+        workspace = self.start_interview()
+        self.install_reference(workspace)
+        _, out, _ = self.run_session("submit", "--now", T0 + 120, "--json")
+        report = json.loads(out)
+        self.assertEqual(report["outcome"], "pass")
+        self.assertEqual(report["passed"], report["total"])
+
+    def test_late_submission_still_refused_in_interview_mode(self):
+        workspace = self.start_interview()
+        self.install_reference(workspace)
+        code, _, _ = self.run_session("submit", "--now", T0 + 46 * 60)
+        self.assertEqual(code, EXIT_EXPIRED)
+
+    def test_exam_mode_reports_do_not_mention_hints(self):
+        workspace = self.run_session("start", "--format", "gca", "--questions", "1", "--now", T0)
+        _, text, _ = self.run_session("report", "--now", T0 + 60)
+        self.assertNotIn("hint", text.lower())
 
 
 class TestStateFile(SessionTestCase):
