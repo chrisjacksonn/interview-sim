@@ -18,9 +18,8 @@ The engine is complete. Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **twelve GCA questions and three ICA projects**: three questions in
-every difficulty slot, so three GCA sittings and three ICA sittings before
-anything repeats. A session takes one question per slot and picks at random,
+The bank is **fifteen GCA questions and three ICA projects**: three or four questions in
+every difficulty slot, so three sittings of each format before anything repeats. A session takes one question per slot and picks at random,
 so two sittings are not the same exam twice.
 
 Company presets cover eighteen companies. Each records two separate claims: that
@@ -220,8 +219,10 @@ Every question here is written from scratch against a public format description.
 Real assessment items are not copied, paraphrased, or reconstructed. If you
 recognise one as real, open an issue and it gets replaced.
 
-See [ETHICS.md](ETHICS.md) for what this tool will and will not do, and
-[METHODOLOGY.md](METHODOLOGY.md) for exactly what is being measured.
+See [ETHICS.md](ETHICS.md) for what this tool will and will not do,
+[METHODOLOGY.md](METHODOLOGY.md) for exactly what is being measured, and
+[skills/sim/references/formats.md](skills/sim/references/formats.md) for the
+format specs the questions are calibrated against.
 
 ## Contributing
 
