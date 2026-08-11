@@ -1,0 +1,12 @@
+{
+  "id": "shelf-tally",
+  "format": "gca",
+  "slot": 1,
+  "difficulty": "warmup",
+  "title": "Shelf Tally",
+  "time_hint_minutes": 10,
+  "entrypoint": "solve",
+  "topics": ["strings", "parsing", "dictionaries"],
+  "original": true,
+  "authored": "2026-08-11"
+}
