@@ -9,17 +9,18 @@ affiliated with or endorsed by CodeSignal or LeetCode.
 
 Early. What works today:
 
-A full GCA-format run works end to end: four questions, seventy minutes, graded
-against hidden tests, with a hard stop at the buzzer.
+Both formats run end to end.
 
-- `start`, `status`, `submit`, and `report`
-- hidden-test grading with partial credit per question
+- **GCA-style**: four questions, seventy minutes, all unlocked at once
+- **ICA-style**: one project, four levels, ninety minutes, levels gated by hidden
+  tests, with every level re-running the ones below it
+- `start`, `status`, `submit`, `unlock`, and `report`
+- hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
-- four questions ramping from warm-up to hard, all passing the quality gate below
 
-Not built yet: ICA mode (one project, four gated levels) and company presets. The
-bank is four questions, which is one sitting. If you want a filled-out question
-bank, come back in a couple of weeks.
+Not built yet: company presets, so `/sim ramp` does not work. The bank is four
+GCA questions and one ICA project, which is one sitting of each. If you want a
+filled-out question bank, come back in a couple of weeks.
 
 ## Why it exists
 
@@ -94,6 +95,20 @@ meant to work out. Resubmit as often as you like, it only costs time.
 
 Once the deadline passes the session is over, and a submission after that is
 refused even if it is correct. `report` then summarises the sitting.
+
+### ICA runs work differently
+
+```
+python3 skills/sim/scripts/session.py start --format ica
+```
+
+You get one project and one `solution.py`. Only level 1's statement is on disk;
+the next level appears when the current one passes. You cannot read ahead, which
+is deliberate, because level 4 exists to invalidate a design decision you made at
+level 1.
+
+Every submission re-runs all the levels below the one you are on. Adding level 4
+by breaking level 1 shows up as a regression rather than as a pass.
 
 ## On the score
 
