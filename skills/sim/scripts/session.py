@@ -727,7 +727,26 @@ def command_start(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
 
     preset = resolve_preset(args.preset) if args.preset else None
-    fmt = preset["format"] if preset else args.format
+    if preset is not None and preset.get("format") is None:
+        # The company is a confirmed CodeSignal customer but which assessment
+        # they give is not known. Say so and let the caller choose, rather than
+        # picking one and letting them believe it was researched.
+        if args.format_given:
+            fmt = args.format
+        else:
+            raise SessionError(
+                "%s is a confirmed CodeSignal customer, but which assessment "
+                "they use is not confirmed.%s\n"
+                "Pick one: --preset %s --format gca, or --format ica."
+                % (
+                    preset["_name"],
+                    ("\n" + preset["note"]) if preset.get("note") else "",
+                    preset["_name"],
+                ),
+                EXIT_USAGE,
+            )
+    else:
+        fmt = preset["format"] if preset else args.format
     if fmt not in FORMATS:
         raise SessionError(
             "Unknown format %r. Known: %s" % (fmt, ", ".join(sorted(FORMATS))),
@@ -840,12 +859,25 @@ def command_start(args: argparse.Namespace) -> int:
         print("Session started: %s" % (session_id,))
         print("")
         if preset is not None:
+            # Two separate claims. That they use CodeSignal is often first-party
+            # and solid; which assessment they give usually is not, and printing
+            # the first next to the format would launder one into the other.
             print(
-                "%s preset: %s, %s confidence."
-                % (preset["_name"], fmt.upper(), preset.get("confidence", "unknown"))
+                "%s preset: uses CodeSignal (%s confidence)."
+                % (preset["_name"], preset.get("confidence", "unknown"))
             )
-            if preset.get("flavor"):
-                print("Reported style: %s" % (preset["flavor"],))
+            if preset.get("format") is None:
+                print(
+                    "Their format is not confirmed. Running %s because you asked "
+                    "for it, not because it was researched." % (fmt.upper(),)
+                )
+            else:
+                print(
+                    "Format %s, %s confidence."
+                    % (fmt.upper(), preset.get("format_confidence", "unknown"))
+                )
+            if preset.get("note"):
+                print(preset["note"])
             print(
                 "Formats change every hiring cycle. Your actual invite email "
                 "names the platform and the format; trust that over this."
@@ -1609,6 +1641,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # argparse cannot tell a typed --format from its default, and a preset with
+    # an unknown format needs to know which it was.
+    argv_list = sys.argv[1:] if argv is None else list(argv)
+    args.format_given = any(
+        item == "--format" or item.startswith("--format=") for item in argv_list
+    )
     if not getattr(args, "command", None):
         parser.print_help()
         return EXIT_USAGE

@@ -284,7 +284,7 @@ def check_question(question):
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}
 
 
-PRESET_REQUIRED = ("format", "minutes", "confidence", "sources", "last_confirmed")
+PRESET_REQUIRED = ("format", "confidence", "sources", "last_confirmed")
 PRESET_CONFIDENCE = ("high", "medium")
 
 
@@ -323,8 +323,26 @@ def check_presets():
             problems.append(
                 "preset %s last_confirmed must be YYYY-MM-DD, got %r" % (name, stamp)
             )
-        if entry.get("format") not in ("gca", "ica"):
-            problems.append("preset %s format must be gca or ica" % (name,))
+        # A null format is a legitimate answer: CodeSignal publishes who its
+        # customers are but not which assessment each one chooses. Recording
+        # "platform known, format unknown" beats inventing a format.
+        fmt = entry.get("format")
+        if fmt is None:
+            if entry.get("format_confidence") is not None:
+                problems.append(
+                    "preset %s has no format but claims format_confidence" % (name,)
+                )
+            continue
+
+        if fmt not in ("gca", "ica"):
+            problems.append("preset %s format must be gca, ica, or null" % (name,))
+        if entry.get("format_confidence") not in PRESET_CONFIDENCE:
+            problems.append(
+                "preset %s states a format so it needs a format_confidence of %s"
+                % (name, " or ".join(PRESET_CONFIDENCE))
+            )
+        if not isinstance(entry.get("minutes"), int):
+            problems.append("preset %s states a format so it needs minutes" % (name,))
     return problems
 
 

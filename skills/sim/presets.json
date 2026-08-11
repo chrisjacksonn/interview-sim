@@ -1,33 +1,165 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "_about": [
-    "Company to assessment-format mapping, so that '/sim <company>' launches the",
-    "right shape. JSON rather than YAML because the engine is stdlib only and",
-    "PyYAML is not a dependency this project is willing to take on. Presets are",
-    "flat scalars, so nothing is lost.",
+    "Company to assessment mapping, so that '/sim <company>' launches something",
+    "sensible. JSON rather than YAML because the engine is stdlib only.",
     "",
-    "Every entry MUST carry sources, confidence, and last_confirmed. tools/qa.py",
-    "rejects entries that do not, and CI runs it. This is deliberate: a preset is",
-    "a factual claim about what a company currently does, and an unsourced one is",
-    "a guess wearing a fact's clothing.",
+    "Every entry MUST carry sources and last_confirmed, and tools/qa.py rejects",
+    "entries without them. A preset is a factual claim about what a company",
+    "currently does to candidates and people plan their preparation around it.",
     "",
-    "confidence:",
-    "  high    multiple independent recent reports, or the company says so publicly",
+    "TWO SEPARATE CLAIMS, deliberately kept apart:",
+    "",
+    "  confidence         how sure we are the company uses CodeSignal at all",
+    "  format_confidence  how sure we are WHICH assessment they give",
+    "",
+    "They are not the same and conflating them is how a guess becomes received",
+    "wisdom. CodeSignal publishes its customer list, so the first claim is often",
+    "solid. It publishes nothing about which format any customer chooses, so the",
+    "second is usually unknown and most entries below say so with a null format.",
+    "An entry with no format still helps: it tells you the platform, and the",
+    "skill then asks which format you want rather than guessing for you.",
+    "",
+    "confidence and format_confidence:",
+    "  high    first-party, or several independent recent reports",
     "  medium  reported, but thinly or not recently",
     "",
-    "Formats change every hiring cycle. The skill says the confidence out loud and",
-    "reminds the user that their actual invite email names the platform."
+    "Formats change every hiring cycle. Your actual invite email names the",
+    "platform and the format, and it beats this table every time."
   ],
-  "_entry_template": {
-    "format": "gca or ica",
-    "questions": "number of questions, or levels for ica",
-    "minutes": "time limit",
-    "flavor": "one line on the reported style, or null",
-    "confidence": "high or medium",
-    "sources": [
-      "at least one url"
-    ],
-    "last_confirmed": "YYYY-MM-DD"
-  },
-  "presets": {}
+  "presets": {
+    "capital-one": {
+      "format": "gca",
+      "questions": 4,
+      "minutes": 70,
+      "confidence": "high",
+      "format_confidence": "medium",
+      "sources": [
+        "https://codesignal.com/customers/",
+        "https://github.com/Leader-board/OA-and-Interviews/blob/main/Online%20Assessments.md"
+      ],
+      "last_confirmed": "2026-08-11",
+      "note": "A community-maintained OA repo records Capital One moving to the CodeSignal GCA around the 2021-22 season. Not first-party, and several seasons old."
+    },
+    "ramp": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11",
+      "note": "Named on CodeSignal's own customer page. Which assessment they give is widely claimed to be the project-based one, but only by content farms, so it is recorded as unknown."
+    },
+    "uber": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "meta": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "dropbox": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "brex": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "robinhood": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "instacart": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "asana": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "reddit": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "zoom": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "gusto": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "klaviyo": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "zillow": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "nextdoor": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "elastic": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "handshake": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    },
+    "unitedhealth-group": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": ["https://codesignal.com/customers/"],
+      "last_confirmed": "2026-08-11"
+    }
+  }
 }

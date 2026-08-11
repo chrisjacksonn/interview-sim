@@ -710,6 +710,72 @@ class TestSlotSelection(SessionTestCase):
         self.assertEqual(code, EXIT_BANK)
 
 
+class TestPresets(SessionTestCase):
+    def test_a_preset_with_a_known_format_just_runs(self):
+        code, out, err = self.run_session(
+            "start", "--preset", "capital-one", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(self.state()["format"], "gca")
+        self.assertEqual(self.state()["clock"]["duration_seconds"], 70 * 60)
+
+    def test_platform_and_format_confidence_are_reported_separately(self):
+        """Conflating them is how a guess becomes received wisdom.
+
+        Capital One is a confirmed CodeSignal customer, which is first-party and
+        solid, but the claim that they use the GCA comes from a community repo
+        and is several seasons old. Printing "high confidence" next to the
+        format would launder the first claim into the second.
+        """
+        _, out, _ = self.run_session("start", "--preset", "capital-one", "--now", T0)
+        self.assertIn("uses CodeSignal (high confidence)", out)
+        self.assertIn("Format GCA, medium confidence", out)
+
+    def test_a_preset_with_an_unknown_format_refuses_to_guess(self):
+        code, _, err = self.run_session("start", "--preset", "ramp", "--now", T0)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("not confirmed", err)
+        self.assertIn("--format", err)
+
+    def test_an_unknown_format_preset_runs_once_you_choose(self):
+        code, out, err = self.run_session(
+            "start", "--preset", "ramp", "--format", "ica", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(self.state()["format"], "ica")
+        self.assertIn("not because it was researched", out)
+
+    def test_matching_ignores_case_and_punctuation(self):
+        for spelling in ("Capital One", "capital-one", "CAPITALONE"):
+            code, _, err = self.run_session(
+                "start", "--preset", spelling, "--now", T0, "--force"
+            )
+            self.assertEqual(code, EXIT_OK, "%s: %s" % (spelling, err))
+
+    def test_unknown_company_lists_the_known_ones(self):
+        code, _, err = self.run_session("start", "--preset", "nintendo", "--now", T0)
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("capital-one", err)
+
+    def test_every_preset_carries_its_evidence(self):
+        """The validator enforces this in CI; this is the same check at unit level."""
+        presets_file = REPO / "skills" / "sim" / "presets.json"
+        with open(str(presets_file)) as handle:
+            presets = json.load(handle)["presets"]
+        self.assertGreater(len(presets), 10)
+        for name, entry in presets.items():
+            self.assertTrue(entry.get("sources"), "%s cites nothing" % name)
+            for source in entry["sources"]:
+                self.assertTrue(source.startswith("http"), "%s: %r" % (name, source))
+            self.assertRegex(entry.get("last_confirmed", ""), r"^\d{4}-\d{2}-\d{2}$")
+            self.assertIn(entry.get("confidence"), ("high", "medium"), name)
+            if entry.get("format") is None:
+                self.assertIsNone(entry.get("format_confidence"), name)
+            else:
+                self.assertIn(entry.get("format_confidence"), ("high", "medium"), name)
+                self.assertIsInstance(entry.get("minutes"), int, name)
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

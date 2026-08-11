@@ -23,10 +23,12 @@ every difficulty slot, so three GCA sittings and three ICA sittings before
 anything repeats. A session takes one question per slot and picks at random,
 so two sittings are not the same exam twice.
 
-Company presets are wired up but the table is empty, so `/sim <company>` has
-nothing to look up yet. That is deliberate: every entry needs a real source and a
-confirmation date before it ships, and inventing them would have been quicker and
-dishonest.
+Company presets cover eighteen companies. Each records two separate claims: that
+the company uses CodeSignal, and which assessment they give. The first is usually
+first-party and solid, because CodeSignal publishes its customer list. The second
+usually is not, because CodeSignal publishes nothing about which format any
+customer chooses, so most entries record the format as unknown and ask you which
+one you want rather than guessing.
 
 ## Why it exists
 
@@ -143,6 +145,32 @@ python3 skills/sim/scripts/session.py report --session gca-20260811T193740Z
 Sessions are kept, so you can look at what you did last week. `--slot N` draws
 from one difficulty if you want to be interviewed on something specific rather
 than taking the ramp.
+
+### Company presets
+
+```
+python3 skills/sim/scripts/session.py start --preset capital-one
+```
+
+```
+capital-one preset: uses CodeSignal (high confidence).
+Format GCA, medium confidence.
+A community-maintained OA repo records Capital One moving to the CodeSignal GCA
+around the 2021-22 season. Not first-party, and several seasons old.
+```
+
+For most companies the format is not confirmed and the tool says so rather than
+picking one:
+
+```
+$ ... start --preset ramp
+ramp is a confirmed CodeSignal customer, but which assessment they use is not
+confirmed. Pick one: --preset ramp --format gca, or --format ica.
+```
+
+Every entry carries source URLs, a confidence tier, and the date it was last
+confirmed, and `tools/qa.py` rejects entries missing any of them. Formats change
+every hiring cycle and your actual invite email beats this table.
 
 ## On the score
 

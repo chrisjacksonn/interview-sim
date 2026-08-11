@@ -95,6 +95,12 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | you gave a nudge in interview mode | `hint --note "..."` |
 | "what have I done before", "my past sessions" | `list` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
+| `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
+
+When a preset says a company's format is not confirmed, do not pick one for them
+and do not treat the widely-repeated claim as fact. Ask which they want. The
+whole point of recording it as unknown is that guessing would be indistinguishable
+from research.
 
 ### ICA sessions
 
