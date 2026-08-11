@@ -65,6 +65,7 @@ STATE_PASSED = "passed"
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 QUESTIONS_DIR = SKILL_DIR / "questions"
+PRESETS_FILE = SKILL_DIR / "presets.json"
 
 DEFAULT_ROOT = Path.home() / "interview-sim-sessions"
 POINTER_NAME = "current"
@@ -312,6 +313,48 @@ def finalize(
 # --------------------------------------------------------------------------
 # question bank
 # --------------------------------------------------------------------------
+
+
+def load_presets() -> Dict[str, Any]:
+    try:
+        with open(str(PRESETS_FILE), "r") as handle:
+            return json.load(handle).get("presets", {})
+    except IOError:
+        return {}
+    except ValueError as exc:
+        raise SessionError("%s is not valid JSON: %s" % (PRESETS_FILE, exc), EXIT_BANK)
+
+
+def resolve_preset(name: str) -> Dict[str, Any]:
+    """Look up a company preset.
+
+    Matching is case and punctuation insensitive, because people type "Capital
+    One", "capital-one", and "capitalone" for the same thing.
+    """
+    presets = load_presets()
+
+    def normalise(text: str) -> str:
+        return "".join(char for char in text.lower() if char.isalnum())
+
+    wanted = normalise(name)
+    for key, value in presets.items():
+        if normalise(key) == wanted:
+            preset = dict(value)
+            preset["_name"] = key
+            return preset
+
+    if not presets:
+        raise SessionError(
+            "No company presets are configured yet, so %r cannot be looked up.\n"
+            "Start a format directly instead: --format gca or --format ica." % (name,),
+            EXIT_BANK,
+        )
+    raise SessionError(
+        "No preset for %r. Known: %s\n"
+        "Start a format directly instead: --format gca or --format ica."
+        % (name, ", ".join(sorted(presets))),
+        EXIT_BANK,
+    )
 
 
 def load_ica_project(project_id: Optional[str]) -> Dict[str, Any]:
@@ -617,7 +660,8 @@ def command_start(args: argparse.Namespace) -> int:
             "Interview mode is not implemented in v1. Use --mode exam.", EXIT_USAGE
         )
 
-    fmt = args.format
+    preset = resolve_preset(args.preset) if args.preset else None
+    fmt = preset["format"] if preset else args.format
     if fmt not in FORMATS:
         raise SessionError(
             "Unknown format %r. Known: %s" % (fmt, ", ".join(sorted(FORMATS))),
@@ -625,8 +669,13 @@ def command_start(args: argparse.Namespace) -> int:
         )
     config = FORMATS[fmt]
 
-    count = args.questions if args.questions is not None else config["questions"]
-    minutes = args.minutes if args.minutes is not None else config["minutes"]
+    # Explicit flags beat the preset, the preset beats the format default.
+    count = args.questions
+    if count is None:
+        count = (preset or {}).get("questions", config["questions"])
+    minutes = args.minutes
+    if minutes is None:
+        minutes = (preset or {}).get("minutes", config["minutes"])
     if count < 1:
         raise SessionError("--questions must be at least 1", EXIT_USAGE)
     if minutes <= 0:
@@ -716,6 +765,18 @@ def command_start(args: argparse.Namespace) -> int:
     else:
         print("Session started: %s" % (session_id,))
         print("")
+        if preset is not None:
+            print(
+                "%s preset: %s, %s confidence."
+                % (preset["_name"], fmt.upper(), preset.get("confidence", "unknown"))
+            )
+            if preset.get("flavor"):
+                print("Reported style: %s" % (preset["flavor"],))
+            print(
+                "Formats change every hiring cycle. Your actual invite email "
+                "names the platform and the format; trust that over this."
+            )
+            print("")
         if config["gated"]:
             print(
                 "One project, %d levels, %s on the clock."
@@ -1254,6 +1315,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--minutes", type=float, default=None)
     start.add_argument("--workspace", default=None)
     start.add_argument("--project", default=None, help="ICA project id")
+    start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
     start.add_argument("--session", default=None, help=argparse.SUPPRESS)
     start.add_argument(
         "--force", action="store_true", help="abandon any running session"

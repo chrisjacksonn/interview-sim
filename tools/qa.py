@@ -251,6 +251,50 @@ def check_question(question, verbose):
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught)}
 
 
+PRESET_REQUIRED = ("format", "minutes", "confidence", "sources", "last_confirmed")
+PRESET_CONFIDENCE = ("high", "medium")
+
+
+def check_presets():
+    """Every preset must carry its evidence.
+
+    A preset is a factual claim about what a company currently does to
+    candidates. Shipping one without a source is how a guess turns into
+    received wisdom, and people plan their prep around these.
+    """
+    path = REPO / "skills" / "sim" / "presets.json"
+    if not path.exists():
+        return []
+
+    with open(str(path)) as handle:
+        data = json.load(handle)
+
+    problems = []
+    for name, entry in sorted(data.get("presets", {}).items()):
+        for field in PRESET_REQUIRED:
+            if field not in entry:
+                problems.append("preset %s has no %s" % (name, field))
+        if entry.get("confidence") not in PRESET_CONFIDENCE:
+            problems.append(
+                "preset %s confidence must be one of %s"
+                % (name, ", ".join(PRESET_CONFIDENCE))
+            )
+        sources = entry.get("sources") or []
+        if not sources:
+            problems.append("preset %s cites no sources" % (name,))
+        for source in sources:
+            if not str(source).startswith("http"):
+                problems.append("preset %s source is not a url: %r" % (name, source))
+        stamp = str(entry.get("last_confirmed", ""))
+        if len(stamp) != 10 or stamp.count("-") != 2:
+            problems.append(
+                "preset %s last_confirmed must be YYYY-MM-DD, got %r" % (name, stamp)
+            )
+        if entry.get("format") not in ("gca", "ica"):
+            problems.append("preset %s format must be gca or ica" % (name,))
+    return problems
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="qa.py", description="Validate every question in the bank."
@@ -283,9 +327,16 @@ def main(argv=None):
         else:
             print("  ok    %s" % (label,))
 
+    preset_problems = [] if args.question else check_presets()
+    for problem in preset_problems:
+        print("  FAIL  %s" % (problem,))
+
     print("")
-    if failures:
-        print("%d of %d questions failed the gate." % (len(failures), len(targets)))
+    if failures or preset_problems:
+        if failures:
+            print("%d of %d questions failed the gate." % (len(failures), len(targets)))
+        if preset_problems:
+            print("%d preset problem(s)." % (len(preset_problems),))
         return 1
     print("%d question(s) passed the gate." % (len(targets),))
     return 0

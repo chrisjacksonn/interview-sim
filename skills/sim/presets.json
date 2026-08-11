@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "_about": [
+    "Company to assessment-format mapping, so that '/sim <company>' launches the",
+    "right shape. JSON rather than YAML because the engine is stdlib only and",
+    "PyYAML is not a dependency this project is willing to take on. Presets are",
+    "flat scalars, so nothing is lost.",
+    "",
+    "Every entry MUST carry sources, confidence, and last_confirmed. tools/qa.py",
+    "rejects entries that do not, and CI runs it. This is deliberate: a preset is",
+    "a factual claim about what a company currently does, and an unsourced one is",
+    "a guess wearing a fact's clothing.",
+    "",
+    "confidence:",
+    "  high    multiple independent recent reports, or the company says so publicly",
+    "  medium  reported, but thinly or not recently",
+    "",
+    "Formats change every hiring cycle. The skill says the confidence out loud and",
+    "reminds the user that their actual invite email names the platform."
+  ],
+  "_entry_template": {
+    "format": "gca or ica",
+    "questions": "number of questions, or levels for ica",
+    "minutes": "time limit",
+    "flavor": "one line on the reported style, or null",
+    "confidence": "high or medium",
+    "sources": [
+      "at least one url"
+    ],
+    "last_confirmed": "YYYY-MM-DD"
+  },
+  "presets": {}
+}
