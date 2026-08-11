@@ -21,6 +21,7 @@ suffix, and this way it never has to).
 import argparse
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -420,16 +421,44 @@ def load_bank(fmt: str) -> List[Dict[str, Any]]:
     return questions
 
 
-def select_questions(fmt: str, count: int) -> List[Dict[str, Any]]:
+def select_questions(fmt: str, count: int, seed: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Pick one question per difficulty slot.
+
+    Slots are the difficulty ramp, so a session takes one question from each
+    rather than the first N overall. Taking the first N would serve two warm-ups
+    and two mediums as soon as the bank has more than one question per slot, and
+    the session would stop resembling the format it is imitating.
+
+    Where a slot holds several questions the choice is random, so sitting the
+    same format twice is not the same exam twice. --seed makes that repeatable.
+    """
     bank = load_bank(fmt)
-    if len(bank) < count:
+    by_slot = {}
+    for question in bank:
+        by_slot.setdefault(question.get("slot", 99), []).append(question)
+
+    slots = sorted(by_slot)
+    if len(slots) < count:
         raise SessionError(
-            "Format %s wants %d questions but the bank has %d. "
-            "Pass --questions %d to run a short session, or add questions to %s."
-            % (fmt, count, len(bank), len(bank), QUESTIONS_DIR / fmt),
+            "Format %s wants %d questions but the bank only covers %d difficulty "
+            "slot(s) (%s). Pass --questions %d, or add questions to %s."
+            % (
+                fmt,
+                count,
+                len(slots),
+                ", ".join(str(slot) for slot in slots),
+                len(slots),
+                QUESTIONS_DIR / fmt,
+            ),
             EXIT_BANK,
         )
-    return bank[:count]
+
+    chooser = random.Random(seed)
+    chosen = []
+    for slot in slots[:count]:
+        options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
+        chosen.append(options[0] if len(options) == 1 else chooser.choice(options))
+    return chosen
 
 
 # --------------------------------------------------------------------------
@@ -713,7 +742,7 @@ def command_start(args: argparse.Namespace) -> int:
         questions = None
     else:
         project = None
-        questions = select_questions(fmt, count)
+        questions = select_questions(fmt, count, args.seed)
 
     duration = minutes * 60.0
     session_id = "%s-%s" % (fmt, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
@@ -736,6 +765,7 @@ def command_start(args: argparse.Namespace) -> int:
         "mode": args.mode,
         "format": fmt,
         "workspace": str(workspace),
+        "seed": args.seed,
         "clock": {
             "started_epoch": now,
             "deadline_epoch": now + duration,
@@ -1316,6 +1346,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--workspace", default=None)
     start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
+    start.add_argument("--seed", type=int, default=None, help="repeatable question choice")
     start.add_argument("--session", default=None, help=argparse.SUPPRESS)
     start.add_argument(
         "--force", action="store_true", help="abandon any running session"

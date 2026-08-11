@@ -74,6 +74,46 @@ class SessionTestCase(unittest.TestCase):
         return code, json.loads(out)
 
 
+QUESTIONS = REPO / "skills" / "sim" / "questions"
+
+# Anything that loops forever regardless of how many arguments the question's
+# entry point takes, so it works whichever question the slot happened to pick.
+HANGS = "def solve(*args, **kwargs):\n    while True:\n        pass\n"
+
+
+class BankAwareTestCase(SessionTestCase):
+    """Helpers that follow whichever question the session actually chose.
+
+    Slots hold several questions and one is picked at random, so a test cannot
+    assume q1 is any particular problem. state.json records each question's
+    source in the bank, which is exactly what that field is for.
+    """
+
+    def bank_dir(self, index=0):
+        return QUESTIONS / self.state()["questions"][index]["source"]
+
+    def install_reference(self, workspace, index=0):
+        question = self.state()["questions"][index]
+        shutil.copyfile(
+            str(QUESTIONS / question["source"] / "reference.py"),
+            str(workspace / question["dir"] / "solution.py"),
+        )
+
+    def install_partial_mutant(self, workspace, index=0):
+        """Install a wrong answer that scores some but not all of the suite."""
+        question = self.state()["questions"][index]
+        target = workspace / question["dir"] / "solution.py"
+        for mutant in sorted((self.bank_dir(index) / "mutants").glob("*.py")):
+            shutil.copyfile(str(mutant), str(target))
+            _, out, _ = self.run_session(
+                "submit", "--question", question["dir"], "--now", T0 + 30, "--json"
+            )
+            report = json.loads(out)
+            if report["outcome"] == "partial":
+                return report
+        self.fail("no mutant of %s scored partial credit" % (question["id"],))
+
+
 class TestStart(SessionTestCase):
     def test_creates_workspace_with_public_files_only(self):
         workspace = self.start()
@@ -138,15 +178,43 @@ class TestStart(SessionTestCase):
         self.assertEqual(code, EXIT_BANK)
         self.assertIn("--questions", err)
 
-    def test_full_gca_uses_the_whole_bank_in_slot_order(self):
+    def test_full_gca_takes_one_question_per_difficulty_slot(self):
+        """Not the first four in the bank.
+
+        Once a slot holds more than one question, taking the first N overall
+        serves two warm-ups and two mediums and the session stops resembling the
+        format it is imitating.
+        """
         code, _, err = self.run_session("start", "--format", "gca", "--now", T0)
         self.assertEqual(code, EXIT_OK, err)
         questions = self.state()["questions"]
         self.assertEqual(len(questions), 4)
         self.assertEqual([q["dir"] for q in questions], ["q1", "q2", "q3", "q4"])
-        # Difficulty has to ramp: warm-up first, hard last.
         self.assertEqual(questions[0]["difficulty"], "warmup")
         self.assertEqual(questions[-1]["difficulty"], "hard")
+        # One from each slot means no repeats.
+        self.assertEqual(len(set(q["id"] for q in questions)), 4)
+
+    def test_the_same_seed_gives_the_same_exam(self):
+        self.start_seeded(7)
+        first = [q["id"] for q in self.state()["questions"]]
+        self.run_session("start", "--format", "gca", "--seed", "7", "--now", T0, "--force")
+        second = [q["id"] for q in self.state()["questions"]]
+        self.assertEqual(first, second)
+
+    def start_seeded(self, seed):
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--seed", str(seed), "--now", T0, "--force"
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+    def test_different_seeds_can_give_different_questions(self):
+        """Sitting the format twice should not be the same exam twice."""
+        seen = set()
+        for seed in range(12):
+            self.start_seeded(seed)
+            seen.add(tuple(q["id"] for q in self.state()["questions"]))
+        self.assertGreater(len(seen), 1, "question choice never varied across seeds")
 
     def test_unknown_format(self):
         code, _, _ = self.run_session("start", "--format", "nope", "--now", T0)
@@ -256,7 +324,7 @@ class TestStatus(SessionTestCase):
         self.assertEqual(payload["questions"][0]["dir"], "q1")
 
 
-class TestReport(SessionTestCase):
+class TestReport(BankAwareTestCase):
     def start_full(self, now=T0):
         code, out, err = self.run_session("start", "--format", "gca", "--now", now)
         self.assertEqual(code, EXIT_OK, err)
@@ -279,21 +347,13 @@ class TestReport(SessionTestCase):
         session.
         """
         workspace = self.start_full()
-        bank = REPO / "skills" / "sim" / "questions" / "gca"
-        for directory, slug in (
-            ("q1", "shelf-tally"),
-            ("q2", "sensor-gaps"),
-            ("q3", "zone-hops"),
-        ):
-            shutil.copyfile(
-                str(bank / slug / "reference.py"),
-                str(workspace / directory / "solution.py"),
+        for index in range(3):
+            self.install_reference(workspace, index)
+            self.run_session(
+                "submit", "--question", "q%d" % (index + 1), "--now", T0 + 60
             )
-            self.run_session("submit", "--question", directory, "--now", T0 + 60)
 
-        (workspace / "q4" / "solution.py").write_text(
-            "def solve(shifts, horizon):\n    while True:\n        pass\n"
-        )
+        (workspace / "q4" / "solution.py").write_text(HANGS)
         self.run_session("submit", "--question", "q4", "--timeout", "3", "--now", T0 + 120)
 
         _, out, _ = self.run_session("report", "--now", T0 + 200, "--json")
@@ -460,16 +520,11 @@ class TestStateFile(SessionTestCase):
         self.assertEqual(question["state"], "unlocked")
 
 
-BANK = REPO / "skills" / "sim" / "questions" / "gca" / "shelf-tally"
-
-
-class TestSubmit(SessionTestCase):
-    def solve_with(self, workspace, source):
-        shutil.copyfile(str(source), str(workspace / "q1" / "solution.py"))
+class TestSubmit(BankAwareTestCase):
 
     def test_correct_solution_scores_full_marks(self):
         workspace = self.start()
-        self.solve_with(workspace, BANK / "reference.py")
+        self.install_reference(workspace)
         code, out, err = self.run_session("submit", "--now", T0 + 60, "--json")
         self.assertEqual(code, EXIT_OK, err)
         report = json.loads(out)
@@ -486,25 +541,7 @@ class TestSubmit(SessionTestCase):
 
     def test_partial_credit_is_between(self):
         workspace = self.start()
-        # Case-folds the aisle label, so roughly half the suite should fail.
-        (workspace / "q1" / "solution.py").write_text(
-            "def solve(entries):\n"
-            "    totals = {}\n"
-            "    for raw in entries:\n"
-            "        e = raw.strip()\n"
-            "        if e.count('-') != 1 or e.count(':') != 1:\n"
-            "            continue\n"
-            "        d, c = e.index('-'), e.index(':')\n"
-            "        if d > c:\n"
-            "            continue\n"
-            "        a, s, n = e[:d].lower(), e[d+1:c], e[c+1:]\n"
-            "        if not a or not s.isdigit() or not n.isdigit():\n"
-            "            continue\n"
-            "        totals[a] = totals.get(a, 0) + int(n)\n"
-            "    return totals\n"
-        )
-        _, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
-        report = json.loads(out)
+        report = self.install_partial_mutant(workspace)
         self.assertGreater(report["passed"], 0)
         self.assertLess(report["passed"], report["total"])
         self.assertEqual(report["outcome"], "partial")
@@ -529,7 +566,7 @@ class TestSubmit(SessionTestCase):
 
     def test_results_are_recorded_in_state(self):
         workspace = self.start()
-        self.solve_with(workspace, BANK / "reference.py")
+        self.install_reference(workspace)
         self.run_session("submit", "--now", T0 + 60)
         self.run_session("submit", "--now", T0 + 120)
         question = self.state()["questions"][0]
@@ -540,7 +577,7 @@ class TestSubmit(SessionTestCase):
     def test_late_submission_is_rejected_even_when_perfect(self):
         """The lockout. A correct answer after the buzzer is still not accepted."""
         workspace = self.start()
-        self.solve_with(workspace, BANK / "reference.py")
+        self.install_reference(workspace)
         code, _, err = self.run_session("submit", "--now", T0 + 70 * 60 + 1)
         self.assertEqual(code, EXIT_EXPIRED)
         self.assertIn("Time is up", err)
@@ -565,7 +602,7 @@ class TestSubmit(SessionTestCase):
         (workspace / "q1" / "solution.py").write_text("def solve(entries):\n    return {}\n")
         _, out, err = self.run_session("submit", "--now", T0 + 60)
         _, jout, _ = self.run_session("submit", "--now", T0 + 90, "--json")
-        hidden = (BANK / "tests_hidden.py").read_text()
+        hidden = (self.bank_dir() / "tests_hidden.py").read_text()
         names = [
             line.split("def ")[1].split("(")[0]
             for line in hidden.splitlines()
