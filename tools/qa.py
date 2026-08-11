@@ -21,7 +21,9 @@ Python 3.9, standard library only.
 
 import argparse
 import json
+import os
 import sys
+from concurrent import futures
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -51,6 +53,31 @@ TIMEOUT = 30.0
 
 class Failure(Exception):
     pass
+
+
+def grade_all(target, solutions):
+    """Grade several solutions against one suite, concurrently.
+
+    Mutants are independent and most of the wall time is a mutant sitting out
+    its timeout, so running them one at a time made the gate scale badly with
+    the size of the bank. Threads are enough because grade.grade spends its time
+    waiting on a subprocess, and it builds its own temp directory per call so
+    there is nothing shared to race on.
+
+    Shortening the timeout would have been the easy fix and the wrong one: a
+    mutant that is merely slow would then be "caught" by a limit the real
+    session does not impose, and the result would drift with machine load.
+    """
+    solutions = list(solutions)
+    if not solutions:
+        return []
+    workers = min(len(solutions), (os.cpu_count() or 2))
+    with futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        submitted = [
+            (solution, pool.submit(grade.grade, target, solution, TIMEOUT))
+            for solution in solutions
+        ]
+        return [(solution, future.result()) for solution, future in submitted]
 
 
 def check_files(question):
@@ -86,10 +113,14 @@ def check_reference(question):
     return report["total"]
 
 
-def check_public_suite(question):
-    """The samples must be satisfiable too, or they mislead during the session."""
-    report = grade.grade(question, question / "reference.py", TIMEOUT)
-    if report["total"] == 0:
+def check_public_suite(question, total):
+    """The samples must be satisfiable too, or they mislead during the session.
+
+    Takes the reference's test count rather than re-grading. Grading the
+    reference twice per question doubled the slowest part of the gate for no
+    new information.
+    """
+    if total == 0:
         raise Failure("hidden suite contains no tests")
     public = question / "tests_public.py"
     if "def test_" not in public.read_text():
@@ -116,8 +147,7 @@ def check_mutants(question):
 
     survivors = []
     caught = []
-    for mutant in mutants:
-        report = grade.grade(question, mutant, TIMEOUT)
+    for mutant, report in grade_all(question, mutants):
         if report["outcome"] == "pass":
             survivors.append(mutant.name)
         elif report["total"]:
@@ -137,7 +167,7 @@ def level_dirs(project):
     return sorted(project.glob("level*"), key=lambda p: int(p.name[5:]))
 
 
-def check_ica(project, verbose):
+def check_ica(project):
     """Validate a multi-level ICA project.
 
     Same two halves as a GCA question, applied per level, plus the thing that
@@ -196,12 +226,17 @@ def check_ica(project, verbose):
 
     survivors = []
     caught = []
+    # A mutant counts as caught by the earliest level that catches it. Breaking
+    # level 1 while adding level 4 is the failure this is really looking for, so
+    # levels are checked in order and the first failure is the one reported.
+    per_level = dict(
+        (level.name, dict((m, r) for m, r in grade_all(level, mutants)))
+        for level in levels
+    )
     for mutant in mutants:
-        # A mutant counts as caught if any level catches it. Breaking level 1
-        # while adding level 4 is the failure this is really looking for.
         worst = None
         for level in levels:
-            report = grade.grade(level, mutant, TIMEOUT)
+            report = per_level[level.name][mutant]
             if report["outcome"] != "pass":
                 worst = (level.name, report)
                 break
@@ -221,34 +256,32 @@ def check_ica(project, verbose):
             "these wrong answers passed every level: %s" % (", ".join(survivors),)
         )
 
-    if verbose:
-        print("    %d levels, %d hidden tests, reference passes all" % (len(levels), total))
-        for name, score in caught:
-            print("    caught %-26s %s" % (name, score))
-    return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught)}
+    lines = ["    %d levels, %d hidden tests, reference passes all" % (len(levels), total)]
+    for name, score in caught:
+        lines.append("    caught %-26s %s" % (name, score))
+    return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}
 
 
-def check_question(question, verbose):
+def check_question(question):
     if (question / "meta.json").exists():
         try:
             with open(str(question / "meta.json")) as handle:
                 if json.load(handle).get("format") == "ica":
-                    return check_ica(question, verbose)
+                    return check_ica(question)
         except ValueError as exc:
             raise Failure("meta.json is not valid JSON: %s" % (exc,))
 
     check_files(question)
     meta = check_meta(question)
     total = check_reference(question)
-    check_public_suite(question)
+    check_public_suite(question, total)
     check_starter_fails(question)
     caught = check_mutants(question)
 
-    if verbose:
-        print("    %d hidden tests, reference passes all" % (total,))
-        for name, score in caught:
-            print("    caught %-26s %s" % (name, score))
-    return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught)}
+    lines = ["    %d hidden tests, reference passes all" % (total,)]
+    for name, score in caught:
+        lines.append("    caught %-26s %s" % (name, score))
+    return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}
 
 
 PRESET_REQUIRED = ("format", "minutes", "confidence", "sources", "last_confirmed")
@@ -316,16 +349,26 @@ def main(argv=None):
         print("No questions found under %s" % (QUESTIONS,))
         return 1
 
+    # Questions are independent and the slowest part of each is a mutant sitting
+    # out its 30 second timeout, so running them one at a time made the gate
+    # scale with the size of the bank rather than with its slowest question.
+    # Output is collected and printed in order so concurrency stays invisible.
     failures = []
-    for question in targets:
-        label = "%s/%s" % (question.parent.name, question.name)
-        try:
-            check_question(question, verbose=not args.quiet)
-        except Failure as exc:
-            failures.append((label, str(exc)))
-            print("  FAIL  %s: %s" % (label, exc))
-        else:
-            print("  ok    %s" % (label,))
+    workers = min(len(targets), (os.cpu_count() or 2))
+    with futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        pending = [(q, pool.submit(check_question, q)) for q in targets]
+        for question, future in pending:
+            label = "%s/%s" % (question.parent.name, question.name)
+            try:
+                result = future.result()
+            except Failure as exc:
+                failures.append((label, str(exc)))
+                print("  FAIL  %s: %s" % (label, exc))
+            else:
+                if not args.quiet:
+                    for line in result["lines"]:
+                        print(line)
+                print("  ok    %s" % (label,))
 
     preset_problems = [] if args.question else check_presets()
     for problem in preset_problems:

@@ -1,0 +1,12 @@
+{
+  "id": "shared-route",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Shared Route",
+  "time_hint_minutes": 20,
+  "entrypoint": "solve",
+  "topics": ["dynamic programming", "sequences"],
+  "original": true,
+  "authored": "2026-08-11"
+}
