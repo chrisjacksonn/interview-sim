@@ -383,9 +383,40 @@ PROJECT = REPO / "skills" / "sim" / "questions" / "ica" / "parcel-locker"
 
 class TestICA(SessionTestCase):
     def start_ica(self, now=T0):
-        code, _, err = self.run_session("start", "--format", "ica", "--now", now)
+        """Pinned to one project on purpose.
+
+        These tests assert behaviour specific to parcel-locker's levels, and
+        project choice is random when none is named. Variety is covered
+        separately below.
+        """
+        code, _, err = self.run_session(
+            "start", "--format", "ica", "--project", "parcel-locker", "--now", now
+        )
         self.assertEqual(code, EXIT_OK, err)
         return self.workspace()
+
+    def test_project_choice_varies_across_seeds(self):
+        seen = set()
+        for seed in range(12):
+            code, _, err = self.run_session(
+                "start", "--format", "ica", "--seed", str(seed), "--now", T0, "--force"
+            )
+            self.assertEqual(code, EXIT_OK, err)
+            seen.add(self.state()["questions"][0]["dir"])
+        self.assertGreater(len(seen), 1, "the same ICA project came up every time")
+
+    def test_named_project_is_honoured(self):
+        code, _, err = self.run_session(
+            "start", "--format", "ica", "--project", "ledger", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(self.state()["questions"][0]["dir"], "ledger")
+
+    def test_unknown_project_is_refused(self):
+        code, _, err = self.run_session(
+            "start", "--format", "ica", "--project", "nope", "--now", T0
+        )
+        self.assertEqual(code, EXIT_BANK)
 
     def solve(self, workspace, source=None):
         shutil.copyfile(

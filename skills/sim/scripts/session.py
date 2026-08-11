@@ -358,8 +358,14 @@ def resolve_preset(name: str) -> Dict[str, Any]:
     )
 
 
-def load_ica_project(project_id: Optional[str]) -> Dict[str, Any]:
-    """Pick an ICA project and describe its levels."""
+def load_ica_project(project_id: Optional[str], seed: Optional[int] = None) -> Dict[str, Any]:
+    """Pick an ICA project and describe its levels.
+
+    Chosen at random when there is more than one and none was named, for the
+    same reason GCA picks within a slot: taking the alphabetically first project
+    every time means the second sitting is the same exam, and an ICA project is
+    only worth anything the first time you meet its level 4.
+    """
     directory = QUESTIONS_DIR / "ica"
     if not directory.is_dir():
         raise SessionError("No ICA projects at %s" % (directory,), EXIT_BANK)
@@ -375,7 +381,7 @@ def load_ica_project(project_id: Optional[str]) -> Dict[str, Any]:
     if not projects:
         raise SessionError("No ICA projects available", EXIT_BANK)
 
-    project = projects[0]
+    project = projects[0] if len(projects) == 1 else random.Random(seed).choice(projects)
     meta_file = project / "meta.json"
     if not meta_file.exists():
         raise SessionError("%s has no meta.json" % (project,), EXIT_BANK)
@@ -731,7 +737,7 @@ def command_start(args: argparse.Namespace) -> int:
             finalize(existing_workspace, existing_state, now, END_REASON_ABANDONED)
 
     if config["gated"]:
-        project = load_ica_project(args.project)
+        project = load_ica_project(args.project, args.seed)
         available = len(project["_levels"])
         if available < count:
             raise SessionError(
