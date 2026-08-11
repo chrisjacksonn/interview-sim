@@ -1,0 +1,109 @@
+name: qa
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor and the one that actually matters: it is what Apple
+        # Command Line Tools still ships, so it is what most users will run.
+        # The newest is here to catch anything that breaks going forward.
+        python: ["3.9", "3.13"]
+    name: tests (py${{ matrix.python }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: No third-party imports
+        # The zero-dependency promise is load-bearing for the install story, so
+        # it gets checked rather than trusted. Nothing is installed in this job,
+        # so anything non-stdlib fails at import.
+        run: python -c "import sys; print(sys.version)"
+      - name: Engine tests
+        run: python -m unittest discover -s tests -v
+
+  questions:
+    runs-on: ubuntu-latest
+    name: question gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Every question must pass the gate
+        # Reference passes its hidden suite, the untouched starter does not, and
+        # every deliberately-wrong solution in mutants/ is caught by at least
+        # one hidden test.
+        run: python tools/qa.py
+
+  plugin:
+    runs-on: ubuntu-latest
+    name: manifests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifests are valid JSON with the required fields
+        run: |
+          python - <<'PY'
+          import json, re, sys
+
+          fail = []
+
+          plugin = json.load(open('.claude-plugin/plugin.json'))
+          if not re.match(r'^[a-z][a-z0-9]*(-[a-z0-9]+)*$', plugin.get('name', '')):
+              fail.append('plugin name must be kebab-case')
+          # The validator rejects the string shorthand for author and the object
+          # form for repository. Both are easy to reintroduce by hand.
+          if not isinstance(plugin.get('author'), dict):
+              fail.append('author must be an object')
+          if not isinstance(plugin.get('repository', ''), str):
+              fail.append('repository must be a string URL')
+
+          market = json.load(open('.claude-plugin/marketplace.json'))
+          if not market.get('plugins'):
+              fail.append('marketplace lists no plugins')
+
+          skill = open('skills/sim/SKILL.md').read()
+          front = skill.split('---')[1]
+          name = re.search(r'^name:\s*(\S+)', front, re.M).group(1)
+          if name != 'sim':
+              fail.append('skill name must match its directory')
+          desc = re.search(r'^description:\s*(.+)$', front, re.M).group(1)
+          if len(desc) > 1024:
+              fail.append('description is over the 1024 char spec cap')
+
+          for problem in fail:
+              print('FAIL', problem)
+          sys.exit(1 if fail else 0)
+          PY
+
+  leak:
+    runs-on: ubuntu-latest
+    name: no hidden material in a workspace
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Start a session and prove nothing hidden was copied
+        run: |
+          export INTERVIEW_SIM_HOME="$RUNNER_TEMP/sessions"
+          python skills/sim/scripts/session.py start --format gca --questions 1
+          W=$(cat "$INTERVIEW_SIM_HOME/current")
+          if find "$W" \( -name '*hidden*' -o -name '*reference*' -o -path '*mutants*' \) | grep .; then
+            echo "hidden material reached the workspace"
+            exit 1
+          fi
+          # Content check as well as filenames: a rename would slip past a
+          # name-only test while still leaking.
+          if grep -rqF "test_aisle_with_only_invalid_entries_is_absent" "$W"; then
+            echo "hidden test content reached the workspace"
+            exit 1
+          fi
+          echo "clean"
