@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+VERSION = "0.2.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -436,7 +437,12 @@ def load_bank(fmt: str) -> List[Dict[str, Any]]:
     return questions
 
 
-def select_questions(fmt: str, count: int, seed: Optional[int] = None) -> List[Dict[str, Any]]:
+def select_questions(
+    fmt: str,
+    count: int,
+    seed: Optional[int] = None,
+    slot: Optional[int] = None,
+) -> List[Dict[str, Any]]:
     """Pick one question per difficulty slot.
 
     Slots are the difficulty ramp, so a session takes one question from each
@@ -453,6 +459,25 @@ def select_questions(fmt: str, count: int, seed: Optional[int] = None) -> List[D
         by_slot.setdefault(question.get("slot", 99), []).append(question)
 
     slots = sorted(by_slot)
+    if slot is not None:
+        # Drawing from one difficulty on purpose, which is what an interview is:
+        # a single question at a chosen level rather than a ramp.
+        if slot not in by_slot:
+            raise SessionError(
+                "No questions in slot %d. Slots available: %s"
+                % (slot, ", ".join(str(value) for value in slots)),
+                EXIT_BANK,
+            )
+        chooser = random.Random(seed)
+        options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
+        if count > len(options):
+            raise SessionError(
+                "Slot %d has %d question(s) but %d were asked for."
+                % (slot, len(options), count),
+                EXIT_BANK,
+            )
+        return chooser.sample(options, count) if count > 1 else [chooser.choice(options)]
+
     if len(slots) < count:
         raise SessionError(
             "Format %s wants %d questions but the bank only covers %d difficulty "
@@ -761,7 +786,7 @@ def command_start(args: argparse.Namespace) -> int:
         questions = None
     else:
         project = None
-        questions = select_questions(fmt, count, args.seed)
+        questions = select_questions(fmt, count, args.seed, args.slot)
 
     duration = minutes * 60.0
     session_id = "%s-%s" % (fmt, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
@@ -1258,7 +1283,13 @@ def command_report(args: argparse.Namespace) -> int:
     credit = sum(line["credit"] for line in lines) / count if count else 0.0
     hints_given = sum(line["hints"] for line in lines)
     clock = state["clock"]
-    used = (clock.get("ended_epoch") or min(now, clock["deadline_epoch"])) - clock["started_epoch"]
+    # Time used can never exceed the time the session had. A session abandoned
+    # hours after its deadline records that later moment as its ending, which
+    # otherwise reported "used 3:03:20 of 1:10:00".
+    end_point = clock.get("ended_epoch")
+    if end_point is None:
+        end_point = now
+    used = min(end_point, clock["deadline_epoch"]) - clock["started_epoch"]
 
     payload = {
         "session_id": state["session_id"],
@@ -1342,6 +1373,91 @@ def command_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def command_list(args: argparse.Namespace) -> int:
+    """Show past sessions, newest first.
+
+    Without this the only reachable session is whatever the pointer file names,
+    so a sitting from yesterday is on disk but effectively lost. Sessions are
+    read straight from their state files rather than from an index, because an
+    index is another thing that can disagree with the truth.
+    """
+    root = sessions_root()
+    rows = []
+    if root.is_dir():
+        for entry in root.iterdir():
+            if not state_path(entry).exists():
+                continue
+            try:
+                state = read_state(entry)
+            except SessionError:
+                # A session written by a different schema version still deserves
+                # a line, so it can be seen and deleted.
+                rows.append(
+                    {
+                        "session_id": entry.name,
+                        "unreadable": True,
+                        "workspace": str(entry),
+                    }
+                )
+                continue
+            clock = state["clock"]
+            solved = sum(
+                1
+                for question in state["questions"]
+                if (question.get("result") or {}).get("outcome") == "pass"
+            )
+            rows.append(
+                {
+                    "session_id": state["session_id"],
+                    "format": state["format"],
+                    "mode": state["mode"],
+                    "started_utc": clock["started_utc"],
+                    "started_epoch": clock["started_epoch"],
+                    "state": classify(state, resolve_now(args.now)),
+                    "end_reason": clock.get("end_reason"),
+                    "solved": solved,
+                    "questions": len(state["questions"]),
+                    "workspace": state["workspace"],
+                    "unreadable": False,
+                }
+            )
+
+    rows.sort(key=lambda row: row.get("started_epoch", 0), reverse=True)
+    if args.limit and args.limit > 0:
+        rows = rows[: args.limit]
+
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return EXIT_OK
+
+    if not rows:
+        print("No sessions yet under %s" % (root,))
+        return EXIT_OK
+
+    current = read_pointer()
+    for row in rows:
+        if row["unreadable"]:
+            print("  %-28s (unreadable, from an older version)" % (row["session_id"],))
+            continue
+        marker = "*" if current is not None and str(current) == row["workspace"] else " "
+        print(
+            "%s %-28s %-4s %-9s %-8s %d/%d solved  %s"
+            % (
+                marker,
+                row["session_id"],
+                row["format"],
+                row["mode"],
+                row["state"],
+                row["solved"],
+                row["questions"],
+                row["started_utc"],
+            )
+        )
+    print("")
+    print("Work on an older one with --session <id>. A * marks the current session.")
+    return EXIT_OK
+
+
 def command_hint(args: argparse.Namespace) -> int:
     """Record that the interviewer gave a nudge.
 
@@ -1418,6 +1534,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="session.py", description="Timed assessment session engine."
     )
+    parser.add_argument(
+        "--version", action="version", version="interview-sim %s" % (VERSION,)
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     def add_common(sub: argparse.ArgumentParser) -> None:
@@ -1434,6 +1553,10 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
     start.add_argument("--seed", type=int, default=None, help="repeatable question choice")
+    start.add_argument(
+        "--slot", type=int, default=None,
+        help="difficulty slot to draw from, 1 easiest. Useful with --mode interview.",
+    )
     start.add_argument("--session", default=None, help=argparse.SUPPRESS)
     start.add_argument(
         "--force", action="store_true", help="abandon any running session"
@@ -1448,6 +1571,11 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--timeout", type=float, default=30.0)
     add_common(submit)
     submit.set_defaults(func=command_submit)
+
+    listing = subparsers.add_parser("list", help="show past sessions")
+    listing.add_argument("--limit", type=int, default=20)
+    add_common(listing)
+    listing.set_defaults(func=command_list)
 
     hint = subparsers.add_parser("hint", help="record an interviewer hint")
     hint.add_argument("--question", default=None)

@@ -14,7 +14,7 @@ The engine is complete. Both formats run end to end.
   tests, with every level re-running the ones below it
 - **Interview mode**: one question, forty-five minutes, with an interviewer who
   asks about your approach first and whose hints are counted
-- `start`, `status`, `submit`, `hint`, `unlock`, and `report`
+- `start`, `status`, `submit`, `hint`, `unlock`, `report`, and `list`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
@@ -132,6 +132,17 @@ says which happened rather than quietly rounding up.
 
 The clock and the grading are the same scripts underneath. Only the person
 changes.
+
+### Coming back to an old session
+
+```
+python3 skills/sim/scripts/session.py list
+python3 skills/sim/scripts/session.py report --session gca-20260811T193740Z
+```
+
+Sessions are kept, so you can look at what you did last week. `--slot N` draws
+from one difficulty if you want to be interviewed on something specific rather
+than taking the ramp.
 
 ## On the score
 

@@ -624,6 +624,92 @@ class TestInterviewMode(BankAwareTestCase):
         self.assertNotIn("hint", text.lower())
 
 
+class TestListing(BankAwareTestCase):
+    def test_no_sessions(self):
+        code, out, _ = self.run_session("list", cwd=str(self.root))
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("No sessions", out)
+
+    def test_lists_newest_first(self):
+        self.run_session("start", "--format", "gca", "--now", T0)
+        self.run_session("start", "--format", "gca", "--now", T0 + HOUR * 3, "--force")
+        _, out, _ = self.run_session("list", "--now", T0 + HOUR * 4, "--json")
+        rows = json.loads(out)
+        self.assertEqual(len(rows), 2)
+        self.assertGreater(rows[0]["started_epoch"], rows[1]["started_epoch"])
+
+    def test_marks_the_current_session(self):
+        self.run_session("start", "--format", "gca", "--now", T0)
+        _, out, _ = self.run_session("list", "--now", T0 + 60)
+        self.assertIn("*", out.splitlines()[0])
+
+    def test_an_older_session_is_reachable_by_id(self):
+        """Without this the only reachable session is whatever the pointer names."""
+        self.run_session("start", "--format", "gca", "--questions", "1", "--now", T0)
+        first = self.state()["session_id"]
+        self.run_session("start", "--format", "gca", "--now", T0 + HOUR * 3, "--force")
+
+        code, out, err = self.run_session(
+            "report", "--session", first, "--now", T0 + HOUR * 4, "--json"
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(json.loads(out)["session_id"], first)
+
+    def test_limit(self):
+        for step in range(3):
+            self.run_session(
+                "start", "--format", "gca", "--now", T0 + HOUR * 3 * step, "--force"
+            )
+        _, out, _ = self.run_session("list", "--limit", "2", "--now", T0, "--json")
+        self.assertEqual(len(json.loads(out)), 2)
+
+    def test_time_used_never_exceeds_the_time_available(self):
+        """A session abandoned hours late still only had its allotted time.
+
+        The ending of an abandoned session is the moment it was abandoned, which
+        can be long past the deadline, and reporting that raw gave "used 3:03:20
+        of 1:10:00".
+        """
+        self.run_session("start", "--format", "gca", "--now", T0)
+        self.run_session("start", "--format", "gca", "--now", T0 + HOUR * 3, "--force")
+        _, out, _ = self.run_session("list", "--now", T0 + HOUR * 4, "--json")
+        abandoned = [row for row in json.loads(out) if row["end_reason"] == "abandoned"]
+        self.assertTrue(abandoned)
+
+        _, report, _ = self.run_session(
+            "report", "--session", abandoned[0]["session_id"],
+            "--now", T0 + HOUR * 4, "--json",
+        )
+        payload = json.loads(report)
+        self.assertEqual(payload["time_used_display"], payload["duration_display"])
+
+
+class TestSlotSelection(SessionTestCase):
+    def test_slot_picks_that_difficulty(self):
+        code, _, err = self.run_session(
+            "start", "--mode", "interview", "--slot", "4", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        questions = self.state()["questions"]
+        self.assertEqual(len(questions), 1)
+        self.assertEqual(questions[0]["difficulty"], "hard")
+
+    def test_slot_one_is_a_warmup(self):
+        self.run_session("start", "--mode", "interview", "--slot", "1", "--now", T0)
+        self.assertEqual(self.state()["questions"][0]["difficulty"], "warmup")
+
+    def test_unknown_slot_is_refused(self):
+        code, _, err = self.run_session("start", "--slot", "9", "--now", T0)
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("Slots available", err)
+
+    def test_asking_for_more_than_a_slot_holds(self):
+        code, _, err = self.run_session(
+            "start", "--slot", "1", "--questions", "99", "--now", T0
+        )
+        self.assertEqual(code, EXIT_BANK)
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

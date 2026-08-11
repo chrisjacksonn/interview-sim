@@ -69,6 +69,11 @@ jobs:
           if not market.get('plugins'):
               fail.append('marketplace lists no plugins')
 
+          engine = open('skills/sim/scripts/session.py').read()
+          declared = re.search(r'^VERSION = "([^"]+)"', engine, re.M).group(1)
+          if declared != plugin.get('version'):
+              fail.append('session.py VERSION %s != plugin.json %s' % (declared, plugin.get('version')))
+
           skill = open('skills/sim/SKILL.md').read()
           front = skill.split('---')[1]
           name = re.search(r'^name:\s*(\S+)', front, re.M).group(1)

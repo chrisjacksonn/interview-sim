@@ -93,6 +93,8 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "how did I do", after time is up | `report` |
 | `/sim interview`, "mock interview", "interview me" | `start --mode interview` |
 | you gave a nudge in interview mode | `hint --note "..."` |
+| "what have I done before", "my past sessions" | `list` |
+| "interview me on a hard one" | `start --mode interview --slot 4` |
 
 ### ICA sessions
 
