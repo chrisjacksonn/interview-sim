@@ -73,11 +73,28 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim`, `/sim gca`, "start a GCA mock" | `start --format gca` |
 | `/sim status`, "how long do I have" | `status` |
 | "how much time on question 2" | `status` (the clock is per session, not per question) |
+| `/sim ica`, "start an ICA mock" | `start --format ica` |
 | "submit", "grade this", "check question 1" | `submit --question q1` |
+| "submit" during an ICA run | `submit` with no argument, which means the open level |
 | "how did I do", after time is up | `report` |
 
-`unlock` is not implemented yet (it is for ICA mode). If the user asks for it, say
-so plainly rather than improvising a substitute.
+### ICA sessions
+
+An ICA run is one project with four levels on a single `solution.py`. Only the
+open level's `problem.md` is on disk. The next one appears when the current level
+passes, and `submit` does that automatically, so `unlock` is rarely needed.
+
+Two things follow from this, and both matter.
+
+**Do not describe a level that has not been unlocked.** You have not seen it
+either, but do not speculate about where the project is going, and do not suggest
+designing for a feature that has not been announced. Being caught out by level 4
+is the exercise.
+
+**Every level re-runs the levels below it.** So a submission showing `level 1
+15/17` after level 4 work is a regression: they broke something that used to
+pass. Say so directly, because it is the single most useful thing you can tell
+them, and they may not notice it under a passing headline number.
 
 ### Grading
 

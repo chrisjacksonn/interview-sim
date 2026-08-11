@@ -318,6 +318,128 @@ class TestReport(SessionTestCase):
         self.assertEqual(payload["time_used_display"], "1:10:00")
 
 
+PROJECT = REPO / "skills" / "sim" / "questions" / "ica" / "parcel-locker"
+
+
+class TestICA(SessionTestCase):
+    def start_ica(self, now=T0):
+        code, _, err = self.run_session("start", "--format", "ica", "--now", now)
+        self.assertEqual(code, EXIT_OK, err)
+        return self.workspace()
+
+    def solve(self, workspace, source=None):
+        shutil.copyfile(
+            str(source or (PROJECT / "reference.py")),
+            str(workspace / "parcel-locker" / "solution.py"),
+        )
+
+    def test_only_level_one_is_on_disk_at_the_start(self):
+        """Locked levels must not be readable, which is the point of gating."""
+        workspace = self.start_ica()
+        project = workspace / "parcel-locker"
+        self.assertTrue((project / "level1.md").exists())
+        for level in (2, 3, 4):
+            self.assertFalse(
+                (project / ("level%d.md" % level)).exists(),
+                "level %d was readable before it was unlocked" % level,
+            )
+            self.assertFalse((project / ("tests_public_level%d.py" % level)).exists())
+
+    def test_one_solution_file_not_one_per_level(self):
+        workspace = self.start_ica()
+        solutions = list(workspace.rglob("solution.py"))
+        self.assertEqual(len(solutions), 1)
+
+    def test_locked_level_cannot_be_submitted(self):
+        self.start_ica()
+        code, _, err = self.run_session("submit", "--question", "2", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("locked", err)
+
+    def test_unlock_refuses_until_the_level_passes(self):
+        self.start_ica()
+        code, _, err = self.run_session("unlock", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("locked", err.lower())
+
+    def test_passing_a_level_unlocks_the_next(self):
+        workspace = self.start_ica()
+        self.solve(workspace)
+        code, out, _ = self.run_session("submit", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("Unlocked Level 2", out)
+        self.assertTrue((workspace / "parcel-locker" / "level2.md").exists())
+        self.assertFalse((workspace / "parcel-locker" / "level3.md").exists())
+
+    def test_submit_with_no_argument_means_the_open_level(self):
+        workspace = self.start_ica()
+        self.solve(workspace)
+        self.run_session("submit", "--now", T0 + 60)
+        _, out, _ = self.run_session("submit", "--now", T0 + 120, "--json")
+        self.assertEqual(json.loads(out)["question"], "parcel-locker")
+        self.assertEqual(self.state()["questions"][1]["state"], "passed")
+
+    def test_regression_grading_reruns_earlier_levels(self):
+        """A level 4 answer that breaks level 1 must not score as a pass.
+
+        The mutant implements multi-parcel lockers by dropping the capacity
+        check entirely, so every unconfigured locker stops holding exactly one.
+        """
+        workspace = self.start_ica()
+        self.solve(workspace)
+        for step in range(3):
+            code, _, err = self.run_session("submit", "--now", T0 + 60 * (step + 1))
+            self.assertEqual(code, EXIT_OK, err)
+
+        self.solve(workspace, PROJECT / "mutants" / "l4_breaks_l1.py")
+        code, out, _ = self.run_session("submit", "--now", T0 + 600, "--json")
+        self.assertEqual(code, EXIT_OK)
+        report = json.loads(out)
+        self.assertNotEqual(report["outcome"], "pass")
+        self.assertTrue(report["regression"], "broken level 1 was not flagged")
+
+        by_slot = dict((line["slot"], line) for line in report["per_level"])
+        self.assertLess(by_slot[1]["passed"], by_slot[1]["total"])
+        self.assertEqual(len(by_slot), 4)
+
+    def test_report_does_not_double_count_cumulative_levels(self):
+        """Each level's score already contains the ones below it."""
+        workspace = self.start_ica()
+        self.solve(workspace)
+        for step in range(4):
+            self.run_session("submit", "--now", T0 + 60 * (step + 1))
+        _, out, _ = self.run_session("report", "--now", T0 + 1000, "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["solved"], 4)
+        self.assertEqual(payload["credit"], 1.0)
+        deepest = payload["detail"][-1]
+        self.assertEqual(
+            payload["tests_total"],
+            int(deepest["summary"].split("/")[1]),
+            "totals were summed across levels instead of taken from the deepest",
+        )
+
+    def test_stopping_partway_is_scored_as_partway(self):
+        workspace = self.start_ica()
+        self.solve(workspace)
+        self.run_session("submit", "--now", T0 + 60)
+        self.run_session("submit", "--now", T0 + 120)
+        _, out, _ = self.run_session("report", "--now", T0 + 1000, "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["solved"], 2)
+        self.assertEqual(payload["credit"], 0.5)
+
+    def test_unlock_is_meaningless_for_gca(self):
+        self.run_session("start", "--format", "gca", "--now", T0)
+        code, _, err = self.run_session("unlock", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("unlocked already", err)
+
+    def test_ica_duration_is_ninety_minutes(self):
+        self.start_ica()
+        self.assertEqual(self.state()["clock"]["duration_seconds"], 90 * 60)
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

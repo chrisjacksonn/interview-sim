@@ -53,9 +53,15 @@ END_REASON_SUBMITTED = "submitted"
 END_REASON_ABANDONED = "abandoned"
 
 FORMATS = {
-    "gca": {"questions": 4, "minutes": 70, "label": "GCA-style"},
-    "ica": {"questions": 4, "minutes": 90, "label": "ICA-style"},
+    "gca": {"questions": 4, "minutes": 70, "label": "GCA-style", "gated": False},
+    # ICA is one project whose levels unlock in order, so "questions" here means
+    # levels of a single project rather than independent problems.
+    "ica": {"questions": 4, "minutes": 90, "label": "ICA-style", "gated": True},
 }
+
+STATE_LOCKED = "locked"
+STATE_UNLOCKED = "unlocked"
+STATE_PASSED = "passed"
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 QUESTIONS_DIR = SKILL_DIR / "questions"
@@ -308,6 +314,38 @@ def finalize(
 # --------------------------------------------------------------------------
 
 
+def load_ica_project(project_id: Optional[str]) -> Dict[str, Any]:
+    """Pick an ICA project and describe its levels."""
+    directory = QUESTIONS_DIR / "ica"
+    if not directory.is_dir():
+        raise SessionError("No ICA projects at %s" % (directory,), EXIT_BANK)
+
+    projects = sorted(
+        entry for entry in directory.iterdir()
+        if entry.is_dir() and not entry.name.startswith("_")
+    )
+    if project_id:
+        projects = [entry for entry in projects if entry.name == project_id]
+        if not projects:
+            raise SessionError("No ICA project named %r" % (project_id,), EXIT_BANK)
+    if not projects:
+        raise SessionError("No ICA projects available", EXIT_BANK)
+
+    project = projects[0]
+    meta_file = project / "meta.json"
+    if not meta_file.exists():
+        raise SessionError("%s has no meta.json" % (project,), EXIT_BANK)
+    with open(str(meta_file), "r") as handle:
+        meta = json.load(handle)
+
+    levels = sorted(project.glob("level*"), key=lambda p: int(p.name[5:]))
+    if not levels:
+        raise SessionError("%s has no level directories" % (project,), EXIT_BANK)
+    meta["_dir"] = project
+    meta["_levels"] = levels
+    return meta
+
+
 def load_bank(fmt: str) -> List[Dict[str, Any]]:
     """Load every question for a format, ordered by slot then id."""
     directory = QUESTIONS_DIR / fmt
@@ -390,6 +428,52 @@ def materialize(workspace: Path, questions: List[Dict[str, Any]]) -> List[Dict[s
                 "result": None,
             }
         )
+    return entries
+
+
+def materialize_level(workspace: Path, project_dir: str, level: Dict[str, Any]) -> None:
+    """Reveal one ICA level's material into the workspace.
+
+    Only the level being unlocked is copied. A locked level's problem statement
+    is not sitting on disk waiting to be read, which is the whole point of
+    gating: you design for what you have been told about so far, and level 4
+    then makes you regret some of it.
+    """
+    source = QUESTIONS_DIR / level["source"]
+    target = workspace / project_dir
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(str(source / "problem.md"), str(target / ("level%d.md" % level["slot"])))
+    shutil.copyfile(
+        str(source / "tests_public.py"),
+        str(target / ("tests_public_level%d.py" % level["slot"])),
+    )
+
+
+def materialize_ica(workspace: Path, meta: Dict[str, Any], count: int) -> List[Dict[str, Any]]:
+    """Lay out an ICA project: one solution file, level 1 revealed."""
+    project_dir = meta["id"]
+    target = workspace / project_dir
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(str(meta["_dir"] / "starter.py"), str(target / "solution.py"))
+
+    entries = []
+    for index, level in enumerate(meta["_levels"][:count], start=1):
+        entries.append(
+            {
+                "slot": index,
+                "id": "%s-level%d" % (meta["id"], index),
+                "dir": project_dir,
+                "source": "ica/%s/%s" % (meta["id"], level.name),
+                "title": "Level %d" % (index,),
+                "difficulty": "level%d" % (index,),
+                "state": STATE_UNLOCKED if index == 1 else STATE_LOCKED,
+                "attempts": 0,
+                "last_submit_epoch": None,
+                "result": None,
+            }
+        )
+    if entries:
+        materialize_level(workspace, project_dir, entries[0])
     return entries
 
 
@@ -568,7 +652,19 @@ def command_start(args: argparse.Namespace) -> int:
                 )
             finalize(existing_workspace, existing_state, now, END_REASON_ABANDONED)
 
-    questions = select_questions(fmt, count)
+    if config["gated"]:
+        project = load_ica_project(args.project)
+        available = len(project["_levels"])
+        if available < count:
+            raise SessionError(
+                "Project %s has %d levels but %d were asked for."
+                % (project["id"], available, count),
+                EXIT_BANK,
+            )
+        questions = None
+    else:
+        project = None
+        questions = select_questions(fmt, count)
 
     duration = minutes * 60.0
     session_id = "%s-%s" % (fmt, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
@@ -601,7 +697,11 @@ def command_start(args: argparse.Namespace) -> int:
             "ended_utc": None,
             "end_reason": None,
         },
-        "questions": materialize(workspace, questions),
+        "questions": (
+            materialize_ica(workspace, project, count)
+            if project is not None
+            else materialize(workspace, questions)
+        ),
         "events": [],
     }
     add_event(state, now, "session_started", format=fmt, mode=args.mode, questions=count)
@@ -616,16 +716,35 @@ def command_start(args: argparse.Namespace) -> int:
     else:
         print("Session started: %s" % (session_id,))
         print("")
-        print("%d question(s), %s on the clock." % (len(state["questions"]), format_duration(duration)))
+        if config["gated"]:
+            print(
+                "One project, %d levels, %s on the clock."
+                % (len(state["questions"]), format_duration(duration))
+            )
+        else:
+            print(
+                "%d question(s), %s on the clock."
+                % (len(state["questions"]), format_duration(duration))
+            )
         print("Deadline %s UTC." % (state["clock"]["deadline_utc"],))
         print("")
         print("Work here:")
         print("  %s" % (workspace,))
-        for question in state["questions"]:
+        if config["gated"]:
+            first = state["questions"][0]
+            print("    %s/solution.py" % (first["dir"],))
+            print("    %s/level1.md" % (first["dir"],))
+            print("")
             print(
-                "    %s/solution.py   %s"
-                % (question["dir"], question["title"] or question["id"])
+                "Levels 2 to %d are locked. Each one appears when the level "
+                "before it passes." % (len(state["questions"]),)
             )
+        else:
+            for question in state["questions"]:
+                print(
+                    "    %s/solution.py   %s"
+                    % (question["dir"], question["title"] or question["id"])
+                )
         print("")
         print("Read %s/README.md first. The clock is running." % (workspace,))
     return EXIT_OK
@@ -637,18 +756,35 @@ def find_question(state: Dict[str, Any], wanted: Optional[str]) -> Dict[str, Any
     if wanted is None:
         if len(questions) == 1:
             return questions[0]
+        # In a gated session exactly one level is open at a time, so "submit"
+        # with no argument is unambiguous and means that one. Every level shares
+        # a directory name, so falling back to listing directories would offer
+        # the same answer four times.
+        open_now = [q for q in questions if q["state"] == STATE_UNLOCKED]
+        if len(open_now) == 1:
+            return open_now[0]
         raise SessionError(
-            "Which question? Pass --question with one of: %s"
-            % (", ".join(q["dir"] for q in questions),),
+            "Which one? Pass --question with one of: %s"
+            % (", ".join(sorted(set(q["dir"] for q in questions))),),
             EXIT_USAGE,
         )
     needle = str(wanted).strip().lower()
     for question in questions:
-        if needle in (question["dir"].lower(), str(question["slot"]), question["id"].lower()):
+        if needle in (str(question["slot"]), question["id"].lower()):
             return question
+    # Only match on directory when it identifies a single entry, which is true
+    # for GCA and false for every level of an ICA project.
+    matches = [q for q in questions if q["dir"].lower() == needle]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise SessionError(
+            "%r is the whole project. Pass a level number instead." % (wanted,),
+            EXIT_USAGE,
+        )
     raise SessionError(
         "No question %r in this session. Have: %s"
-        % (wanted, ", ".join(q["dir"] for q in questions)),
+        % (wanted, ", ".join(sorted(set(q["dir"] for q in questions)))),
         EXIT_USAGE,
     )
 
@@ -697,6 +833,115 @@ def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict
         )
 
 
+def run_gated_grader(
+    state: Dict[str, Any], question: Dict[str, Any], solution: Path, timeout: float
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Grade an ICA level and every level below it.
+
+    The combined score is what counts. Passing level 4's new tests while level
+    1 has started failing is not progress, and reporting it as a pass would
+    teach exactly the wrong habit.
+    """
+    per_level = []
+    passed = 0
+    total = 0
+    broke_earlier = False
+
+    for entry in state["questions"]:
+        if entry["slot"] > question["slot"]:
+            break
+        report = run_grader(entry, solution, timeout)
+        per_level.append(
+            {
+                "slot": entry["slot"],
+                "passed": report.get("passed", 0),
+                "total": report.get("total", 0),
+                "outcome": report.get("outcome", "unknown"),
+            }
+        )
+        passed += report.get("passed", 0)
+        total += report.get("total", 0)
+        if entry["slot"] < question["slot"] and report.get("outcome") != "pass":
+            broke_earlier = True
+
+    if total and passed == total:
+        outcome = "pass"
+    elif passed:
+        outcome = "partial"
+    else:
+        outcome = "fail"
+
+    combined = {
+        "passed": passed,
+        "total": total,
+        "credit": round(float(passed) / total, 4) if total else 0.0,
+        "outcome": outcome,
+        "regression": broke_earlier,
+    }
+    return combined, per_level
+
+
+def unlock_next(
+    workspace: Path, state: Dict[str, Any], now: float
+) -> Optional[Dict[str, Any]]:
+    """Reveal the next level, if the one before it has been passed."""
+    for entry in state["questions"]:
+        if entry["state"] != STATE_LOCKED:
+            continue
+        previous = state["questions"][entry["slot"] - 2]
+        if previous["state"] != STATE_PASSED:
+            return None
+        entry["state"] = STATE_UNLOCKED
+        materialize_level(workspace, entry["dir"], entry)
+        add_event(state, now, "level_unlocked", level=entry["slot"])
+        return entry
+    return None
+
+
+def command_unlock(args: argparse.Namespace) -> int:
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+    if phase == STATE_ENDED:
+        sys.stderr.write("This session is over. Nothing more unlocks.\n")
+        return EXIT_EXPIRED
+
+    if not FORMATS[state["format"]]["gated"]:
+        raise SessionError(
+            "%s sessions have every question unlocked already."
+            % (state["format"].upper(),),
+            EXIT_USAGE,
+        )
+
+    entry = unlock_next(workspace, state, now)
+    if entry is None:
+        locked = [q for q in state["questions"] if q["state"] == STATE_LOCKED]
+        if not locked:
+            print("Every level is already unlocked.")
+            return EXIT_OK
+        current = [q for q in state["questions"] if q["state"] == STATE_UNLOCKED]
+        name = current[0]["title"] if current else "the current level"
+        sys.stderr.write(
+            "Still locked. %s has to pass first, and that means its own tests "
+            "plus every level before it.\n" % (name,)
+        )
+        return EXIT_USAGE
+
+    write_state(workspace, state)
+    print("Unlocked %s." % (entry["title"],))
+    print("")
+    print("  %s/level%d.md" % (entry["dir"], entry["slot"]))
+    print("  %s/tests_public_level%d.py" % (entry["dir"], entry["slot"]))
+    print("")
+    print("Keep working in the same solution.py. The earlier levels keep being tested.")
+    return EXIT_OK
+
+
 def command_submit(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
@@ -720,9 +965,24 @@ def command_submit(args: argparse.Namespace) -> int:
         return EXIT_EXPIRED
 
     question = find_question(state, args.question)
-    solution = workspace / question["dir"] / "solution.py"
+    if question["state"] == STATE_LOCKED:
+        raise SessionError(
+            "%s is locked. Pass level %d first."
+            % (question["title"], question["slot"] - 1),
+            EXIT_USAGE,
+        )
 
-    report = run_grader(question, solution, args.timeout)
+    solution = workspace / question["dir"] / "solution.py"
+    gated = FORMATS[state["format"]]["gated"]
+
+    if gated:
+        # Regression grading. Every level up to this one is re-run, so a level 4
+        # feature that broke level 1 costs the marks it just broke rather than
+        # scoring full for the new work.
+        report, per_level = run_gated_grader(state, question, solution, args.timeout)
+    else:
+        report = run_grader(question, solution, args.timeout)
+        per_level = None
 
     question["attempts"] = question.get("attempts", 0) + 1
     question["last_submit_epoch"] = now
@@ -733,6 +993,10 @@ def command_submit(args: argparse.Namespace) -> int:
         "outcome": report.get("outcome", "unknown"),
         "at_epoch": now,
     }
+    if per_level is not None:
+        question["result"]["per_level"] = per_level
+        question["result"]["regression"] = report.get("regression", False)
+
     add_event(
         state,
         now,
@@ -743,6 +1007,12 @@ def command_submit(args: argparse.Namespace) -> int:
         passed=question["result"]["passed"],
         total=question["result"]["total"],
     )
+
+    unlocked = None
+    if gated and report.get("outcome") == "pass":
+        question["state"] = STATE_PASSED
+        unlocked = unlock_next(workspace, state, now)
+
     write_state(workspace, state)
 
     payload = {
@@ -768,15 +1038,25 @@ def command_submit(args: argparse.Namespace) -> int:
         elif outcome == "timeout":
             print("%s/solution.py did not finish. Something is not terminating." % (question["dir"],))
         else:
+            label = question["title"] if gated else question["dir"]
             print(
                 "%s  %d of %d hidden tests passed (%.0f%%)."
-                % (
-                    question["dir"],
-                    report["passed"],
-                    report["total"],
-                    report["credit"] * 100,
-                )
+                % (label, report["passed"], report["total"], report["credit"] * 100)
             )
+            if per_level and len(per_level) > 1:
+                print("")
+                for line in per_level:
+                    marker = "  " if line["passed"] == line["total"] else "! "
+                    print(
+                        "  %slevel %d   %d/%d"
+                        % (marker, line["slot"], line["passed"], line["total"])
+                    )
+                if report.get("regression"):
+                    print("")
+                    print("An earlier level is failing. That is a regression, not progress.")
+        if unlocked is not None:
+            print("")
+            print("Passed. Unlocked %s: %s/level%d.md" % (unlocked["title"], unlocked["dir"], unlocked["slot"]))
         print("")
         print("attempt %d, %s left on the clock." % (question["attempts"], payload["remaining_display"]))
 
@@ -818,6 +1098,7 @@ def command_report(args: argparse.Namespace) -> int:
 
     questions = state["questions"]
     count = len(questions)
+    gated = FORMATS[state["format"]]["gated"]
     total_tests = 0
     passed_tests = 0
     solved = 0
@@ -829,8 +1110,16 @@ def command_report(args: argparse.Namespace) -> int:
         if question.get("attempts"):
             attempted += 1
         if result and result.get("total"):
-            total_tests += result["total"]
-            passed_tests += result["passed"]
+            if gated:
+                # Each level is graded cumulatively, so its score already
+                # contains every level below it. Summing them counts level 1's
+                # tests four times and reports 187 distinct tests where there
+                # are 79. The deepest level reached is the real figure.
+                total_tests = result["total"]
+                passed_tests = result["passed"]
+            else:
+                total_tests += result["total"]
+                passed_tests += result["passed"]
             if result["outcome"] == "pass":
                 solved += 1
             summary = "%d/%d" % (result["passed"], result["total"])
@@ -893,18 +1182,32 @@ def command_report(args: argparse.Namespace) -> int:
         print("Still running. %s used of %s." % (payload["time_used_display"], payload["duration_display"]))
     print("")
     for line in lines:
-        print(
-            "  %-4s %-12s %-10s %s"
-            % (line["dir"], line["summary"], line["difficulty"], line["title"])
-        )
+        if gated:
+            print("  %-10s %s" % (line["title"], line["summary"]))
+        else:
+            print(
+                "  %-4s %-12s %-10s %s"
+                % (line["dir"], line["summary"], line["difficulty"], line["title"])
+            )
     print("")
-    print("Solved %d of %d." % (solved, count))
-    if total_tests:
-        print(
-            "%d of %d hidden tests passed on the questions that ran."
-            % (passed_tests, total_tests)
-        )
-    print("Overall: %.0f%% credit across all %d questions, %s." % (credit * 100, count, payload["band"]))
+    if gated:
+        print("Reached and passed %d of %d levels." % (solved, count))
+        if total_tests:
+            print(
+                "%d of %d hidden tests passing at the deepest level reached, "
+                "earlier levels included." % (passed_tests, total_tests)
+            )
+    else:
+        print("Solved %d of %d." % (solved, count))
+        if total_tests:
+            print(
+                "%d of %d hidden tests passed on the questions that ran."
+                % (passed_tests, total_tests)
+            )
+    print(
+        "Overall: %.0f%% credit across all %d %s, %s."
+        % (credit * 100, count, "levels" if gated else "questions", payload["band"])
+    )
     print("")
     print(payload["score_note"])
     return EXIT_OK
@@ -950,6 +1253,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--questions", type=int, default=None)
     start.add_argument("--minutes", type=float, default=None)
     start.add_argument("--workspace", default=None)
+    start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--session", default=None, help=argparse.SUPPRESS)
     start.add_argument(
         "--force", action="store_true", help="abandon any running session"
@@ -964,6 +1268,12 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--timeout", type=float, default=30.0)
     add_common(submit)
     submit.set_defaults(func=command_submit)
+
+    unlock = subparsers.add_parser("unlock", help="reveal the next ICA level")
+    unlock.add_argument("--workspace", default=None)
+    unlock.add_argument("--session", default=None)
+    add_common(unlock)
+    unlock.set_defaults(func=command_unlock)
 
     report = subparsers.add_parser("report", help="summarise the session")
     report.add_argument("--workspace", default=None)
