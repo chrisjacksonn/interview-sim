@@ -114,8 +114,12 @@ def check_mutants(question):
         report = grade.grade(question, mutant, TIMEOUT)
         if report["outcome"] == "pass":
             survivors.append(mutant.name)
+        elif report["total"]:
+            caught.append((mutant.name, "%d/%d" % (report["passed"], report["total"])))
         else:
-            caught.append((mutant.name, report["passed"], report["total"]))
+            # No tests ran at all: the mutant hung or would not import. Still
+            # caught, but "0/0" reads like a suite that did not execute.
+            caught.append((mutant.name, report["outcome"]))
     if survivors:
         raise Failure(
             "these wrong answers passed the hidden suite: %s" % (", ".join(survivors),)
@@ -133,8 +137,8 @@ def check_question(question, verbose):
 
     if verbose:
         print("    %d hidden tests, reference passes all" % (total,))
-        for name, passed, out_of in caught:
-            print("    caught %-22s %d/%d" % (name, passed, out_of))
+        for name, score in caught:
+            print("    caught %-26s %s" % (name, score))
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught)}
 
 

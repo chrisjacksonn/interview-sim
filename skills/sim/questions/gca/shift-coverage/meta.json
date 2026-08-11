@@ -1,0 +1,12 @@
+{
+  "id": "shift-coverage",
+  "format": "gca",
+  "slot": 4,
+  "difficulty": "hard",
+  "title": "Shift Coverage",
+  "time_hint_minutes": 25,
+  "entrypoint": "solve",
+  "topics": ["greedy", "intervals", "sorting", "optimization"],
+  "original": true,
+  "authored": "2026-08-11"
+}

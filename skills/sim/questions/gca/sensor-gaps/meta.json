@@ -1,0 +1,12 @@
+{
+  "id": "sensor-gaps",
+  "format": "gca",
+  "slot": 2,
+  "difficulty": "medium",
+  "title": "Sensor Gaps",
+  "time_hint_minutes": 15,
+  "entrypoint": "solve",
+  "topics": ["grouping", "sorting", "dictionaries"],
+  "original": true,
+  "authored": "2026-08-11"
+}

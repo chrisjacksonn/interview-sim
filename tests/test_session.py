@@ -127,9 +127,26 @@ class TestStart(SessionTestCase):
         self.assertIn("not implemented", err)
 
     def test_short_bank_is_an_error_not_a_silent_short_session(self):
-        code, _, err = self.run_session("start", "--format", "gca", "--now", T0)
+        """Asking for more questions than exist must fail loudly.
+
+        Quietly running a 2-question GCA when 4 were asked for would misreport
+        what the session actually was.
+        """
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "99", "--now", T0
+        )
         self.assertEqual(code, EXIT_BANK)
         self.assertIn("--questions", err)
+
+    def test_full_gca_uses_the_whole_bank_in_slot_order(self):
+        code, _, err = self.run_session("start", "--format", "gca", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        questions = self.state()["questions"]
+        self.assertEqual(len(questions), 4)
+        self.assertEqual([q["dir"] for q in questions], ["q1", "q2", "q3", "q4"])
+        # Difficulty has to ramp: warm-up first, hard last.
+        self.assertEqual(questions[0]["difficulty"], "warmup")
+        self.assertEqual(questions[-1]["difficulty"], "hard")
 
     def test_unknown_format(self):
         code, _, _ = self.run_session("start", "--format", "nope", "--now", T0)
