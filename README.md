@@ -16,10 +16,10 @@ The engine is complete. Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **six GCA questions and one ICA project**, which is a couple of
-sittings. Growing it is the current work. A session takes one question per
-difficulty slot and picks at random where a slot has several, so two sittings are
-not the same exam twice.
+The bank is **twelve GCA questions and three ICA projects**: three questions in
+every difficulty slot, so three GCA sittings and three ICA sittings before
+anything repeats. A session takes one question per slot and picks at random,
+so two sittings are not the same exam twice.
 
 Company presets are wired up but the table is empty, so `/sim <company>` has
 nothing to look up yet. That is deliberate: every entry needs a real source and a
