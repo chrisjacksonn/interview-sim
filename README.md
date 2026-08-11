@@ -29,6 +29,36 @@ usually is not, because CodeSignal publishes nothing about which format any
 customer chooses, so most entries record the format as unknown and ask you which
 one you want rather than guessing.
 
+## What it looks like
+
+```console
+$ sim start --format gca
+Session started: gca-20260811T193045Z
+
+4 question(s), 1:10:00 on the clock.
+Deadline 2026-08-11T20:40:45Z UTC.
+
+Work here:
+  ~/interview-sim-sessions/gca-20260811T193045Z
+    q1/solution.py   Run Compression
+    q2/solution.py   Log Window
+    q3/solution.py   Zone Hops
+    q4/solution.py   Batch Split
+
+$ cd ~/interview-sim-sessions/gca-20260811T193045Z/q1 && ls
+problem.md   solution.py   tests_public.py
+
+$ sim status
+51:00 remaining
+
+$ sim submit --question q1
+q1  10 of 24 hidden tests passed (42%).
+
+attempt 1, 50:00 left on the clock.
+```
+
+Which ten failed is not shown, and working that out is the exercise.
+
 ## Why it exists
 
 The format is the part that surprises people. Four questions and seventy minutes

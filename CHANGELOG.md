@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+**Company presets, eighteen of them.** Each records two separate claims: that the
+company uses CodeSignal, and which assessment they give. CodeSignal publishes its
+customer list so the first is usually first-party; it publishes nothing about
+format, so most entries record the format as unknown and ask you to choose rather
+than repeating a claim that only content farms make.
+
+**Three more GCA questions**, fifteen in total: Log Window, Room Schedule, and
+Token Budget.
+
+**`references/formats.md`** records the difficulty ramp, target times, ICA level
+shapes, and the calibration rules the questions are written against, along with
+what is deliberately not modelled.
+
+Launch post drafts in `docs/`.
+
 ## 0.2.0
 
 **Interview mode.** One question, forty-five minutes, and an interviewer rather
