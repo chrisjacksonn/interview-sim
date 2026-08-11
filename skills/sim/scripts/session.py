@@ -785,6 +785,131 @@ def command_submit(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def band_for(credit: float, solved: int, count: int) -> str:
+    """A qualitative band, deliberately not a number.
+
+    CodeSignal's 200-600 scale is proprietary and calibrated against data that
+    is not public. Inventing a point estimate would be dressing a guess up as a
+    measurement, so this reports what was actually observed instead. See
+    non-negotiable 3.
+    """
+    if count and solved == count:
+        return "every question fully solved"
+    if credit >= 0.85:
+        return "strong: nearly everything passing"
+    if credit >= 0.6:
+        return "solid, with gaps to close"
+    if credit >= 0.3:
+        return "partial: the shape is there, the edge cases are not"
+    if credit > 0:
+        return "early: most tests still failing"
+    return "nothing passing yet"
+
+
+def command_report(args: argparse.Namespace) -> int:
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+
+    questions = state["questions"]
+    count = len(questions)
+    total_tests = 0
+    passed_tests = 0
+    solved = 0
+    attempted = 0
+    lines = []
+
+    for question in questions:
+        result = question.get("result")
+        if question.get("attempts"):
+            attempted += 1
+        if result and result.get("total"):
+            total_tests += result["total"]
+            passed_tests += result["passed"]
+            if result["outcome"] == "pass":
+                solved += 1
+            summary = "%d/%d" % (result["passed"], result["total"])
+        elif result:
+            summary = result.get("outcome", "?")
+        else:
+            summary = "not attempted"
+        lines.append(
+            {
+                "dir": question["dir"],
+                "title": question["title"] or question["id"],
+                "difficulty": question.get("difficulty", ""),
+                "attempts": question.get("attempts", 0),
+                "summary": summary,
+                "credit": (result or {}).get("credit", 0.0),
+                "last_submit_epoch": question.get("last_submit_epoch"),
+            }
+        )
+
+    # Average the per-question credit rather than pooling every test.
+    # Pooling silently drops any question that produced no test results at all,
+    # so a session with three perfect answers and one that timed out reported
+    # "60 of 60 passed" and called itself strong. A question that did not run is
+    # a zero, not an absence.
+    credit = sum(line["credit"] for line in lines) / count if count else 0.0
+    clock = state["clock"]
+    used = (clock.get("ended_epoch") or min(now, clock["deadline_epoch"])) - clock["started_epoch"]
+
+    payload = {
+        "session_id": state["session_id"],
+        "format": state["format"],
+        "mode": state["mode"],
+        "state": phase,
+        "end_reason": clock.get("end_reason"),
+        "questions": count,
+        "attempted": attempted,
+        "solved": solved,
+        "tests_passed": passed_tests,
+        "tests_total": total_tests,
+        "credit": round(credit, 4),
+        "band": band_for(credit, solved, count),
+        "time_used_display": format_duration(used),
+        "duration_display": format_duration(clock["duration_seconds"]),
+        "detail": lines,
+        "score_note": (
+            "Unofficial. This is what these hidden tests measured, not a "
+            "CodeSignal score. No 200-600 estimate is produced because that "
+            "scale is proprietary and cannot be reproduced honestly."
+        ),
+    }
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return EXIT_OK
+
+    print("%s  %s" % (state["session_id"], state["format"].upper()))
+    if phase == STATE_ENDED:
+        print("Finished (%s). Used %s of %s." % (clock.get("end_reason"), payload["time_used_display"], payload["duration_display"]))
+    else:
+        print("Still running. %s used of %s." % (payload["time_used_display"], payload["duration_display"]))
+    print("")
+    for line in lines:
+        print(
+            "  %-4s %-12s %-10s %s"
+            % (line["dir"], line["summary"], line["difficulty"], line["title"])
+        )
+    print("")
+    print("Solved %d of %d." % (solved, count))
+    if total_tests:
+        print(
+            "%d of %d hidden tests passed on the questions that ran."
+            % (passed_tests, total_tests)
+        )
+    print("Overall: %.0f%% credit across all %d questions, %s." % (credit * 100, count, payload["band"]))
+    print("")
+    print(payload["score_note"])
+    return EXIT_OK
+
+
 def command_status(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
@@ -839,6 +964,12 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--timeout", type=float, default=30.0)
     add_common(submit)
     submit.set_defaults(func=command_submit)
+
+    report = subparsers.add_parser("report", help="summarise the session")
+    report.add_argument("--workspace", default=None)
+    report.add_argument("--session", default=None)
+    add_common(report)
+    report.set_defaults(func=command_report)
 
     status = subparsers.add_parser("status", help="show time remaining")
     status.add_argument("--workspace", default=None)

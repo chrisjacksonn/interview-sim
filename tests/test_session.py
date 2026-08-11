@@ -256,6 +256,68 @@ class TestStatus(SessionTestCase):
         self.assertEqual(payload["questions"][0]["dir"], "q1")
 
 
+class TestReport(SessionTestCase):
+    def start_full(self, now=T0):
+        code, out, err = self.run_session("start", "--format", "gca", "--now", now)
+        self.assertEqual(code, EXIT_OK, err)
+        return self.workspace()
+
+    def test_report_on_an_untouched_session(self):
+        self.start_full()
+        code, out, _ = self.run_session("report", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK)
+        payload = json.loads(out)
+        self.assertEqual(payload["solved"], 0)
+        self.assertEqual(payload["attempted"], 0)
+        self.assertEqual(payload["credit"], 0.0)
+
+    def test_a_question_that_never_ran_counts_as_zero_not_as_absent(self):
+        """Three perfect answers and one that hangs is 75 percent, not 100.
+
+        Pooling raw test counts drops a timed-out question entirely, because it
+        produced no tests to pool, and reports the other three as the whole
+        session.
+        """
+        workspace = self.start_full()
+        bank = REPO / "skills" / "sim" / "questions" / "gca"
+        for directory, slug in (
+            ("q1", "shelf-tally"),
+            ("q2", "sensor-gaps"),
+            ("q3", "zone-hops"),
+        ):
+            shutil.copyfile(
+                str(bank / slug / "reference.py"),
+                str(workspace / directory / "solution.py"),
+            )
+            self.run_session("submit", "--question", directory, "--now", T0 + 60)
+
+        (workspace / "q4" / "solution.py").write_text(
+            "def solve(shifts, horizon):\n    while True:\n        pass\n"
+        )
+        self.run_session("submit", "--question", "q4", "--timeout", "3", "--now", T0 + 120)
+
+        _, out, _ = self.run_session("report", "--now", T0 + 200, "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["solved"], 3)
+        self.assertEqual(payload["questions"], 4)
+        self.assertEqual(payload["credit"], 0.75)
+        self.assertNotIn("strong", payload["band"])
+
+    def test_report_never_claims_a_200_600_score(self):
+        self.start_full()
+        _, out, _ = self.run_session("report", "--now", T0 + 60)
+        self.assertIn("Unofficial", out)
+        self.assertNotIn("200-600 estimate is produced", out.replace("No 200-600", ""))
+
+    def test_report_after_expiry_shows_the_ending(self):
+        self.start_full()
+        _, out, _ = self.run_session("report", "--now", T0 + 70 * 60 + 5, "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["state"], "ended")
+        self.assertEqual(payload["end_reason"], "time")
+        self.assertEqual(payload["time_used_display"], "1:10:00")
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

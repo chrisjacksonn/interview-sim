@@ -74,9 +74,10 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim status`, "how long do I have" | `status` |
 | "how much time on question 2" | `status` (the clock is per session, not per question) |
 | "submit", "grade this", "check question 1" | `submit --question q1` |
+| "how did I do", after time is up | `report` |
 
-`unlock` and `report` are not implemented yet. If the user asks for them, say so
-plainly rather than improvising a substitute.
+`unlock` is not implemented yet (it is for ICA mode). If the user asks for it, say
+so plainly rather than improvising a substitute.
 
 ### Grading
 
@@ -119,6 +120,16 @@ grading yourself.
 
 ## After the session
 
-Once the clock is out, drop the proctor voice and give a real debrief: what they got
-through, where the time went, which parts of the approach were sound, what to drill
-next. This is the part where being useful matters more than being strict.
+Once the clock is out, run `report` and then drop the proctor voice entirely. This
+is the part where being useful matters more than being strict.
+
+Give a real debrief: what they got through, where the time went, which parts of the
+approach were sound, what to drill next. Now you may look at their solutions and
+talk about them properly, because the exam is over. You still do not read the hidden
+tests.
+
+Two things not to do. Do not soften the numbers, and do not inflate them either: a
+question that timed out or never ran is a zero, and `report` already counts it that
+way. And do not present the percentage as a CodeSignal score. It is what these
+particular hidden tests measured. The real 200-600 scale is proprietary and this
+tool does not estimate it, which `report` says out loud.
