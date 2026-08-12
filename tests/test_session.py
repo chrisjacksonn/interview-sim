@@ -853,6 +853,86 @@ class TestLearn(BankAwareTestCase):
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class TestStaleness(BankAwareTestCase):
+    """A note has a date on it, and the date has to mean something.
+
+    The failure being guarded: research done while applying in one autumn is
+    served silently during the next hiring cycle, after the company has rebuilt
+    its process, and someone plans an evening around it.
+    """
+
+    YEAR = 400 * 24 * 3600
+
+    def learn(self):
+        code, _, err = self.run_session(
+            "learn", "shopify", "--round", "oa", "--format", "gca",
+            "--confidence", "medium", "--source", "https://example.com/a",
+            "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+    def test_fresh_is_not_flagged(self):
+        self.learn()
+        _, out, _ = self.run_session(
+            "start", "--preset", "shopify", "--now", T0 + 60, "--json"
+        )
+        preset = json.loads(out)["briefing"]["preset"]
+        self.assertFalse(preset["stale"])
+        self.assertEqual(preset["age_days"], 0)
+
+    def test_a_year_later_it_is_flagged(self):
+        self.learn()
+        _, out, _ = self.run_session(
+            "start", "--preset", "shopify", "--now", T0 + self.YEAR, "--json"
+        )
+        preset = json.loads(out)["briefing"]["preset"]
+        self.assertTrue(preset["stale"])
+        self.assertGreater(preset["age_days"], 365)
+
+    def test_lookup_says_so_in_words(self):
+        self.learn()
+        _, out, _ = self.run_session(
+            "presets", "shopify", "--now", T0 + self.YEAR
+        )
+        self.assertIn("worth checking again", " ".join(out.split()))
+
+    def test_a_missing_date_counts_as_stale_not_as_fresh(self):
+        self.learn()
+        path = self.root / "presets.local.json"
+        payload = json.loads(path.read_text())
+        del payload["presets"]["shopify"]["last_confirmed"]
+        path.write_text(json.dumps(payload))
+        _, out, _ = self.run_session(
+            "start", "--preset", "shopify", "--now", T0 + 60, "--json"
+        )
+        preset = json.loads(out)["briefing"]["preset"]
+        self.assertIsNone(preset["age_days"])
+        self.assertTrue(preset["stale"])
+
+    def test_learning_again_restamps_it(self):
+        self.learn()
+        self.run_session(
+            "learn", "shopify", "--round", "oa", "--format", "gca",
+            "--confidence", "medium", "--source", "https://example.com/b",
+            "--now", T0 + self.YEAR,
+        )
+        _, out, _ = self.run_session(
+            "start", "--preset", "shopify", "--now", T0 + self.YEAR + 60, "--json"
+        )
+        preset = json.loads(out)["briefing"]["preset"]
+        self.assertFalse(preset["stale"])
+        self.assertEqual(
+            preset["sources"], ["https://example.com/a", "https://example.com/b"]
+        )
+
+    def test_the_reviewed_table_is_dated_too(self):
+        """Nothing is exempt. A reviewed row can go out of date the same way."""
+        _, out, _ = self.run_session(
+            "start", "--preset", "capital-one", "--now", T0 + self.YEAR * 3, "--json"
+        )
+        self.assertTrue(json.loads(out)["briefing"]["preset"]["stale"])
+
+
 class TestOpeningTheEditor(unittest.TestCase):
     """Getting the candidate into the file.
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.2
+
+**A cached company goes stale.** `last_confirmed` was written down and then
+nothing ever read it, so research done while applying in one autumn would be
+served silently during the next hiring cycle, after the company had rebuilt its
+process. The date was there and meant nothing.
+
+Anything older than six months is now flagged as stale in `start --json` and
+said out loud by `presets`, and the proctor is told to search again and re-record
+rather than serve it. A missing date counts as stale, because not knowing when
+something was true is not the same as it being true now. The reviewed table is
+dated the same way and gets the same treatment: nothing here is exempt.
+
+Calling `learn` again for a round overwrites it and restamps the date, keeping
+the sources from both passes.
+
 ## 0.9.1
 
 **`--open` launched Finder on a machine with VS Code open in front of it.**

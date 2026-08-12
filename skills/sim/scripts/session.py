@@ -19,6 +19,7 @@ suffix, and this way it never has to).
 """
 
 import argparse
+import calendar
 import json
 import os
 import random
@@ -30,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1583,6 +1584,7 @@ def command_start(args: argparse.Namespace) -> int:
         "topics": {"asked": list(topics), "covered": {}, "uncovered": []},
     }
     if preset is not None:
+        age = entry_age_days(preset, now)
         briefing["preset"] = {
             "name": preset["_name"],
             "round": preset.get("_round"),
@@ -1591,6 +1593,13 @@ def command_start(args: argparse.Namespace) -> int:
             "format_confidence": preset.get("format_confidence"),
             "sources": list(preset.get("sources", ())),
             "last_confirmed": preset.get("last_confirmed"),
+            "age_days": age,
+            # Unknown counts as stale. A missing date is not evidence of
+            # freshness, and the failure it guards against is a note taken
+            # during one hiring cycle being served during the next one as
+            # though nothing had changed.
+            "stale": age is None or age > STALE_AFTER_DAYS,
+            "stale_after_days": STALE_AFTER_DAYS,
             "note": preset.get("note"),
         }
     for want in topics:
@@ -2286,6 +2295,30 @@ def command_report(args: argparse.Namespace) -> int:
 
 CONFIDENCE_LEVELS = ("high", "medium", "low")
 
+# Half a year. Hiring processes are rebuilt between cycles, so a note taken
+# while applying in one autumn says very little about the next one. This is not
+# an expiry: what was written down is still what was found, and the date it was
+# found is still true. It is the point past which it should be checked again
+# before anybody plans an evening around it.
+STALE_AFTER_DAYS = 180
+
+
+def entry_age_days(entry: Dict[str, Any], now: float) -> Optional[int]:
+    """How long ago this was last confirmed, in whole days.
+
+    None when the date is missing or unparseable, which is not the same as
+    fresh and must not be treated as fresh by anything downstream.
+    """
+    stamp = entry.get("last_confirmed")
+    if not stamp:
+        return None
+    try:
+        parsed = time.strptime(str(stamp), "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+    recorded = calendar.timegm(parsed)
+    return int((now - recorded) // 86400)
+
 
 def preset_rounds(preset: Dict[str, Any]) -> List[Dict[str, Any]]:
     """The rounds a company is recorded as running, always as a list.
@@ -2332,6 +2365,18 @@ def describe_round(entry: Dict[str, Any]) -> str:
     if entry.get("topics"):
         bits.append("topics: %s" % (", ".join(entry["topics"]),))
     return ", ".join(bits) if bits else "nothing recorded beyond its name"
+
+
+def age_phrase(entry: Dict[str, Any], now: float) -> str:
+    """", 12 days ago" or "", for printing after a date."""
+    age = entry_age_days(entry, now)
+    if age is None:
+        return ""
+    if age <= 0:
+        return ", today"
+    if age == 1:
+        return ", yesterday"
+    return ", %d days ago" % (age,)
 
 
 def command_learn(args: argparse.Namespace) -> int:
@@ -2491,11 +2536,12 @@ def command_presets(args: argparse.Namespace) -> int:
             # CodeSignal at all, which is the whole reason the round is recorded
             # in words rather than forced into one of two format names.
             print(
-                "%s: researched on this machine, %s confidence, last looked at %s."
+                "%s: researched on this machine, %s confidence, last looked at %s%s."
                 % (
                     entry["_name"],
                     entry.get("confidence", "unknown"),
                     entry.get("last_confirmed", "an unknown date"),
+                    age_phrase(entry, resolve_now(args.now)),
                 )
             )
             rounds = preset_rounds(entry)
@@ -2525,6 +2571,13 @@ def command_presets(args: argparse.Namespace) -> int:
             paragraph(entry["note"])
         for source in entry.get("sources", ()):
             print("source: %s" % (source,))
+        age = entry_age_days(entry, resolve_now(args.now))
+        if age is None or age > STALE_AFTER_DAYS:
+            paragraph(
+                "That is old enough to be worth checking again. Hiring processes "
+                "get rebuilt between cycles, and what was true when this was "
+                "written down may not be what they run now."
+            )
         return EXIT_OK
 
     if args.json:

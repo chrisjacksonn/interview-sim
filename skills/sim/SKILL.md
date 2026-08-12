@@ -188,6 +188,15 @@ So the flow is: read the posting if there is one, look the company up, and then
 request, so the search is the answer to it, not a favour to check in about. One
 line saying you are looking, then look.
 
+**Search again when what is recorded has gone stale.** `start --json` reports
+`briefing.preset.stale` and how many days old the entry is, and `presets` says so
+too. A note taken while somebody was applying in one autumn says very little
+about the next one, and serving it silently a year later is the failure this
+whole table is meant to prevent. When it is stale: say you are checking whether
+it still holds, search, and call `learn` again for each round. That overwrites
+the round and restamps the date. If the new search agrees with what was there,
+say so in a sentence and carry on, which is a useful thing for them to hear.
+
 The engine still never looks anything up: the searching is yours, the recording
 is theirs, and the grading stays offline against questions in this repository.
 
