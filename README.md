@@ -47,24 +47,19 @@ sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 $ sim start --preset capital-one
 Session started: gca-20260812T013654Z
 
-capital-one preset: uses CodeSignal (high confidence).
-Format GCA, medium confidence.
-A community-maintained OA repo records Capital One moving to the CodeSignal GCA around
-the 2021-22 season. Not first-party, and several seasons old.
-Formats change every hiring cycle. Your actual invite email names the platform and the
-format; trust that over this.
+capital-one. GCA-style exam.
 
 4 question(s), 1:10:00 on the clock.
 Deadline 2026-08-12T02:46:54Z UTC.
 
 Work here:
-  ~/interview-sim-sessions/gca-20260812T013654Z
+  ./interview-sim-sessions/gca-20260812T013654Z
     q1/solution.py   Bracket Check
     q2/solution.py   Build Order
     q3/solution.py   Merge Feeds
     q4/solution.py   Route Fuel
 
-$ ls ~/interview-sim-sessions/gca-20260812T013654Z/q1
+$ ls ./interview-sim-sessions/gca-20260812T013654Z/q1
 problem.md   solution.py   tests_public.py
 
 $ sim submit --question q1
@@ -78,7 +73,7 @@ $ sim status
 session   gca-20260812T013654Z  (gca, exam mode)
 elapsed   0:35
 deadline  2026-08-12T02:46:54Z UTC
-workspace ~/interview-sim-sessions/gca-20260812T013654Z
+workspace ./interview-sim-sessions/gca-20260812T013654Z
 
   q1   27/28          Bracket Check
   q2   not submitted  Build Order
@@ -146,7 +141,7 @@ python3 skills/sim/scripts/session.py check
 ```
 ok    python    3.9.6 at /usr/bin/python3
 ok    bank      23 questions under .../skills/sim/questions
-ok    sessions  ~/interview-sim-sessions
+ok    sessions  ./interview-sim-sessions
 ok    editor    code, so --open will use it
 ```
 
@@ -173,8 +168,11 @@ python3 skills/sim/scripts/session.py report
 Add `--open` to any `start` and it opens the workspace in your editor as soon as
 it is ready.
 
-`start` builds a workspace under `~/interview-sim-sessions/` with a real
-directory per question:
+`start` builds a workspace under `./interview-sim-sessions/` in whatever
+directory you ran it from, so the files land beside the work rather than in a
+corner of your home directory. Each session writes a `.gitignore` that ignores
+itself, so a sitting inside a repository cannot be committed by accident. A
+real directory per question:
 
 ```
 q1/problem.md        the question
@@ -325,12 +323,18 @@ entry, and every session started from one repeats where it came from, with the
 links, before the clock starts:
 
 ```
-$ ... start --preset stripe
-stripe comes from research done on this machine, not from the reviewed table.
-Nobody has checked it but you, and it is as good as the sources it was built
-from.
-  https://...
+$ ... presets stripe
+stripe: researched on this machine, medium confidence, last looked at 2026-08-12.
+Rounds recorded:
+  oa           GCA, 2 question(s), 60 minutes, topics: strings, hash map
+source: https://...
 ```
+
+Starting a session does not repeat any of that. `start` announces the sitting and
+nothing else, because a paragraph about sourcing at the moment a clock starts is
+not something anyone can act on. `presets` is where the evidence lives, and the
+agent running the skill states it once, in its own words, before the session
+begins.
 
 A hiring process is usually more than one sitting, so it is recorded as more than
 one. Calling `learn` again with a different `--round` adds a round instead of
@@ -352,24 +356,16 @@ pairing` is 45 minutes, one problem, in interview mode with an interviewer who
 talks and whose hints are counted.
 
 What research will never come back with is the company's actual questions. What
-it does come back with is the **topics**, which is the part that transfers:
-
-```
-python3 skills/sim/scripts/session.py start --preset stripe --questions 3
-```
-
-```
-Topics asked for:
-  graphs                   Build Order
-  sliding window           Rolling Median
-  rate limiting            nothing in the bank covers this
-```
-
+it does come back with is the **topics**, which is the part that transfers.
 Recorded topics steer which questions are drawn, spread across the subjects
-rather than stacked on whichever the bank has most of. A topic the bank cannot
-cover is reported as exactly that, which is the cue to write an original question
-for it rather than to pretend the session covered it. `--topic graphs` works
+rather than stacked on whichever the bank has most of. `--topic graphs` works
 without a preset too, for drilling something specific.
+
+Which topics a sitting covered, and which it could not, is reported in
+`start --json` rather than on screen. That is for the agent, whose job it is to
+write a question for an uncovered subject before the clock starts. It is not for
+the candidate, who cannot do anything with it except lose confidence in the hour
+they are about to spend.
 
 If the bank has nothing shaped like the role, the agent can write questions for
 it and run a session on those:
@@ -382,9 +378,9 @@ python3 skills/sim/scripts/session.py start --format gca --questions 1 \
 They are original problems, never real assessment items, and they are checked
 before the clock starts: the reference solution must pass its own hidden suite,
 and the untouched starter must fail it. What they have not had is the mutation
-gate, so nothing has proved their tests can tell a wrong answer from a right one.
-The session says so when it starts. Prefer the bank when the bank has something
-close.
+gate, so nothing has proved their tests can tell a wrong answer from a right one,
+which the agent is told to say out loud. Prefer the bank when the bank has
+something close.
 
 ## What leaves your machine
 

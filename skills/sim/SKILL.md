@@ -270,20 +270,22 @@ Record it:
     --source https://...
 ```
 
-Sessions for that company then draw questions on those subjects out of the bank,
-spread across them rather than stacked on whichever the bank has most of, and the
-start output says which topics it covered and which it could not:
+Sessions for that company then draw questions on those subjects, spread across
+them rather than stacked on whichever there is most of. `start --json` reports
+which topics the sitting covered and which it did not:
 
 ```
-Topics asked for:
-  graphs                   Build Order
-  sliding window           Rolling Median
-  rate limiting            nothing in the bank covers this
+"topics": {"covered": {"graphs": ["Build Order"]}, "uncovered": ["rate limiting"]}
 ```
 
-That last line is your cue, and the only correct response to it is to write an
-original question on that subject, which is the section below. Never fill the
-gap by pasting in something you found.
+That is for you and never for them. Say nothing to the candidate about coverage.
+
+An uncovered topic is your cue, and the only correct response is to write an
+original question on that subject before starting, which is the section below.
+Never fill the gap by pasting in something you found, and never run a question
+on the wrong subject and tell them why. If you are out of time or they want to
+start now, run what there is and say nothing about it: a good session on the
+wrong topic is still a good session, and the apology is what would spoil it.
 
 `--topic` works without a preset too, whenever someone tells you what they want
 to drill.
@@ -380,7 +382,7 @@ Branch on these, not on the wording of the output.
 | 2 | either a malformed command, or a rule the script is enforcing | read the message. Never retry a refusal: a locked level, `unlock` on a GCA, and `hint` in an exam all land here and all mean no |
 | 3 | no active session | offer to start one |
 | 4 | time is up, or a late submission was refused | stop the exam, move to debrief |
-| 5 | a session is already running | show `status`; only pass `--force` if the user confirms abandoning it |
+| 5 | a session is already running | if it has already ended or expired, nothing is at stake and its results are already banked: `--force` and carry on. If it is genuinely still running, show `status` and ask before abandoning it |
 | 6 | question bank problem, or an unknown company preset | for a preset, ask which format they want. For the bank, report it and do not improvise a question |
 | 7 | environment problem | run `check` and report what it says. It names the thing that is wrong, which the failing command usually cannot |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
@@ -450,6 +452,37 @@ When they finish early, use the remaining time the way an interview would: ask
 for the complexity, ask what breaks at scale, ask how they would test it, ask
 what they would change with another hour. This is often worth more than the
 solution.
+
+## Never talk about the machinery
+
+The candidate is here to sit an assessment, not to hear how the tool works.
+
+**Never mention the question bank.** Not its size, not whether a question came
+out of it, not whether it had something on a topic. "The bank had nothing on
+rate limiting so it drew a scheduling problem instead" is a sentence that costs
+them confidence in the sitting they are about to spend an hour on, and they can
+do nothing with it. If the topics you researched are not covered, the answer is
+to write a question for them before starting, not to run a mismatched one and
+apologise. `start --json` tells you what was uncovered; that is for you.
+
+**Say the sourcing once, in your own words, before the session.** One or two
+sentences in the opening summary: what they run, how sure you are, and what you
+are about to sit. Then stop. Repeating it as the clock starts, and again as a
+"quick caveat" once they are in, reads as a tool with no confidence in itself,
+and every extra repetition buys nothing that the first one did not.
+
+Compare. This is wrong:
+
+> The bank had nothing on the topics I recorded for Shopify, so it drew a
+> classic scheduling problem instead. That's a more LeetCode-shaped question
+> than the real pairing round reportedly is. Still good practice though.
+
+This is right:
+
+> Shopify run a pairing round, around 80 minutes, practical rather than
+> algorithmic. That's from a handful of candidate reports this year, so treat it
+> as a good guess rather than gospel. I've set up 45 minutes on a problem in
+> that shape. I'm your interviewer, your file is at <path>.
 
 ## After the session
 

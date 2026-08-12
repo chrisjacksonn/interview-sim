@@ -797,10 +797,18 @@ class TestLearn(BankAwareTestCase):
             "start", "--preset", "shopify", "--questions", "1", "--now", T0
         )
         self.assertEqual(code, EXIT_OK, err)
-        flat = " ".join(out.split())
-        self.assertIn("research done on this machine", flat)
-        self.assertIn("https://example.com/thread", flat)
-        self.assertFalse(self.state()["company_known"] is None)
+        # Not recited at the moment the clock starts. Handed to the proctor,
+        # who says it once in their own words before any of this.
+        self.assertNotIn("https://example.com/thread", out)
+        self.assertNotIn("research done on this machine", out)
+
+        _, brief, _ = self.run_session(
+            "start", "--preset", "shopify", "--questions", "1",
+            "--now", T0, "--force", "--json",
+        )
+        preset = json.loads(brief)["briefing"]["preset"]
+        self.assertTrue(preset["researched"])
+        self.assertEqual(preset["sources"], ["https://example.com/thread"])
 
     def test_a_live_round_runs_as_an_interview(self):
         """The honest simulation of a pairing round is not a silent proctor."""
@@ -845,6 +853,55 @@ class TestLearn(BankAwareTestCase):
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class TestStartIsQuiet(BankAwareTestCase):
+    """What a candidate sees when the clock starts.
+
+    The session announces the sitting. It does not explain where the format came
+    from, how sure anyone is of it, what the bank holds, or which of their
+    requested topics it could not match. All of that is real and all of it is
+    available, in `presets` and in the briefing, which is where someone can act
+    on it. Recited at the moment the clock starts it reads as a tool apologising
+    for itself, and it costs the candidate confidence they need for the next
+    forty-five minutes.
+    """
+
+    FORBIDDEN = ("bank", "confidence", "researched", "not confirmed", "http")
+
+    def assert_quiet(self, out):
+        lowered = out.lower()
+        for word in self.FORBIDDEN:
+            self.assertNotIn(word, lowered, "start said %r:\n%s" % (word, out))
+
+    def test_a_plain_session_is_quiet(self):
+        _, out, _ = self.run_session("start", "--format", "gca", "--now", T0)
+        self.assert_quiet(out)
+
+    def test_a_reviewed_preset_is_quiet(self):
+        _, out, _ = self.run_session(
+            "start", "--preset", "capital-one", "--now", T0
+        )
+        self.assert_quiet(out)
+        self.assertIn("capital-one", out)
+
+    def test_a_researched_preset_is_quiet(self):
+        self.run_session(
+            "learn", "shopify", "--round", "pairing", "--format", "gca",
+            "--mode", "interview", "--confidence", "low",
+            "--topic", "rate limiting", "--source", "https://example.com/x",
+        )
+        _, out, _ = self.run_session(
+            "start", "--preset", "shopify", "--now", T0
+        )
+        self.assert_quiet(out)
+        self.assertIn("pairing round", out)
+
+    def test_it_still_says_what_the_sitting_is(self):
+        _, out, _ = self.run_session(
+            "start", "--format", "gca", "--mode", "interview", "--now", T0
+        )
+        self.assertIn("45:00 on the clock", out)
+
+
 class TestTopics(BankAwareTestCase):
     """Steering the draw by subject.
 
@@ -883,22 +940,37 @@ class TestTopics(BankAwareTestCase):
         self.assertIn("graphs", flat)
         self.assertTrue(any("sliding window" in tag for tag in flat), flat)
 
-    def test_a_topic_the_bank_cannot_cover_is_said_so(self):
+    def test_a_topic_the_bank_cannot_cover_is_reported_to_the_proctor(self):
+        """And to nobody else.
+
+        A candidate hearing "we had nothing on this so here is something else"
+        loses confidence in the sitting, and cannot act on it either. The
+        proctor can: an uncovered topic is the cue to write a question for it.
+        """
         _, out, _ = self.run_session(
             "start", "--format", "gca", "--questions", "2",
-            "--topic", "quantum teleportation", "--now", T0,
+            "--topic", "quantum teleportation", "--now", T0, "--json",
         )
-        self.assertIn("nothing in the bank covers this", out)
+        self.assertEqual(
+            json.loads(out)["briefing"]["topics"]["uncovered"],
+            ["quantum teleportation"],
+        )
+        _, human, _ = self.run_session(
+            "start", "--format", "gca", "--questions", "2",
+            "--topic", "quantum teleportation", "--now", T0, "--force",
+        )
+        self.assertNotIn("bank", human.lower())
+        self.assertNotIn("quantum", human.lower())
 
-    def test_a_topic_present_but_undrawn_is_not_called_missing(self):
-        """Saying the bank lacks something it has would send the agent writing
-        a question that already exists."""
+    def test_an_undrawn_topic_is_reported_as_uncovered_by_this_sitting(self):
+        """One question, slot 1, and no slot 1 question is a graph question."""
         _, out, _ = self.run_session(
             "start", "--format", "gca", "--questions", "1",
-            "--topic", "graphs", "--now", T0,
+            "--topic", "graphs", "--now", T0, "--json",
         )
-        # One question, slot 1, and no slot 1 question is a graph question.
-        self.assertIn("in the bank, not drawn this time", out)
+        briefing = json.loads(out)["briefing"]
+        self.assertEqual(briefing["topics"]["asked"], ["graphs"])
+        self.assertEqual(briefing["topics"]["uncovered"], ["graphs"])
 
     def test_a_topic_never_empties_a_slot(self):
         """Preference, not filter. A full session still appears."""
@@ -917,7 +989,6 @@ class TestTopics(BankAwareTestCase):
             "start", "--preset", "shopify", "--questions", "2", "--now", T0
         )
         self.assertEqual(code, EXIT_OK, err)
-        self.assertIn("Topics asked for", out)
         drawn = [self.topics_of(index) for index in range(2)]
         self.assertTrue(any("graphs" in tags for tags in drawn), drawn)
 
@@ -1164,9 +1235,16 @@ class TestPresets(SessionTestCase):
         and is several seasons old. Printing "high confidence" next to the
         format would launder the first claim into the second.
         """
-        _, out, _ = self.run_session("start", "--preset", "capital-one", "--now", T0)
+        _, out, _ = self.run_session("presets", "capital-one")
         self.assertIn("uses CodeSignal (high confidence)", out)
         self.assertIn("Format GCA, medium confidence", out)
+
+        # And not at the start of a session, where it is noise the candidate
+        # cannot act on with seventy minutes to spend.
+        _, started, _ = self.run_session(
+            "start", "--preset", "capital-one", "--now", T0
+        )
+        self.assertNotIn("confidence", started)
 
     def test_a_preset_with_an_unknown_format_refuses_to_guess(self):
         code, _, err = self.run_session("start", "--preset", "ramp", "--now", T0)
@@ -1180,7 +1258,13 @@ class TestPresets(SessionTestCase):
         )
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(self.state()["format"], "ica")
-        self.assertIn("not because it was researched", " ".join(out.split()))
+        _, brief, _ = self.run_session(
+            "start", "--preset", "ramp", "--format", "ica",
+            "--now", T0, "--force", "--json",
+        )
+        preset = json.loads(brief)["briefing"]["preset"]
+        self.assertEqual(preset["name"], "ramp")
+        self.assertIsNone(preset["format_confidence"])
 
     def test_matching_ignores_case_and_punctuation(self):
         for spelling in ("Capital One", "capital-one", "CAPITALONE"):
@@ -1200,15 +1284,20 @@ class TestPresets(SessionTestCase):
             "start", "--preset", "stripe", "--format", "gca", "--now", T0
         )
         self.assertEqual(code, EXIT_OK, err)
-        # Collapsed, because prose is wrapped to the terminal and a phrase can
-        # land across two lines.
-        flat = " ".join(out.split())
-        self.assertIn("not in the preset table", flat)
-        self.assertIn("because you asked for it", flat)
         state = self.state()
         self.assertEqual(state["format"], "gca")
         self.assertEqual(state["company"], "stripe")
         self.assertFalse(state["company_known"])
+        # The session names the company and the shape and stops there. That the
+        # format was a choice rather than a finding is the proctor's to say, and
+        # it is in the briefing so they can say it.
+        _, brief, _ = self.run_session(
+            "start", "--preset", "stripe", "--format", "gca",
+            "--now", T0, "--force", "--json",
+        )
+        briefing = json.loads(brief)["briefing"]
+        self.assertFalse(briefing["company_known"])
+        self.assertIsNone(briefing["preset"])
 
     def test_a_known_company_is_recorded_as_known(self):
         self.run_session("start", "--preset", "capital-one", "--now", T0)
@@ -1550,8 +1639,16 @@ class TestGeneratedQuestions(SessionTestCase):
             "--generated", str(root), "--now", T0,
         )
         self.assertEqual(code, EXIT_OK, err)
-        self.assertIn("generated, not taken from the bank", " ".join(out.split()))
+        # The candidate is not told which shelf their question came off. The
+        # proctor is, in the briefing, because it changes how much the grade is
+        # worth.
+        self.assertNotIn("bank", out.lower())
         self.assertTrue(self.state()["generated"])
+        _, brief, _ = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0, "--force", "--json",
+        )
+        self.assertTrue(json.loads(brief)["briefing"]["generated"])
 
         workspace = self.workspace()
         (workspace / "q1" / "solution.py").write_text(self.GOOD_REFERENCE)

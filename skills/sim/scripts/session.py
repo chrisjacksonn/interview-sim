@@ -90,7 +90,8 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 QUESTIONS_DIR = SKILL_DIR / "questions"
 PRESETS_FILE = SKILL_DIR / "presets.json"
 
-DEFAULT_ROOT = Path.home() / "interview-sim-sessions"
+SESSIONS_DIR_NAME = "interview-sim-sessions"
+LEGACY_ROOT = Path.home() / "interview-sim-sessions"
 POINTER_NAME = "current"
 STATE_DIR_NAME = ".sim"
 STATE_FILE_NAME = "state.json"
@@ -322,10 +323,40 @@ def add_event(state: Dict[str, Any], epoch: float, kind: str, **fields: Any) -> 
 
 
 def sessions_root() -> Path:
+    """Where sessions live: beside the work, not in a corner of your home dir.
+
+    This used to always be ~/interview-sim-sessions, which kept session files
+    out of *this* repository and, by over-application, out of the project the
+    candidate was actually standing in. The result was a tool that announced a
+    path somewhere else and expected you to go and find it, when the whole point
+    is coding in your own editor in your own project.
+
+    So it defaults to the working directory. Each session writes a .gitignore
+    that ignores itself, which handles the thing the home directory was really
+    protecting against.
+    """
     override = os.environ.get("INTERVIEW_SIM_HOME")
     if override:
         return Path(override).expanduser()
-    return DEFAULT_ROOT
+    return Path.cwd() / SESSIONS_DIR_NAME
+
+
+def history_roots() -> List[Path]:
+    """Every place sessions might be, newest scheme first.
+
+    Sessions sat before the move, or from another project directory, are still
+    yours. History that quietly forgets half of itself is worse than no history.
+    """
+    if os.environ.get("INTERVIEW_SIM_HOME"):
+        # An explicit root is the whole answer. Adding the usual places to it
+        # would mean a test, or anyone pointing this somewhere deliberate, saw
+        # sessions from directories they had not named.
+        return [sessions_root()]
+    roots = [sessions_root()]
+    for candidate in (LEGACY_ROOT,):
+        if candidate not in roots:
+            roots.append(candidate)
+    return roots
 
 
 def pointer_path() -> Path:
@@ -1439,6 +1470,15 @@ def command_start(args: argparse.Namespace) -> int:
             "Cannot create workspace at %s: %s" % (workspace, exc), EXIT_ENVIRONMENT
         )
 
+    # Sessions now land in the working directory, which means they land inside
+    # whatever repository the candidate is standing in. A .gitignore that
+    # ignores everything, itself included, keeps a sitting from turning into a
+    # commit without anyone having to remember.
+    try:
+        (workspace / ".gitignore").write_text("*\n")
+    except OSError:
+        pass
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "session_id": session_id,
@@ -1476,70 +1516,66 @@ def command_start(args: argparse.Namespace) -> int:
     remember_questions([question["id"] for question in state["questions"]])
 
     payload = status_payload(state, now, STATE_ACTIVE)
+    # Everything the human output no longer says, in the channel the agent
+    # reads. Removed from the candidate's screen, not from the record: the
+    # proctor still needs to know a format was researched rather than reviewed,
+    # and still needs to know which requested topics went uncovered, because
+    # that is the cue to write a question for them.
+    briefing = {
+        "generated": bool(args.generated),
+        "company_known": preset is not None,
+        "preset": None,
+        "topics": {"asked": list(topics), "covered": {}, "uncovered": []},
+    }
+    if preset is not None:
+        briefing["preset"] = {
+            "name": preset["_name"],
+            "round": preset.get("_round"),
+            "researched": bool(preset.get("researched")),
+            "confidence": preset.get("confidence"),
+            "format_confidence": preset.get("format_confidence"),
+            "sources": list(preset.get("sources", ())),
+            "last_confirmed": preset.get("last_confirmed"),
+            "note": preset.get("note"),
+        }
+    for want in topics:
+        hits = [
+            question.get("title", question["id"])
+            for question in (questions or [])
+            if topic_match(question, [want])
+        ]
+        if hits:
+            briefing["topics"]["covered"][want] = hits
+        else:
+            briefing["topics"]["uncovered"].append(want)
+    payload["briefing"] = briefing
+
     if args.json:
         print(json.dumps(payload, indent=2))
     else:
         print("Session started: %s" % (session_id,))
         print("")
-        if args.generated:
-            paragraph(
-                "These questions were generated, not taken from the bank. They "
-                "have been checked to be answerable, but nothing has proved "
-                "their hidden tests can tell a wrong answer from a right one."
-            )
-            print("")
-        if unknown_company is not None:
-            paragraph(
-                "%s is not in the preset table, so nothing here knows what they "
-                "actually use." % (unknown_company,)
-            )
-            paragraph(
-                "Running %s because you asked for it. Your invite email names the "
-                "platform and the format." % (fmt.upper(),)
-            )
-            print("")
+        # What this prints is the sitting, not the evidence behind it. Where a
+        # format came from, how confident anyone is in it, and what the bank
+        # does or does not hold are questions with real answers, and `presets`
+        # and --json give them in full. Reciting them at the moment the clock
+        # starts reads as a tool apologising for itself, and none of it is
+        # something a candidate can act on with forty-five minutes to spend.
+        headline = None
         if preset is not None:
-            # Two separate claims. That they use CodeSignal is often first-party
-            # and solid; which assessment they give usually is not, and printing
-            # the first next to the format would launder one into the other.
-            if preset.get("researched"):
-                paragraph(
-                    "%s comes from research done on this machine, not from the "
-                    "reviewed table. Nobody has checked it but you, and it is as "
-                    "good as the sources it was built from."
-                    % (preset["_name"],)
-                )
-                for source in preset.get("sources", ()):
-                    print("  %s" % (source,))
-                if preset.get("round"):
-                    print("Reported round: %s" % (preset["round"],))
-            print(
-                "%s preset: uses CodeSignal (%s confidence)."
-                % (preset["_name"], preset.get("confidence", "unknown"))
-                if not preset.get("researched")
-                else "%s: %s confidence, last looked at %s."
-                % (
-                    preset["_name"],
-                    preset.get("confidence", "unknown"),
-                    preset.get("last_confirmed", "an unknown date"),
-                )
-            )
-            if preset.get("format") is None:
-                paragraph(
-                    "Their format is not confirmed. Running %s because you asked "
-                    "for it, not because it was researched." % (fmt.upper(),)
-                )
-            else:
-                print(
-                    "Format %s, %s confidence."
-                    % (fmt.upper(), preset.get("format_confidence") or "unstated")
-                )
-            if preset.get("note"):
-                paragraph(preset["note"])
-            paragraph(
-                "Formats change every hiring cycle. Your actual invite email "
-                "names the platform and the format; trust that over this."
-            )
+            headline = preset["_name"]
+            if preset.get("_round"):
+                headline += ", %s round" % (preset["_round"],)
+        elif unknown_company is not None:
+            headline = unknown_company
+        if args.mode == "interview":
+            shape = "live interview"
+        elif config["gated"]:
+            shape = "%s project" % (config["label"],)
+        else:
+            shape = "%s exam" % (config["label"],)
+        if headline:
+            print("%s. %s." % (headline, shape[:1].upper() + shape[1:]))
             print("")
         if config["gated"]:
             print(
@@ -1552,30 +1588,6 @@ def command_start(args: argparse.Namespace) -> int:
                 % (len(state["questions"]), format_duration(duration))
             )
         print("Deadline %s UTC." % (state["clock"]["deadline_utc"],))
-        if topics and questions:
-            print("")
-            print("Topics asked for:")
-            for want in topics:
-                hits = [
-                    question
-                    for question in questions
-                    if topic_match(question, [want])
-                ]
-                if hits:
-                    print(
-                        "  %-24s %s"
-                        % (want, ", ".join(hit.get("title", hit["id"]) for hit in hits))
-                    )
-                elif any(topic_match(item, [want]) for item in load_bank(fmt)):
-                    # In the bank, just not drawn. Saying the bank cannot cover
-                    # it would be a false claim about the bank, and would send
-                    # the agent off to write a question that already exists.
-                    print("  %-24s in the bank, not drawn this time" % (want,))
-                else:
-                    # The actionable half. A topic the bank cannot cover is the
-                    # cue to write a question for it rather than to pretend the
-                    # session covered it.
-                    print("  %-24s nothing in the bank covers this" % (want,))
         print("")
         print("Work here:")
         print("  %s" % (workspace,))
@@ -2489,12 +2501,18 @@ def walk_sessions() -> List[Tuple[Path, Optional[Dict[str, Any]]]]:
     Read from the state files themselves rather than from an index, because an
     index is another thing that can disagree with the truth.
     """
-    root = sessions_root()
     found = []  # type: List[Tuple[Path, Optional[Dict[str, Any]]]]
-    if root.is_dir():
+    seen = set()
+    for root in history_roots():
+        if not root.is_dir():
+            continue
         for entry in root.iterdir():
             if not state_path(entry).exists():
                 continue
+            key = str(entry.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
             try:
                 found.append((entry, read_state(entry)))
             except SessionError:

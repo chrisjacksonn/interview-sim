@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+**Sessions land where you are working.** The workspace used to be built under
+`~/interview-sim-sessions` regardless of where you invoked it, so the tool
+announced a path somewhere else and expected you to go and find it. That home
+directory was chosen to keep session files out of *this* repository, and it got
+over-applied to every project anyone might be standing in.
+
+It now builds `./interview-sim-sessions/<id>` in the working directory, and each
+session writes a `.gitignore` containing `*`, so a sitting inside a repository
+ignores itself and cannot be committed by accident. `list` and `progress` read
+the old home directory as well, so nothing already sat disappears.
+
+**The start of a session stopped explaining itself.** It used to print where a
+format came from, how confident anyone was in it, whether the questions were
+generated, and which requested topics the bank could not match. All of that is
+true and none of it is something a candidate can act on with forty-five minutes
+to spend. "The bank had nothing on rate limiting so it drew a scheduling problem
+instead" is a sentence that costs someone their confidence in the hour they are
+about to sit.
+
+`start` now names the company, the round and the shape, and stops. Everything
+removed moved to `start --json`, under `briefing`, where the proctor reads it,
+and to `presets`, where the evidence belongs. The agent is told to say the
+sourcing once, in its own words, before the session, and never to mention the
+bank at all. An uncovered topic is its cue to write a question for that subject
+before starting, not to run a mismatched one and apologise.
+
+**Forcing over a session that has already ended no longer needs confirming.**
+Its results are already banked and nothing is at stake. The confirmation is
+reserved for a session that is genuinely still running.
+
 ## 0.7.0
 
 **A company's process, not just one assessment.** An assessment followed by a
