@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 **A company's process, not just one assessment.** An assessment followed by a
 live round is two sittings with two shapes, and a preset could only hold one.
@@ -43,8 +43,8 @@ The agent may now search for what a company's current screen is, and `learn`
 writes down what it found:
 
 ```
-session.py learn stripe --confidence medium --format gca \
-    --round "60 minute async assessment, 2 problems" \
+session.py learn stripe --round oa --confidence medium --format gca \
+    --questions 2 --minutes 60 \
     --source https://... --source https://...
 ```
 
