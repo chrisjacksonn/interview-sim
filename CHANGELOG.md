@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1
+
+**`--open` launched Finder on a machine with VS Code open in front of it.**
+`shutil.which("code")` finds nothing unless somebody has run VS Code's optional
+"install 'code' command in PATH" step, which most people never do. The next
+candidate in the list was the platform file manager, so starting a session threw
+the candidate out of their editor and into a directory listing at the moment
+their clock started.
+
+It now looks in the application bundles too, where the CLI actually lives, for
+VS Code, VS Code Insiders, Cursor, Sublime and Zed, in `/Applications` and
+`~/Applications`. And a file manager is no longer treated as a fallback for an
+editor: it only runs when there is no editor at all, never in place of one that
+was merely absent from PATH. `check` reports the editor it found, with its path.
+
 ## 0.9.0
 
 **A question shaped like a live round.** Every candidate report of a pairing

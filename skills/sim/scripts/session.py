@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -612,6 +612,40 @@ def resolve_preset(name: str) -> Dict[str, Any]:
     )
 
 
+def find_editor() -> Optional[Tuple[str, str]]:
+    """The GUI editor to use, as (path, family), or None.
+
+    PATH first, then the places macOS keeps the CLI when nobody ran the "install
+    'code' command in PATH" step, which is most people. Skipping that lookup is
+    how this ended up launching Finder on a machine with VS Code open in front
+    of it: `which code` found nothing, the file manager was the next candidate,
+    and the candidate got thrown out of their editor at the moment their clock
+    started.
+
+    The family decides the flags, since -g is a VS Code idea and passing it to
+    something else would open a file named "-g".
+    """
+    for name in ("code", "cursor", "subl", "zed"):
+        found = shutil.which(name)
+        if found:
+            return found, name
+
+    bundles = (
+        ("Visual Studio Code.app", "code", "code"),
+        ("Visual Studio Code - Insiders.app", "code-insiders", "code"),
+        ("Cursor.app", "cursor", "cursor"),
+        ("Sublime Text.app", "subl", "subl"),
+        ("Zed.app", "zed", "zed"),
+    )
+    roots = (Path("/Applications"), Path.home() / "Applications")
+    for root in roots:
+        for app, binary, family in bundles:
+            candidate = root / app / "Contents" / "Resources" / "app" / "bin" / binary
+            if candidate.exists():
+                return str(candidate), family
+    return None
+
+
 def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
     """Open the workspace in the user's editor, best effort.
 
@@ -625,13 +659,12 @@ def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
     focused, so the session begins on the first line of their own solution.
     """
     candidates = []
-    for name in ("code", "cursor", "subl", "zed"):
-        found = shutil.which(name)
-        if not found:
-            continue
+    editor = find_editor()
+    if editor is not None:
+        found, family = editor
         if focus is not None and focus.exists():
-            if name in ("code", "cursor"):
-                # -r reuses the window that is already open, and -g goes to the
+            if family in ("code", "cursor"):
+                # -r reuses the window that is already open and -g goes to the
                 # file in it. Passing the workspace folder as well opened a
                 # second window rooted at the session directory, which threw the
                 # candidate out of the editor they were working in to look at a
@@ -643,8 +676,10 @@ def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
                 candidates.append([found, str(focus)])
         else:
             candidates.append([found, str(workspace)])
-        break
-    if sys.platform == "darwin":
+    elif sys.platform == "darwin":
+        # No editor at all. A file manager is a poor substitute and a terrible
+        # surprise mid-session, so it only happens when there was nothing
+        # better, and never in place of an editor that was simply not on PATH.
         candidates.append(["open", str(workspace)])
     elif sys.platform.startswith("linux"):
         candidates.append(["xdg-open", str(workspace)])
@@ -2794,19 +2829,15 @@ def command_check(args: argparse.Namespace) -> int:
     else:
         checks.append({"name": "sessions", "ok": True, "detail": str(root)})
 
-    editor = None
-    for name in ("code", "cursor", "subl", "zed"):
-        if shutil.which(name):
-            editor = name
-            break
+    editor = find_editor()
     checks.append(
         {
             "name": "editor",
             "ok": True,
-            "detail": "%s, so --open will use it" % (editor,)
+            "detail": "%s, so --open will open your solution file in it" % (editor[0],)
             if editor
-            else "none of code, cursor, subl or zed found. --open falls back to "
-            "the file manager",
+            else "no GUI editor found, so --open has nothing to open. Sessions "
+            "still work; the workspace path is printed when one starts",
         }
     )
 

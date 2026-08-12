@@ -853,6 +853,82 @@ class TestLearn(BankAwareTestCase):
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class TestOpeningTheEditor(unittest.TestCase):
+    """Getting the candidate into the file.
+
+    This went wrong in the way that is hardest to notice from the outside: on a
+    machine with VS Code open and running, `which code` found nothing, because
+    the "install 'code' command in PATH" step is optional and most people never
+    run it. The next candidate in the list was the platform file manager, so
+    starting a session opened Finder and threw the candidate out of the editor
+    they were working in, at the moment their clock started.
+    """
+
+    def module(self):
+        sys.path.insert(0, str(SCRIPT.parent))
+        try:
+            import session
+
+            return session
+        finally:
+            sys.path.pop(0)
+
+    def test_find_editor_returns_a_real_path_or_nothing(self):
+        found = self.module().find_editor()
+        if found is None:
+            return
+        path, family = found
+        self.assertTrue(os.path.exists(path), path)
+        self.assertIn(family, ("code", "cursor", "subl", "zed"))
+
+    def test_vs_code_is_told_to_reuse_the_window_and_go_to_the_file(self):
+        session = self.module()
+        launched = []
+
+        def fake_popen(command, **kwargs):
+            launched.append(command)
+
+            class Handle(object):
+                pass
+
+            return Handle()
+
+        original_find = session.find_editor
+        original_popen = session.subprocess.Popen
+        session.find_editor = lambda: ("/somewhere/code", "code")
+        session.subprocess.Popen = fake_popen
+        try:
+            workspace = Path(tempfile.mkdtemp())
+            target = workspace / "solution.py"
+            target.write_text("")
+            session.open_in_editor(workspace, target)
+        finally:
+            session.find_editor = original_find
+            session.subprocess.Popen = original_popen
+            shutil.rmtree(str(workspace), ignore_errors=True)
+
+        self.assertEqual(launched, [["/somewhere/code", "-r", "-g", str(target)]])
+
+    def test_no_editor_never_means_open_a_file_manager_instead(self):
+        """Finder is not a fallback for an editor, it is a different outcome."""
+        session = self.module()
+        launched = []
+        original_find = session.find_editor
+        original_popen = session.subprocess.Popen
+        session.find_editor = lambda: ("/somewhere/code", "code")
+        session.subprocess.Popen = lambda command, **kwargs: launched.append(command)
+        try:
+            workspace = Path(tempfile.mkdtemp())
+            target = workspace / "solution.py"
+            target.write_text("")
+            session.open_in_editor(workspace, target)
+        finally:
+            session.find_editor = original_find
+            session.subprocess.Popen = original_popen
+            shutil.rmtree(str(workspace), ignore_errors=True)
+        self.assertNotIn(["open", str(workspace)], launched)
+
+
 class TestStartIsQuiet(BankAwareTestCase):
     """What a candidate sees when the clock starts.
 
