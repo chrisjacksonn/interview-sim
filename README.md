@@ -18,7 +18,7 @@ The engine is complete. Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **fifteen GCA questions and three ICA projects**, three or four in
+The bank is **nineteen GCA questions and three ICA projects**, four or five in
 every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
@@ -249,7 +249,8 @@ reference solution must pass the hidden suite, the untouched starter must not,
 and every deliberately-wrong solution in the question's `mutants/` directory must
 be caught by at least one hidden test.
 
-All eighteen questions in the bank today clear all three. A question may also be
+Fifteen of the nineteen GCA questions and all three ICA projects clear all
+three. A question may also be
 marked `"validated": "basic"`, which skips the third check: it is still
 answerable and non-trivial, but nothing has proved its hidden suite can tell a
 wrong answer from a right one, so it can mark something correct that is not. Any

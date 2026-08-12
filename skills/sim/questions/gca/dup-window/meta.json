@@ -1,0 +1,13 @@
+{
+  "id": "dup-window",
+  "format": "gca",
+  "slot": 2,
+  "difficulty": "medium",
+  "title": "Repeat Alerts",
+  "time_hint_minutes": 15,
+  "entrypoint": "solve",
+  "topics": ["hash map", "sliding window"],
+  "original": true,
+  "authored": "2026-08-12",
+  "validated": "basic"
+}

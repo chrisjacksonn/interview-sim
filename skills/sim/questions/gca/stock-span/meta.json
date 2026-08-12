@@ -1,0 +1,13 @@
+{
+  "id": "stock-span",
+  "format": "gca",
+  "slot": 1,
+  "difficulty": "warmup",
+  "title": "Quiet Streaks",
+  "time_hint_minutes": 10,
+  "entrypoint": "solve",
+  "topics": ["arrays", "loops"],
+  "original": true,
+  "authored": "2026-08-12",
+  "validated": "basic"
+}
