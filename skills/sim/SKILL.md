@@ -126,7 +126,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
 | a pasted job posting URL | read it, get the company, then `presets <company>` |
-| that company is not in the table | offer to research it, then `learn` what you found |
+| that company is not in the table | research it without asking, then `learn` what you found |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
 | "what companies do you know" | `presets` |
 
@@ -161,19 +161,26 @@ So the flow is: read the posting if there is one, look the company up, and then
 - **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
   Do not pick. Eighteen of the nineteen entries are in this state and the
   honest answer is a question.
-- **not known at all**: say so plainly, then offer to go and look it up. That is
-  the next section. If they would rather just start, ask which format they want,
-  and pass both: `start --preset stripe --format gca` runs it and records the
-  company, and the session says out loud that it ran that format because it was
-  asked to, not because anything was researched. Never infer a format from the
-  job description, the seniority, or the company's size.
+- **not known at all**: **go and research it. Do not ask permission first.**
+  They named a company, which is the request; asking "shall I look it up?" is a
+  round trip that has only one sensible answer. Say what you are doing in a line,
+  do it, and come back with what you found. That is the next section.
+
+  If the search comes back with nothing usable, then there is a real question to
+  ask, and it is which format they want to practise: `start --preset stripe
+  --format gca` runs it and records the company, and the session says out loud
+  that it ran that format because it was asked to, not because anything was
+  established. Never infer a format from the job description, the seniority, or
+  the company's size.
 
 ### Researching a company that is not in the table
 
-You may search the web for what a company's technical screen currently is, when
-the user asks for a company the table does not have. The engine still never
-looks anything up: the searching is yours, the recording is theirs, and the
-grading stays offline against questions in this repository.
+**Search as soon as a company is not in the table.** Naming the company is the
+request, so the search is the answer to it, not a favour to check in about. One
+line saying you are looking, then look.
+
+The engine still never looks anything up: the searching is yours, the recording
+is theirs, and the grading stays offline against questions in this repository.
 
 Do it properly or not at all:
 
@@ -192,7 +199,8 @@ Do it properly or not at all:
    format they want to practise. Thin research presented confidently is worse
    than no research, because they will plan around it.
 5. **Write it down**, so the next session for that company does not start from
-   nothing:
+   nothing, and so the second time they paste a posting for it there is no
+   search at all:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" learn stripe \

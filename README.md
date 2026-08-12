@@ -307,9 +307,10 @@ python3 skills/sim/scripts/session.py presets capital-one
 The engine never looks anything up. The agent running it can, when you ask.
 
 Paste a posting and it fetches that page, works out the company and the role,
-and takes the name to the table above. If the company is not in the table, it can
-go and search for what their current screen is, and then write down what it
-found:
+and takes the name to the table above. If the company is not in the table it goes
+and looks, without asking first, because naming the company was the request. It
+comes back with what it found, what the sources are, how old they are, and what
+it could not establish, and then writes it down:
 
 ```
 python3 skills/sim/scripts/session.py learn stripe \
