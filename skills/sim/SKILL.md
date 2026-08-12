@@ -2,7 +2,7 @@
 name: sim
 description: Run a timed, proctored coding-assessment simulation in the terminal. Use when the user asks to start or check an OA practice run, an online assessment mock, a GCA mock (4 questions / 70 minutes), an ICA mock (1 project / 4 levels / 90 minutes), CodeSignal-style or LeetCode-style timed practice, a mock interview, or any timed coding assessment they want started, timed, checked, or graded, or when they paste a job posting and want to practise for that company's assessment.
 argument-hint: "[gca|ica|interview|status|<job posting URL>]"
-allowed-tools: Read, Glob, Bash(python3:*), WebFetch
+allowed-tools: Read, Glob, Bash(python3:*), WebFetch, WebSearch
 license: MIT
 ---
 
@@ -126,6 +126,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
 | a pasted job posting URL | read it, get the company, then `presets <company>` |
+| that company is not in the table | offer to research it, then `learn` what you found |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
 | "what companies do you know" | `presets` |
 
@@ -139,8 +140,9 @@ from research.
 Two different things are going on and only one of them is yours to do.
 
 **The engine never looks anything up.** It has no network access of any kind and
-answers only from `presets.json`, a table of nineteen companies with sources and
-dates. Ask it what it knows:
+answers only from two files on disk: `presets.json`, a reviewed table of nineteen
+companies with sources and dates, and whatever has been recorded locally with
+`learn`. Ask it what it knows:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" presets ramp
@@ -159,14 +161,62 @@ So the flow is: read the posting if there is one, look the company up, and then
 - **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
   Do not pick. Eighteen of the nineteen entries are in this state and the
   honest answer is a question.
-- **not known at all**: say that plainly, then ask which format they want, and
-  offer to write questions shaped for the role if the bank has nothing close.
-  GCA is
-  the more common screen if they have no idea. Once they choose, pass both:
-  `start --preset stripe --format gca` runs it and records the company, and the
-  session says out loud that it ran that format because it was asked to, not
-  because anything was researched. Do not infer a format from the job
-  description, the seniority, or the company's size.
+- **not known at all**: say so plainly, then offer to go and look it up. That is
+  the next section. If they would rather just start, ask which format they want,
+  and pass both: `start --preset stripe --format gca` runs it and records the
+  company, and the session says out loud that it ran that format because it was
+  asked to, not because anything was researched. Never infer a format from the
+  job description, the seniority, or the company's size.
+
+### Researching a company that is not in the table
+
+You may search the web for what a company's technical screen currently is, when
+the user asks for a company the table does not have. The engine still never
+looks anything up: the searching is yours, the recording is theirs, and the
+grading stays offline against questions in this repository.
+
+Do it properly or not at all:
+
+1. **Search for candidate reports**, not for marketing pages. What you want is
+   people describing a screen they actually sat, with a date attached. Company
+   careers pages describe the process they wish they ran.
+2. **Report what you found before acting on it.** Say what the sources are, how
+   old they are, and how much they agree. Two posts from the same month
+   describing the same round is a finding. One comment from 2021 is a rumour
+   with a link on it.
+3. **Say which of the two claims you actually established.** Whether they run an
+   asynchronous coding assessment at all, and what that assessment is, are
+   separate questions and the second is usually the one you cannot answer.
+4. **Never present a guess as a finding.** If the search comes back thin, the
+   honest output is "I could not establish this", followed by asking which
+   format they want to practise. Thin research presented confidently is worse
+   than no research, because they will plan around it.
+5. **Write it down**, so the next session for that company does not start from
+   nothing:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" learn stripe \
+    --confidence medium --format gca --format-confidence low \
+    --round "60 minute async assessment, 2 problems" \
+    --source https://... --source https://... \
+    --note "Two candidate reports from early 2026, both for new grad."
+```
+
+`learn` refuses without a source, refuses to overwrite a reviewed entry, and
+marks everything it stores as researched-not-reviewed. Every session started
+from one repeats that, with the links, before the clock starts. A company that
+turns out to run a **live** round rather than an asynchronous assessment is
+recorded with `--mode interview`, and `start --preset <company>` will then run
+the closest thing this tool has to that round: one problem, a conversation, and
+hints that get counted.
+
+**What you may never do is reproduce their questions.** Not the ones in a forum
+post, not the ones on a practice site, not a lightly reworded version. Question
+text you find while researching is a signal about format and topic and nothing
+else. If the bank has nothing shaped like what you found, write original
+questions for it, which is the section below. This is not a preference: real
+assessment items are the one thing a company will act on, and serving them would
+also make this a tool for memorising answers rather than practising.
 
 ### Writing questions for a posting
 

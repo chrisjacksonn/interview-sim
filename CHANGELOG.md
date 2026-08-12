@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**Paste a posting for a company nobody has heard of, and it can go and find
+out.** The skill could already read a posting and take the company name to the
+preset table. The table has nineteen rows, so for most postings that ended in a
+shrug and a question.
+
+The agent may now search for what a company's current screen is, and `learn`
+writes down what it found:
+
+```
+session.py learn stripe --confidence medium --format gca \
+    --round "60 minute async assessment, 2 problems" \
+    --source https://... --source https://...
+```
+
+It lands in `presets.local.json` beside your sessions, never in the repository.
+The same discipline the shipped table is held to applies: no source, no entry.
+It refuses to overwrite a reviewed row, and every session started from one
+reprints where it came from, with the links and the date, before the clock
+starts. A reviewed entry always wins over a researched one.
+
+A company reported to run a **live** round instead of an asynchronous assessment
+is recorded with `--mode interview`, and starting from that preset now runs the
+closest thing this tool has to that round rather than a silent seventy-minute
+exam. Presets can drive the shape of a session, not only its length.
+
+The engine still opens no network connection. The searching is the agent's, the
+grading is local, and research never returns a company's actual questions:
+question text found while looking is a signal about format and topic, and
+nothing else. ETHICS.md now says all of this explicitly rather than implying the
+whole tool is offline.
+
 **`check`, a preflight.** Python version and path, how many questions the bank
 holds, whether the sessions directory is writable, and which editor `--open`
 will reach for. Everything it looks at is knowable before a session exists, and

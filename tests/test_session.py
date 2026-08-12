@@ -741,6 +741,96 @@ class TestListing(BankAwareTestCase):
         self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
 
 
+class TestLearn(BankAwareTestCase):
+    """Recording a company researched on this machine.
+
+    The point of the guards here is that this file is the one place unreviewed
+    claims about real employers can accumulate. It is allowed to hold them. It
+    is not allowed to hold them quietly.
+    """
+
+    def learn(self, *extra):
+        args = [
+            "learn", "shopify", "--confidence", "low",
+            "--source", "https://example.com/thread",
+        ]
+        return self.run_session(*(args + list(extra)))
+
+    def test_a_claim_without_a_source_is_refused(self):
+        code, _, err = self.run_session("learn", "shopify", "--confidence", "low")
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("source", err)
+
+    def test_a_source_that_is_not_a_link_is_refused(self):
+        code, _, err = self.run_session(
+            "learn", "shopify", "--confidence", "low", "--source", "someone told me"
+        )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("Not a link", err)
+
+    def test_it_will_not_shadow_a_reviewed_entry(self):
+        code, _, err = self.run_session(
+            "learn", "capital-one", "--confidence", "high",
+            "--source", "https://example.com",
+        )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("pull request", err)
+
+    def test_what_was_learned_can_be_looked_up(self):
+        code, _, err = self.learn("--round", "live pairing, 45 minutes")
+        self.assertEqual(code, EXIT_OK, err)
+        code, out, _ = self.run_session("presets", "shopify")
+        self.assertEqual(code, EXIT_OK)
+        flat = " ".join(out.split())
+        self.assertIn("researched on this machine", flat)
+        self.assertIn("live pairing", flat)
+
+    def test_it_does_not_claim_they_use_codesignal(self):
+        """A locally researched company may not use CodeSignal at all."""
+        self.learn()
+        _, out, _ = self.run_session("presets", "shopify")
+        self.assertNotIn("uses CodeSignal", out)
+
+    def test_a_session_started_from_it_says_where_it_came_from(self):
+        self.learn("--format", "gca")
+        code, out, err = self.run_session(
+            "start", "--preset", "shopify", "--questions", "1", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        flat = " ".join(out.split())
+        self.assertIn("research done on this machine", flat)
+        self.assertIn("https://example.com/thread", flat)
+        self.assertFalse(self.state()["company_known"] is None)
+
+    def test_a_live_round_runs_as_an_interview(self):
+        """The honest simulation of a pairing round is not a silent proctor."""
+        self.learn("--format", "gca", "--mode", "interview")
+        code, _, err = self.run_session(
+            "start", "--preset", "shopify", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        state = self.state()
+        self.assertEqual(state["mode"], "interview")
+        self.assertEqual(len(state["questions"]), 1)
+        self.assertEqual(state["clock"]["duration_seconds"], 45 * 60)
+
+    def test_an_explicit_mode_still_wins(self):
+        self.learn("--format", "gca", "--mode", "interview")
+        self.run_session(
+            "start", "--preset", "shopify", "--mode", "exam", "--now", T0
+        )
+        self.assertEqual(self.state()["mode"], "exam")
+
+    def test_the_local_file_is_valid_json_with_its_sources(self):
+        self.learn()
+        with open(str(self.root / "presets.local.json")) as handle:
+            payload = json.load(handle)
+        entry = payload["presets"]["shopify"]
+        self.assertEqual(entry["sources"], ["https://example.com/thread"])
+        self.assertTrue(entry["researched"])
+        self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
+
+
 class TestCheck(SessionTestCase):
     """The preflight.
 

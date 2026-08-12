@@ -14,12 +14,22 @@ It does not interact with any assessment platform, proctoring system, browser
 session, or exam environment, and it never will. There is no feature request that
 changes this.
 
-Two honest caveats.
+Three honest caveats.
 
 The agent is not offline, and the usual way to run this is inside one. If you use the skill through Claude Code or a similar
 tool, your prompts, the problem text, and whatever you show it of your code go to
 that provider like anything else you type there. The grading and the clock are
 local either way, and the scripts work with no agent at all.
+
+The agent can also read and search on your behalf, when you ask it to. Paste a
+job posting and it will fetch that page to work out which company it is; name a
+company the preset table does not have and it can go looking for what their
+current screen is. That is the agent doing what you asked, and what it finds is
+recorded with its sources, its date, and a confidence, and is labelled as
+researched rather than reviewed every single time it is used. What it must never
+do is come back with a company's actual questions. Question text found while
+researching is a signal about format and topic, and copying it would be both
+someone else's property and a worse tool: memorising answers is not practice.
 
 And the agent can write questions for you, for a company or a posting the bank
 has nothing for. Those are original problems it invents, never real assessment

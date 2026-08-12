@@ -231,6 +231,18 @@ def read_state(workspace: Path) -> Dict[str, Any]:
     return state
 
 
+def write_json(path: Path, payload: Dict[str, Any]) -> None:
+    """Write a JSON file atomically, so a reader never sees half of one."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / (path.name + ".tmp")
+    with open(str(tmp), "w") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=False)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(str(tmp), str(path))
+
+
 def write_state(workspace: Path, state: Dict[str, Any]) -> None:
     """Write state.json atomically.
 
@@ -494,14 +506,47 @@ def remember_questions(ids: List[str]) -> None:
         pass
 
 
-def load_presets() -> Dict[str, Any]:
+def local_presets_path() -> Path:
+    """Where a company researched on this machine is remembered.
+
+    Kept out of the repository on purpose. The shipped table is reviewed and
+    carries sources anyone can check; this file is one person's afternoon of
+    reading forum posts. Merging the two silently would launder the second into
+    the first, so they stay separate and everything printed from here says which
+    it came from.
+    """
+    return sessions_root() / "presets.local.json"
+
+
+def load_local_presets() -> Dict[str, Any]:
+    path = local_presets_path()
     try:
-        with open(str(PRESETS_FILE), "r") as handle:
-            return json.load(handle).get("presets", {})
+        with open(str(path), "r") as handle:
+            found = json.load(handle).get("presets", {})
     except IOError:
         return {}
     except ValueError as exc:
+        raise SessionError("%s is not valid JSON: %s" % (path, exc), EXIT_BANK)
+    for entry in found.values():
+        entry["researched"] = True
+    return found
+
+
+def load_presets(include_local: bool = True) -> Dict[str, Any]:
+    try:
+        with open(str(PRESETS_FILE), "r") as handle:
+            shipped = json.load(handle).get("presets", {})
+    except IOError:
+        shipped = {}
+    except ValueError as exc:
         raise SessionError("%s is not valid JSON: %s" % (PRESETS_FILE, exc), EXIT_BANK)
+    if not include_local:
+        return shipped
+    merged = dict(load_local_presets())
+    # Shipped last: a reviewed entry always wins over a local one, so nothing
+    # researched here can quietly overwrite something that was checked.
+    merged.update(shipped)
+    return merged
 
 
 def resolve_preset(name: str) -> Dict[str, Any]:
@@ -1149,6 +1194,17 @@ def command_start(args: argparse.Namespace) -> int:
         )
     config = FORMATS[fmt]
 
+    # A preset may record that the company runs a live round rather than an
+    # asynchronous assessment, in which case the honest simulation of it is
+    # interview mode: one problem, a conversation, hints that get counted. An
+    # explicit --mode still wins.
+    if (
+        preset is not None
+        and preset.get("mode") in MODE_DEFAULTS
+        and not getattr(args, "mode_given", False)
+    ):
+        args.mode = preset["mode"]
+
     # Explicit flags beat the preset, the preset beats the format default.
     # Explicit flags beat the preset, the preset beats the mode's defaults, and
     # those beat the format's.
@@ -1326,9 +1382,27 @@ def command_start(args: argparse.Namespace) -> int:
             # Two separate claims. That they use CodeSignal is often first-party
             # and solid; which assessment they give usually is not, and printing
             # the first next to the format would launder one into the other.
+            if preset.get("researched"):
+                paragraph(
+                    "%s comes from research done on this machine, not from the "
+                    "reviewed table. Nobody has checked it but you, and it is as "
+                    "good as the sources it was built from."
+                    % (preset["_name"],)
+                )
+                for source in preset.get("sources", ()):
+                    print("  %s" % (source,))
+                if preset.get("round"):
+                    print("Reported round: %s" % (preset["round"],))
             print(
                 "%s preset: uses CodeSignal (%s confidence)."
                 % (preset["_name"], preset.get("confidence", "unknown"))
+                if not preset.get("researched")
+                else "%s: %s confidence, last looked at %s."
+                % (
+                    preset["_name"],
+                    preset.get("confidence", "unknown"),
+                    preset.get("last_confirmed", "an unknown date"),
+                )
             )
             if preset.get("format") is None:
                 paragraph(
@@ -1999,6 +2073,109 @@ def command_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+CONFIDENCE_LEVELS = ("high", "medium", "low")
+
+
+def command_learn(args: argparse.Namespace) -> int:
+    """Record what was found out about a company, on this machine only.
+
+    The shipped table has nineteen rows because every one of them was checked
+    and cited, which is slow. This is the other half: when the agent researches
+    a company on request, what it found is written down here rather than
+    evaporating, so the second session for that company does not start from
+    nothing.
+
+    Everything the shipped table demands is demanded here too. A source, a date,
+    and a confidence, or it does not get recorded. A claim about what a company
+    does to candidates without a link is a rumour, and this tool has no business
+    storing rumours as facts.
+    """
+    name = args.name.strip().lower()
+    if not name:
+        raise SessionError("Which company?", EXIT_USAGE)
+
+    if name in load_presets(include_local=False):
+        raise SessionError(
+            "%s is already in the reviewed table, which wins over anything "
+            "recorded here.\nIf it is wrong or out of date, that is a pull "
+            "request against presets.json, not a local note." % (name,),
+            EXIT_USAGE,
+        )
+
+    sources = [source for source in (args.source or []) if source.strip()]
+    if not sources:
+        raise SessionError(
+            "At least one --source is required. A claim about what a company "
+            "does to candidates,\nwith nothing behind it, is a rumour.",
+            EXIT_USAGE,
+        )
+    for source in sources:
+        if not source.startswith("http"):
+            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
+
+    if args.confidence not in CONFIDENCE_LEVELS:
+        raise SessionError(
+            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
+            EXIT_USAGE,
+        )
+    if args.format and args.format.lower() not in FORMATS:
+        raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
+
+    entry = {
+        "format": args.format.lower() if args.format else None,
+        "confidence": args.confidence,
+        "format_confidence": args.format_confidence if args.format else None,
+        "sources": sources,
+        "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(resolve_now(args.now))),
+        "researched": True,
+    }
+    if args.mode:
+        entry["mode"] = args.mode
+    if args.questions:
+        entry["questions"] = args.questions
+    if args.minutes:
+        entry["minutes"] = args.minutes
+    if args.round:
+        entry["round"] = args.round
+    if args.note:
+        entry["note"] = args.note
+
+    path = local_presets_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    if path.exists():
+        try:
+            with open(str(path), "r") as handle:
+                existing = json.load(handle).get("presets", {})
+        except (IOError, ValueError):
+            existing = {}
+    existing[name] = entry
+    write_json(
+        path,
+        {
+            "schema_version": 1,
+            "_about": (
+                "Companies researched on this machine. Not reviewed, not part of "
+                "the repository, and always labelled as such when used. The "
+                "shipped presets.json wins over anything here."
+            ),
+            "presets": existing,
+        },
+    )
+
+    if args.json:
+        print(json.dumps(dict(entry, name=name), indent=2))
+        return EXIT_OK
+    print("Recorded %s in %s" % (name, path))
+    paragraph(
+        "This is a local note, not a reviewed entry, and every session that uses "
+        "it will say so. If you are confident in it, the useful next step is a "
+        "pull request adding it to presets.json where other people benefit from "
+        "the same sources."
+    )
+    return EXIT_OK
+
+
 def command_presets(args: argparse.Namespace) -> int:
     """List what is known about companies, or look one up.
 
@@ -2019,10 +2196,30 @@ def command_presets(args: argparse.Namespace) -> int:
         if args.json:
             print(json.dumps(dict(entry, known=True), indent=2))
             return EXIT_OK
-        print("%s: uses CodeSignal (%s confidence)." % (entry["_name"], entry.get("confidence")))
+        if entry.get("researched"):
+            # Not a CodeSignal claim. A locally researched company may not use
+            # CodeSignal at all, which is the whole reason the round is recorded
+            # in words rather than forced into one of two format names.
+            print(
+                "%s: researched on this machine, %s confidence, last looked at %s."
+                % (
+                    entry["_name"],
+                    entry.get("confidence", "unknown"),
+                    entry.get("last_confirmed", "an unknown date"),
+                )
+            )
+            if entry.get("round"):
+                print("Reported round: %s" % (entry["round"],))
+            if entry.get("mode") == "interview":
+                print("Closest simulation: interview mode, which is a live round.")
+        else:
+            print(
+                "%s: uses CodeSignal (%s confidence)."
+                % (entry["_name"], entry.get("confidence"))
+            )
         if entry.get("format"):
             print("Format %s, %s confidence." % (entry["format"].upper(), entry.get("format_confidence")))
-        else:
+        elif not entry.get("researched"):
             print("Which assessment they use is not confirmed.")
         if entry.get("note"):
             paragraph(entry["note"])
@@ -2582,6 +2779,30 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(listing)
     listing.set_defaults(func=command_list)
 
+    learn = subparsers.add_parser(
+        "learn", help="record what was researched about a company, locally"
+    )
+    learn.add_argument("name")
+    learn.add_argument("--format", default=None, help="gca or ica, if it is known")
+    learn.add_argument("--mode", default=None, choices=("exam", "interview"))
+    learn.add_argument("--questions", type=int, default=None)
+    learn.add_argument("--minutes", type=float, default=None)
+    learn.add_argument(
+        "--confidence", default="low", help="high, medium or low. Be honest"
+    )
+    learn.add_argument("--format-confidence", default=None, dest="format_confidence")
+    learn.add_argument(
+        "--source", action="append", default=None,
+        help="a link behind the claim. Required, repeatable",
+    )
+    learn.add_argument(
+        "--round", default=None,
+        help="what the round reportedly is, e.g. 'live pairing, 45 minutes'",
+    )
+    learn.add_argument("--note", default=None)
+    add_common(learn)
+    learn.set_defaults(func=command_learn)
+
     check = subparsers.add_parser(
         "check", help="whether this machine can run a session"
     )
@@ -2633,6 +2854,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     argv_list = sys.argv[1:] if argv is None else list(argv)
     args.format_given = any(
         item == "--format" or item.startswith("--format=") for item in argv_list
+    )
+    # Same problem for --mode: a preset that records a live round should be able
+    # to select interview mode, but only when the caller did not say otherwise.
+    args.mode_given = any(
+        item == "--mode" or item.startswith("--mode=") for item in argv_list
     )
     if not getattr(args, "command", None):
         parser.print_help()

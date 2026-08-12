@@ -302,12 +302,47 @@ python3 skills/sim/scripts/session.py presets            # the whole table
 python3 skills/sim/scripts/session.py presets capital-one
 ```
 
-**Nothing here is looked up at run time.** The engine opens no network
-connection and imports nothing that could; it answers from that file and nothing
-else. If you paste a job posting to the agent running the skill, the agent can
-read it and work out which company it is, but all that buys you is a name to
-look up in the same table. If the bank has nothing suitable, the agent can also write questions for the
-role and run a session on those:
+### Paste a job posting
+
+The engine never looks anything up. The agent running it can, when you ask.
+
+Paste a posting and it fetches that page, works out the company and the role,
+and takes the name to the table above. If the company is not in the table, it can
+go and search for what their current screen is, and then write down what it
+found:
+
+```
+python3 skills/sim/scripts/session.py learn stripe \
+    --confidence medium --format gca --format-confidence low \
+    --round "60 minute async assessment, 2 problems" \
+    --source https://... --source https://...
+```
+
+That lands in `presets.local.json` next to your sessions, never in this
+repository. `learn` refuses without a source and refuses to overwrite a reviewed
+entry, and every session started from one repeats where it came from, with the
+links, before the clock starts:
+
+```
+$ ... start --preset stripe
+stripe comes from research done on this machine, not from the reviewed table.
+Nobody has checked it but you, and it is as good as the sources it was built
+from.
+  https://...
+```
+
+A company that runs a **live** round rather than an asynchronous assessment is
+recorded with `--mode interview`, and `start --preset <company>` then runs the
+closest thing this tool has: one problem, forty-five minutes, a conversation, and
+hints that get counted.
+
+What research will never do is come back with the company's actual questions.
+Question text found while looking is a signal about format and topic and nothing
+else. Copying it would be someone else's property, and it would also make this a
+tool for memorising answers instead of practising.
+
+If the bank has nothing shaped like the role, the agent can write questions for
+it and run a session on those:
 
 ```
 python3 skills/sim/scripts/session.py start --format gca --questions 1 \
