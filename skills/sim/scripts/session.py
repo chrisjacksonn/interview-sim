@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.9.5"
+VERSION = "0.9.6"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1691,7 +1691,10 @@ def command_start(args: argparse.Namespace) -> int:
                     % (question["dir"], question["title"] or question["id"])
                 )
         print("")
-        print("Read %s/README.md first. The clock is running." % (workspace,))
+        # The path is already two lines above. Repeating it here made the line
+        # long enough to wrap mid-word in an ordinary terminal, which is a poor
+        # last impression for the line that starts the clock.
+        print("Read README.md in there first. The clock is running.")
     return EXIT_OK
 
 

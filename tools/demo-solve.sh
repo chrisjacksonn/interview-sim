@@ -11,7 +11,10 @@
 # carry escaped quotes, and picking the file out of JSON needs them.
 set -e
 
-W=$(cat "$INTERVIEW_SIM_HOME/current")
+# Sessions live in the working directory unless INTERVIEW_SIM_HOME says
+# otherwise, and the demo now runs from a project directory like a real user
+# would, so the pointer is found the same way the engine finds it.
+W=$(cat "${INTERVIEW_SIM_HOME:-./interview-sim-sessions}/current")
 QID=$(grep -o '"source": "[^"]*"' "$W/.sim/state.json" | head -1 | cut -d'"' -f4)
 
 # Basic-tier questions ship no mutants, so there is nothing to stage and the

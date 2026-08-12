@@ -6,8 +6,13 @@
 #
 # Produces demo.gif in the repository root. Run it from there.
 #
-# The shape: name a company, get a real assessment in real files on a real
-# clock, submit, get back a number and nothing else. One command to sitting it.
+# The shape: name a company, get a real assessment in real files beside the work
+# you are already doing, on a real clock. Submit, get back a number and nothing
+# else. One command to sitting it.
+#
+# It records from a directory standing in for whatever project the user happens
+# to be in, because that is where sessions are built now, and seeing them land
+# next to your own work is half the point.
 #
 # `sim` is the shell function the tool writes into every session README, so the
 # commands on screen are the ones a real user types. The one difference is in
@@ -33,29 +38,30 @@ Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
 
 Hide
-Type "export INTERVIEW_SIM_HOME=/tmp/interview-sim-demo && rm -rf $INTERVIEW_SIM_HOME" Enter
-Type "export BANK=$PWD/skills/sim/questions" Enter
-Type "SIMPATH=$PWD/skills/sim/scripts/session.py" Enter
+Type "REPO=$PWD" Enter
+Type "export BANK=$REPO/skills/sim/questions" Enter
+Type "SIMPATH=$REPO/skills/sim/scripts/session.py" Enter
 Type 'sim() { if [ "$1" = start ]; then shift; python3 $SIMPATH start --seed 2 "$@"; else python3 $SIMPATH "$@"; fi; }' Enter
+Type "rm -rf /tmp/checkout-service && mkdir -p /tmp/checkout-service && cd /tmp/checkout-service" Enter
 Type "clear" Enter
 Show
 
-Type "# name the company you are interviewing with"
-Sleep 1300ms
+Type "# you are in your own project. name the company you are interviewing with"
+Sleep 1500ms
 Enter
 Sleep 300ms
 
 Type "sim start --preset capital-one"
 Sleep 600ms
 Enter
-Sleep 5200ms
+Sleep 4200ms
 
-Type "# real files in your editor, and the hidden tests are not among them"
-Sleep 2000ms
+Type "# real files, next to your work, and the hidden tests are not among them"
+Sleep 2200ms
 Enter
 Sleep 300ms
 
-Type "ls /tmp/interview-sim-demo/*/q1"
+Type "ls interview-sim-sessions/*/q1"
 Sleep 400ms
 Enter
 Sleep 2400ms
@@ -65,7 +71,7 @@ Sleep 2200ms
 Enter
 Sleep 300ms
 
-Type "bash tools/demo-solve.sh"
+Type "bash $REPO/tools/demo-solve.sh"
 Sleep 500ms
 Enter
 Sleep 1200ms

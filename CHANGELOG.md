@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.6
+
+**New demo.** The old one showed output the tool no longer produces and paths in
+a home directory it no longer uses. This one records from a project directory,
+because that is where sessions are built now and seeing them land next to your
+own work is half the point.
+
+**The line that starts the clock stopped wrapping mid-word.** It repeated the
+full workspace path, which is already two lines above it, and the result was
+long enough to break across two lines in an ordinary terminal.
+
 ## 0.9.5
 
 **The permanent version of "turn on auto mode".** `permissions.defaultMode` in a
