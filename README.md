@@ -23,7 +23,7 @@ every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
 
-Company presets cover eighteen companies. Each records two separate claims: that
+Company presets cover nineteen companies. Each records two separate claims: that
 the company uses CodeSignal, and which assessment they give. The first is usually
 first-party and solid, because CodeSignal publishes its customer list. The second
 usually is not, because CodeSignal publishes nothing about which format any
@@ -32,7 +32,7 @@ one you want rather than guessing.
 
 ## What it looks like
 
-![A GCA session: the clock starts, real files appear, and submitting reports how many hidden tests passed](demo.gif)
+![A GCA session: naming a company starts the clock, real files appear, submitting reports how many hidden tests passed, and three questions are still waiting](demo.gif)
 
 `sim` is the shell function the tool writes into every session workspace:
 
@@ -49,28 +49,41 @@ Session started: gca-20260812T013654Z
 
 capital-one preset: uses CodeSignal (high confidence).
 Format GCA, medium confidence.
-A community-maintained OA repo records Capital One moving to the CodeSignal GCA
-around the 2021-22 season. Not first-party, and several seasons old.
-Formats change every hiring cycle. Your actual invite email names the platform
-and the format; trust that over this.
+A community-maintained OA repo records Capital One moving to the CodeSignal GCA around
+the 2021-22 season. Not first-party, and several seasons old.
+Formats change every hiring cycle. Your actual invite email names the platform and the
+format; trust that over this.
 
 4 question(s), 1:10:00 on the clock.
 Deadline 2026-08-12T02:46:54Z UTC.
 
 Work here:
   ~/interview-sim-sessions/gca-20260812T013654Z
-    q1/solution.py   Shelf Tally
-    q2/solution.py   Sensor Gaps
+    q1/solution.py   Bracket Check
+    q2/solution.py   Build Order
     q3/solution.py   Merge Feeds
-    q4/solution.py   Token Budget
+    q4/solution.py   Route Fuel
 
 $ ls ~/interview-sim-sessions/gca-20260812T013654Z/q1
 problem.md   solution.py   tests_public.py
 
 $ sim submit --question q1
-q1  11 of 20 hidden tests passed (55%).
+q1  27 of 28 hidden tests passed (96%).
 
 attempt 1, 1:09:36 left on the clock.
+
+$ sim status
+1:09:24 remaining
+
+session   gca-20260812T013654Z  (gca, exam mode)
+elapsed   0:35
+deadline  2026-08-12T02:46:54Z UTC
+workspace ~/interview-sim-sessions/gca-20260812T013654Z
+
+  q1   27/28          Bracket Check
+  q2   not submitted  Build Order
+  q3   not submitted  Merge Feeds
+  q4   not submitted  Route Fuel
 ```
 
 </details>

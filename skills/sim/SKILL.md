@@ -137,7 +137,7 @@ from research.
 Two different things are going on and only one of them is yours to do.
 
 **The engine never looks anything up.** It has no network access of any kind and
-answers only from `presets.json`, a table of eighteen companies with sources and
+answers only from `presets.json`, a table of nineteen companies with sources and
 dates. Ask it what it knows:
 
 ```
@@ -155,7 +155,7 @@ So the flow is: read the posting if there is one, look the company up, and then
 - **known, with a format**: start it. Say the confidence out loud and say that
   their invite email beats this table.
 - **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
-  Do not pick. Seventeen of the eighteen entries are in this state and the
+  Do not pick. Eighteen of the nineteen entries are in this state and the
   honest answer is a question.
 - **not known at all**: say that plainly, then ask which format they want, and
   offer to write questions shaped for the role if the bank has nothing close.

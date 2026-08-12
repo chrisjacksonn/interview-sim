@@ -25,6 +25,7 @@ import random
 import shutil
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -153,6 +154,21 @@ def format_duration(seconds: float) -> str:
     if hours:
         return "%d:%02d:%02d" % (hours, minutes, secs)
     return "%d:%02d" % (minutes, secs)
+
+
+def paragraph(text: str) -> None:
+    """Print prose wrapped to the terminal rather than to the source line.
+
+    Several of the things this tool has to say are two or three sentences long,
+    and a terminal breaks them wherever the column runs out, mid-word. Capped at
+    88 columns because a paragraph running the full width of a wide terminal is
+    harder to read than a narrow one, and shrunk to fit a narrow one.
+
+    Only for prose. Anything the eye scans down a column, paths, tables, and
+    scores, is printed as-is and left to the terminal.
+    """
+    width = shutil.get_terminal_size((88, 24)).columns
+    print(textwrap.fill(text, width=max(40, min(88, width - 1))))
 
 
 # --------------------------------------------------------------------------
@@ -1286,18 +1302,18 @@ def command_start(args: argparse.Namespace) -> int:
         print("Session started: %s" % (session_id,))
         print("")
         if args.generated:
-            print(
+            paragraph(
                 "These questions were generated, not taken from the bank. They "
                 "have been checked to be answerable, but nothing has proved "
                 "their hidden tests can tell a wrong answer from a right one."
             )
             print("")
         if unknown_company is not None:
-            print(
+            paragraph(
                 "%s is not in the preset table, so nothing here knows what they "
                 "actually use." % (unknown_company,)
             )
-            print(
+            paragraph(
                 "Running %s because you asked for it. Your invite email names the "
                 "platform and the format." % (fmt.upper(),)
             )
@@ -1311,7 +1327,7 @@ def command_start(args: argparse.Namespace) -> int:
                 % (preset["_name"], preset.get("confidence", "unknown"))
             )
             if preset.get("format") is None:
-                print(
+                paragraph(
                     "Their format is not confirmed. Running %s because you asked "
                     "for it, not because it was researched." % (fmt.upper(),)
                 )
@@ -1321,8 +1337,8 @@ def command_start(args: argparse.Namespace) -> int:
                     % (fmt.upper(), preset.get("format_confidence", "unknown"))
                 )
             if preset.get("note"):
-                print(preset["note"])
-            print(
+                paragraph(preset["note"])
+            paragraph(
                 "Formats change every hiring cycle. Your actual invite email "
                 "names the platform and the format; trust that over this."
             )
@@ -1961,13 +1977,13 @@ def command_report(args: argparse.Namespace) -> int:
         # because most of the suite still passes. Saying "strong" over a
         # regression is the flattering reading, and this format exists to
         # punish exactly that.
-        print(
+        paragraph(
             "An earlier level is failing. Whatever the percentage says, this is "
             "a regression: the work broke something that used to pass."
         )
     if state["mode"] == "interview":
         if hints_given:
-            print(
+            paragraph(
                 "%d hint%s given. Solving it with help is a different result "
                 "from solving it alone, and the debrief should say so."
                 % (hints_given, "" if hints_given == 1 else "s")
@@ -1975,7 +1991,7 @@ def command_report(args: argparse.Namespace) -> int:
         else:
             print("No hints given.")
     print("")
-    print(payload["score_note"])
+    paragraph(payload["score_note"])
     return EXIT_OK
 
 
@@ -2005,7 +2021,7 @@ def command_presets(args: argparse.Namespace) -> int:
         else:
             print("Which assessment they use is not confirmed.")
         if entry.get("note"):
-            print(entry["note"])
+            paragraph(entry["note"])
         for source in entry.get("sources", ()):
             print("source: %s" % (source,))
         return EXIT_OK

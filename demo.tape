@@ -10,7 +10,11 @@
 # clock, submit, get back a number and nothing else. One command to sitting it.
 #
 # `sim` is the shell function the tool writes into every session README, so the
-# commands on screen are the ones a real user types.
+# commands on screen are the ones a real user types. The one difference is in
+# the hidden preamble below: this wrapper pins --seed on start. The tool picks
+# questions at random, and the stand-in solution has to match whichever question
+# came up, so the recording has to be reproducible even though a real session is
+# not. Nothing else about the run is arranged.
 #
 # tools/demo-solve.sh drops a nearly-correct solution into q1, standing in for
 # the twenty minutes of work a real candidate would do there. It runs on screen
@@ -32,7 +36,7 @@ Hide
 Type "export INTERVIEW_SIM_HOME=/tmp/interview-sim-demo && rm -rf $INTERVIEW_SIM_HOME" Enter
 Type "export BANK=$PWD/skills/sim/questions" Enter
 Type "SIMPATH=$PWD/skills/sim/scripts/session.py" Enter
-Type 'sim() { python3 $SIMPATH "$@"; }' Enter
+Type 'sim() { if [ "$1" = start ]; then shift; python3 $SIMPATH start --seed 2 "$@"; else python3 $SIMPATH "$@"; fi; }' Enter
 Type "clear" Enter
 Show
 
@@ -71,8 +75,13 @@ Sleep 500ms
 Enter
 Sleep 4200ms
 
-Type "# which ones failed is the exercise"
-Sleep 2000ms
+Type "# one edge case short. which one is the exercise, and the clock is still running:"
+Sleep 2400ms
+Enter
+Sleep 300ms
+
+Type "sim status"
+Sleep 400ms
 Enter
 
-Sleep 2500ms
+Sleep 4000ms

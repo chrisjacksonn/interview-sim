@@ -380,7 +380,8 @@ class TestReport(BankAwareTestCase):
         self.start_full()
         _, out, _ = self.run_session("report", "--now", T0 + 60)
         self.assertIn("Unofficial", out)
-        self.assertNotIn("200-600 estimate is produced", out.replace("No 200-600", ""))
+        flat = " ".join(out.split())
+        self.assertNotIn("200-600 estimate is produced", flat.replace("No 200-600", ""))
 
     def test_report_after_expiry_shows_the_ending(self):
         self.start_full()
@@ -798,7 +799,7 @@ class TestPresets(SessionTestCase):
         )
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(self.state()["format"], "ica")
-        self.assertIn("not because it was researched", out)
+        self.assertIn("not because it was researched", " ".join(out.split()))
 
     def test_matching_ignores_case_and_punctuation(self):
         for spelling in ("Capital One", "capital-one", "CAPITALONE"):
@@ -818,8 +819,11 @@ class TestPresets(SessionTestCase):
             "start", "--preset", "stripe", "--format", "gca", "--now", T0
         )
         self.assertEqual(code, EXIT_OK, err)
-        self.assertIn("not in the preset table", out)
-        self.assertIn("because you asked for it", out)
+        # Collapsed, because prose is wrapped to the terminal and a phrase can
+        # land across two lines.
+        flat = " ".join(out.split())
+        self.assertIn("not in the preset table", flat)
+        self.assertIn("because you asked for it", flat)
         state = self.state()
         self.assertEqual(state["format"], "gca")
         self.assertEqual(state["company"], "stripe")
@@ -850,6 +854,23 @@ class TestPresets(SessionTestCase):
         self.assertTrue(payload["known"])
         self.assertEqual(payload["format"], "gca")
         self.assertTrue(payload["sources"])
+
+    def test_prose_is_wrapped_rather_than_broken_mid_word(self):
+        """Preset notes are long enough to wrap, and a terminal wraps them badly.
+
+        URLs are exempt: breaking one to fit the column would stop it being
+        clickable, which costs more than the ragged edge.
+        """
+        code, out, _ = self.run_session("presets", "capital-one")
+        self.assertEqual(code, EXIT_OK)
+        prose = [
+            line for line in out.splitlines()
+            if line and not line.startswith("source:")
+        ]
+        self.assertTrue(any(len(line) > 40 for line in prose), out)
+        for line in prose:
+            self.assertLessEqual(len(line), 88, line)
+        self.assertIn("2021-22 season", " ".join(out.split()))
 
     def test_unknown_company_lists_the_known_ones(self):
         code, _, err = self.run_session("start", "--preset", "nintendo", "--now", T0)
@@ -1148,7 +1169,7 @@ class TestGeneratedQuestions(SessionTestCase):
             "--generated", str(root), "--now", T0,
         )
         self.assertEqual(code, EXIT_OK, err)
-        self.assertIn("generated, not taken from the bank", out)
+        self.assertIn("generated, not taken from the bank", " ".join(out.split()))
         self.assertTrue(self.state()["generated"])
 
         workspace = self.workspace()

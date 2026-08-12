@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+**A fourth ICA project, Payment Intents.** Idempotent intent creation, per
+merchant reporting, refunds with a ceiling, and then a level 4 that replaces the
+model the first three levels let you get away with: status stops being whatever
+the last call set and becomes the product of processor callbacks that arrive at
+least once, so duplicates and a late decline have to leave a capture alone.
+
+**`start --open`** opens the workspace in your editor once it is ready, so the
+session lands where the work happens rather than in a path you have to copy.
+
+**Anthropic added to the preset table.** Nineteen companies now.
+
+**Prose is wrapped to the terminal.** Preset notes run to two or three sentences
+and a terminal was breaking them mid-word. Wrapped at 88 columns, or narrower if
+the terminal is. Paths, tables, and scores are still printed as-is, because
+those are read down a column and wrapping one would be worse.
+
+**The demo tape pins its question.** Selection is random and one warm-up question
+ships no mutants, so a quarter of recordings had nothing to stage as a
+nearly-correct solution and the run died on camera.
+
 ## 0.6.0
 
 **Questions can be written for a role rather than taken from the bank.**

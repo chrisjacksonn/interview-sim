@@ -13,5 +13,14 @@ set -e
 
 W=$(cat "$INTERVIEW_SIM_HOME/current")
 QID=$(grep -o '"source": "[^"]*"' "$W/.sim/state.json" | head -1 | cut -d'"' -f4)
+
+# Basic-tier questions ship no mutants, so there is nothing to stage and the
+# tape would otherwise submit an untouched starter and score zero.
+if [ ! -d "$BANK/$QID/mutants" ]; then
+    echo "demo-solve: $QID ships no mutants, nothing to stage." >&2
+    echo "Pin a question that has them with --seed in demo.tape." >&2
+    exit 1
+fi
+
 MUTANT=$(ls "$BANK/$QID/mutants" | head -1)
 cp "$BANK/$QID/mutants/$MUTANT" "$W/q1/solution.py"
