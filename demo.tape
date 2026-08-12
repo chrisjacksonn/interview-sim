@@ -1,13 +1,23 @@
 # vhs tape for the README demo.
 #
 #   brew install vhs
+#   cd /path/to/interview-sim
 #   vhs demo.tape
 #
-# Produces demo.gif. Keep it short: the point is that a real clock starts and
-# real files appear, not a tour of every subcommand.
+# Produces demo.gif in the repository root. Run it from there.
 #
-# Uses a scratch sessions directory so recording does not disturb your own
-# sessions, and --seed so the questions are the same every take.
+# Keep it short. The point is that a real clock starts, real files appear, and
+# submitting gives you a number and nothing else. Not a tour of every subcommand.
+#
+# The hidden block does three things: sends sessions to a scratch directory so
+# recording cannot disturb your own, resolves the script to an absolute path
+# because the demo cd's into the session directory where a relative one stops
+# resolving, and drops in a nearly-correct solution so the last frame shows
+# partial credit instead of a zero from an untouched starter.
+#
+# --seed 7 deals run-compression as q1 every time, which is why the solution
+# path below can be hardcoded. If the bank changes enough that seed 7 deals
+# something else, this tape needs updating; running it will make that obvious.
 
 Output demo.gif
 
@@ -21,7 +31,11 @@ Set TypingSpeed 45ms
 
 Hide
 Type "export INTERVIEW_SIM_HOME=$(mktemp -d)" Enter
-Type "export SIM=skills/sim/scripts/session.py" Enter
+Type "export SIM=$PWD/skills/sim/scripts/session.py" Enter
+Type "export MUTANT=$PWD/skills/sim/questions/gca/run-compression/mutants/compresses_twos.py" Enter
+Type "python3 $SIM start --format gca --seed 7 >/dev/null 2>&1" Enter
+Type "export W=$(cat $INTERVIEW_SIM_HOME/current)" Enter
+Type "cp $MUTANT $W/q1/solution.py" Enter
 Type "clear" Enter
 Show
 
@@ -30,34 +44,33 @@ Sleep 1200ms
 Enter
 Sleep 400ms
 
-Type "python3 $SIM start --format gca --seed 7"
+Type "python3 $SIM status"
 Sleep 500ms
 Enter
-Sleep 3500ms
+Sleep 3200ms
 
-Type "cd $(cat $INTERVIEW_SIM_HOME/current)/q1 && ls"
+Type "cd $W/q1 && ls"
 Sleep 400ms
 Enter
 Sleep 2000ms
 
 Type "# solution.py is yours. the hidden tests are not here."
-Sleep 1500ms
+Sleep 1600ms
 Enter
-Sleep 400ms
-
-Type "python3 $SIM status"
-Sleep 400ms
-Enter
-Sleep 3000ms
+Sleep 500ms
 
 Type "# submit tells you how many hidden tests passed, and nothing else"
-Sleep 1800ms
+Sleep 1900ms
 Enter
 Sleep 400ms
 
 Type "python3 $SIM submit --question q1"
 Sleep 400ms
 Enter
-Sleep 3500ms
+Sleep 3800ms
 
-Sleep 2000ms
+Type "# which five failed is the exercise"
+Sleep 1800ms
+Enter
+
+Sleep 2500ms
