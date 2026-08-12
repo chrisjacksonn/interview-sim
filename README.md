@@ -32,11 +32,16 @@ one you want rather than guessing.
 
 ## What it looks like
 
-`sim` below is the shell function the tool writes into every session workspace:
+![A GCA session: the clock starts, real files appear, and submitting reports how many hidden tests passed](demo.gif)
+
+`sim` is the shell function the tool writes into every session workspace:
 
 ```
 sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 ```
+
+<details>
+<summary>The same thing as text</summary>
 
 ```console
 $ sim start --format gca
@@ -64,7 +69,9 @@ q1  10 of 24 hidden tests passed (42%).
 attempt 1, 50:00 left on the clock.
 ```
 
-Which ten failed is not shown, and working that out is the exercise.
+</details>
+
+Which failed is not shown, and working that out is the exercise.
 
 ## Why it exists
 
