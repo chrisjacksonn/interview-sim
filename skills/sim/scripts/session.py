@@ -520,6 +520,34 @@ def resolve_preset(name: str) -> Dict[str, Any]:
     )
 
 
+def open_in_editor(workspace: Path) -> None:
+    """Open the workspace in the user's editor, best effort.
+
+    $EDITOR is not used: it is usually a terminal editor and launching one from
+    here would fight the shell for the terminal the candidate is working in.
+    A GUI editor if there is one, otherwise the platform file manager.
+    """
+    candidates = []
+    for name in ("code", "cursor", "subl", "zed"):
+        found = shutil.which(name)
+        if found:
+            candidates.append([found, str(workspace)])
+            break
+    if sys.platform == "darwin":
+        candidates.append(["open", str(workspace)])
+    elif sys.platform.startswith("linux"):
+        candidates.append(["xdg-open", str(workspace)])
+
+    for command in candidates:
+        try:
+            subprocess.Popen(
+                command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            return
+        except OSError:
+            continue
+
+
 def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
     """Load questions written outside the bank, and check them before use.
 
@@ -1247,6 +1275,8 @@ def command_start(args: argparse.Namespace) -> int:
     write_state(workspace, state)
     write_readme(workspace, state)
     write_pointer(workspace)
+    if args.open:
+        open_in_editor(workspace)
     remember_questions([question["id"] for question in state["questions"]])
 
     payload = status_payload(state, now, STATE_ACTIVE)
@@ -2180,6 +2210,10 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--workspace", default=None)
     start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
+    start.add_argument(
+        "--open", action="store_true",
+        help="open the workspace in your editor once it is ready",
+    )
     start.add_argument(
         "--generated", default=None,
         help="use questions from this directory instead of the bank. They are "

@@ -191,8 +191,12 @@ Then start on them:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
-    --format gca --questions 1 --generated <dir>
+    --format gca --questions 1 --generated <dir> --open
 ```
+
+`--open` opens the workspace in their editor once it is ready, which saves them
+copying a path. Use it whenever you are starting a session for someone at a
+keyboard.
 
 **It checks two things before the clock starts and refuses if either fails**: the
 reference must pass the hidden suite, or the question is unanswerable and the

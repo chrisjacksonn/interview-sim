@@ -134,6 +134,9 @@ python3 skills/sim/scripts/session.py submit --question q1
 python3 skills/sim/scripts/session.py report
 ```
 
+Add `--open` to any `start` and it opens the workspace in your editor as soon as
+it is ready.
+
 `start` builds a workspace under `~/interview-sim-sessions/` with a real
 directory per question:
 

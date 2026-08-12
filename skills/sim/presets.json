@@ -45,7 +45,9 @@
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11",
       "note": "Named on CodeSignal's own customer page. Which assessment they give is widely claimed to be the project-based one, but only by content farms, so it is recorded as unknown."
     },
@@ -53,113 +55,154 @@
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "meta": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "dropbox": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "brex": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "robinhood": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "instacart": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "asana": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "reddit": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "zoom": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "gusto": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "klaviyo": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "zillow": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "nextdoor": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "elastic": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "handshake": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
     },
     "unitedhealth-group": {
       "format": null,
       "confidence": "high",
       "format_confidence": null,
-      "sources": ["https://codesignal.com/customers/"],
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
       "last_confirmed": "2026-08-11"
+    },
+    "anthropic": {
+      "format": null,
+      "confidence": "high",
+      "format_confidence": null,
+      "sources": [
+        "https://codesignal.com/customers/"
+      ],
+      "last_confirmed": "2026-08-12"
     }
   }
 }
