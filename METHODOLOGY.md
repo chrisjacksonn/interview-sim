@@ -130,7 +130,10 @@ solution squeaked under the timeout.
   proved their hidden tests can distinguish a wrong answer from a right one, so
   such a question can mark something correct that is not. The session says so
   when it starts. Prefer the bank when the bank has something suitable.
-- **Company presets are reported behaviour, not guarantees.** Every entry carries
-  a source, a confidence tier, and the date it was last confirmed, and formats
-  change every hiring cycle. Your actual invite email is better evidence than
-  this table.
+- **What a company runs is researched, never remembered.** This tool ships no
+  table of companies. When one is named, the agent searches, reports what it
+  found and how well sourced it is, and builds the sitting from that. What it
+  writes down afterwards is a dated note for comparison and is never used in
+  place of looking again, because a hiring process rebuilt between cycles has no
+  way of telling a file about it. Your actual invite email is better evidence
+  than any of it.

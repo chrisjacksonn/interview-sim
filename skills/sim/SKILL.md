@@ -50,8 +50,7 @@ These apply for the whole session, every turn, not just the first one.
    solution to every question, and every ICA level including the ones still locked.
    Do not Read it, do not Glob it, do not cat it, do not grep it. The problem statement
    and the sample tests you are allowed to see are the copies in the candidate's
-   workspace. `presets.json` and `references/formats.md` are fine, they are not
-   question content.
+   workspace. `references/formats.md` is fine, it is not question content.
 
    You also never run `grade.py` yourself, and never pass `--detail` to anything:
    that flag prints hidden test names. `session.py` is the only script you run.
@@ -150,72 +149,60 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "am I improving", "how am I doing overall" | `progress` |
 | "is this thing set up", or anything failed oddly | `check` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
-| `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
-| a pasted job posting URL | read it, get the company, then `presets <company>` |
-| that company is not in the table | research it without asking, then `learn` what you found |
+| `/sim ramp`, "prep me for Capital One" | search for what they run, then start it with the flags you found |
+| a pasted job posting URL | read it, get the company, then search |
+| "what did you find last time" | `recall <company>`, and look again anyway |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
-| "what companies do you know" | `presets` |
+| "what companies do you know" | none of them by heart. `recall` lists what has been looked up before |
 
-When a preset says a company's format is not confirmed, do not pick one for them
-and do not treat the widely-repeated claim as fact. Ask which they want. The
-whole point of recording it as unknown is that guessing would be indistinguishable
-from research.
+When research does not establish a format, do not pick one for them and do not
+treat a widely-repeated claim as fact. Ask which they want. Guessing would be
+indistinguishable from research to them, which is exactly why it must not happen.
 
 ### When someone names a company, or pastes a job posting
 
-Two different things are going on and only one of them is yours to do.
+**Look it up. Every time. There is nothing to consult instead.**
 
-**The engine never looks anything up.** It has no network access of any kind and
-answers only from two files on disk: `presets.json`, a reviewed table of nineteen
-companies with sources and dates, and whatever has been recorded locally with
-`learn`. Ask it what it knows:
+This tool used to ship a table of companies, and cache what it researched, and
+carry machinery for deciding when either had gone stale. All of it has been
+removed, because a search answers the question better and more currently than a
+file written last season can. So there is no table to check, no cache to prefer,
+and no version of "I already know this one".
+
+**Read the posting if they pasted one.** You have a fetch tool and they gave you
+the URL, so use it to work out the company and the role. That is what a link
+buys: a name to search for.
+
+**Then search, without asking permission.** Naming a company is the request, so
+searching is the answer to it, not a favour to check in about. Say in one line
+that you are looking, then look.
+
+**Then build the sitting out of what you found.** The engine has no idea who any
+company is; you pass the shape as flags:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" presets ramp
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" presets --json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
+    --company shopify --round pairing \
+    --format gca --mode interview --minutes 45 \
+    --topic "rate limiting" --topic "object oriented design" --open
 ```
 
-**You may read a posting they paste.** You have a fetch tool and they gave you
-the URL, so use it to work out which company it is and what the role is, then
-take it to the table above. That is the whole of what a link buys: a company
-name.
+`--company` and `--round` are labels for the record. `--format`, `--mode`,
+`--questions`, `--minutes` and `--topic` are the shape, and they come from the
+research and nowhere else. **Naming a company without `--format` is refused**,
+because naming a company is a claim about what they run, and the tool will not
+guess one. If the search establishes nothing usable, that refusal is your cue to
+ask them which format they would rather practise, and to say plainly that nobody
+established it.
 
-So the flow is: read the posting if there is one, look the company up, and then
+**Then write down what you found**, with `learn`. That is a dated note for
+comparison next time, not a cache: `recall <company>` reads it back and says out
+loud that it is not current. Never start a session from what `recall` says
+without looking again. If today's search disagrees with the note, that is worth
+a sentence to them, because a process that changed is exactly the thing they
+need to know.
 
-- **known, with a format**: start it. Say the confidence out loud and say that
-  their invite email beats this table.
-- **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
-  Do not pick. Eighteen of the nineteen entries are in this state and the
-  honest answer is a question.
-- **not known at all**: **go and research it. Do not ask permission first.**
-  They named a company, which is the request; asking "shall I look it up?" is a
-  round trip that has only one sensible answer. Say what you are doing in a line,
-  do it, and come back with what you found. That is the next section.
-
-  If the search comes back with nothing usable, then there is a real question to
-  ask, and it is which format they want to practise: `start --preset stripe
-  --format gca` runs it and records the company, and the session says out loud
-  that it ran that format because it was asked to, not because anything was
-  established. Never infer a format from the job description, the seniority, or
-  the company's size.
-
-### Researching a company that is not in the table
-
-**Search as soon as a company is not in the table.** Naming the company is the
-request, so the search is the answer to it, not a favour to check in about. One
-line saying you are looking, then look.
-
-**Search again when what is recorded has gone stale.** `start --json` reports
-`briefing.preset.stale` and how many days old the entry is, and `presets` says so
-too. A note taken while somebody was applying in one autumn says very little
-about the next one, and serving it silently a year later is the failure this
-whole table is meant to prevent. When it is stale: say you are checking whether
-it still holds, search, and call `learn` again for each round. That overwrites
-the round and restamps the date. If the new search agrees with what was there,
-say so in a sentence and carry on, which is a useful thing for them to hear.
-
-The engine still never looks anything up: the searching is yours, the recording
-is theirs, and the grading stays offline against questions in this repository.
+### How to research it
 
 Do it properly or not at all:
 
@@ -276,19 +263,12 @@ known rather than replacing it:
     --topic "graphs" --source https://...
 ```
 
-`start --preset shopify` will then refuse and list them, because picking which
-round someone should sit is the same guess as picking a format. Ask which they
-are preparing for, or offer to work through them in order over separate
-sittings, and pass `--round oa` or `--round pairing`. The live one runs as an
-interview, so you are the interviewer for it.
+Ask which round they are preparing for, or offer to work through them in order
+over separate sittings, and pass the shape of the one they pick. A live round
+runs as `--mode interview`, so you are the interviewer for it.
 
-`learn` refuses without a source, refuses to overwrite a reviewed entry, and
-marks everything it stores as researched-not-reviewed. Every session started
-from one repeats that, with the links, before the clock starts. A company that
-turns out to run a **live** round rather than an asynchronous assessment is
-recorded with `--mode interview`, and `start --preset <company>` will then run
-the closest thing this tool has to that round: one problem, a conversation, and
-hints that get counted.
+`learn` refuses without a source, and stamps every note with the date it was
+made. `recall` reads them back and says out loud that they are not current.
 
 **What you may never do is reproduce their questions.** Not the ones in a forum
 post, not the ones on a practice site, not a lightly reworded version. This is
@@ -322,8 +302,8 @@ on the wrong subject and tell them why. If you are out of time or they want to
 start now, run what there is and say nothing about it: a good session on the
 wrong topic is still a good session, and the apology is what would spoil it.
 
-`--topic` works without a preset too, whenever someone tells you what they want
-to drill.
+`--topic` works on its own too, whenever someone tells you what they want to
+drill.
 
 ### Writing questions for a posting
 
@@ -365,8 +345,7 @@ What these questions have not had is the mutation gate that every bank question
 passes, which is what proves a hidden suite can tell a wrong answer from a right
 one. So their grading is less trustworthy, the session says so when it starts,
 and you should say so too. **Prefer the bank whenever the bank has something
-suitable**: `presets` and a plain `start --format gca` are the better answer most
-of the time.
+suitable**: a plain `start --format gca` is the better answer most of the time.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation
@@ -417,7 +396,7 @@ Branch on these, not on the wording of the output.
 | 3 | no active session | offer to start one |
 | 4 | time is up, or a late submission was refused | stop the exam, move to debrief |
 | 5 | a session is already running | if it has already ended or expired, nothing is at stake and its results are already banked: `--force` and carry on. If it is genuinely still running, show `status` and ask before abandoning it |
-| 6 | question bank problem, or an unknown company preset | for a preset, ask which format they want. For the bank, report it and do not improvise a question |
+| 6 | question bank problem | report it and do not improvise a question |
 | 7 | environment problem | run `check` and report what it says. It names the thing that is wrong, which the failing command usually cannot |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
 | 9 | nothing could be graded: it did not import, died mid-run, or is missing | report which of those it was, from the message; it is not a score of zero, it is no score |
@@ -491,11 +470,9 @@ solution.
 
 The candidate is here to sit an assessment, not to hear how the tool works.
 
-**Never mention the question bank or the preset table.** Not the bank's size,
-not whether a question came out of it, not whether it had something on a topic,
-and not that a company "isn't in the table". The table is a file on their disk;
-saying a company is missing from it is talking about your own filing system. Say
-"let me find out what Shopify runs" and go and find out. "The bank had nothing on
+**Never mention the question bank.** Not its size, not whether a question came
+out of it, not whether it had something on a topic. Say "let me find out what
+Shopify runs" and go and find out, rather than narrating your own filing. "The bank had nothing on
 rate limiting so it drew a scheduling problem instead" is a sentence that costs
 them confidence in the sitting they are about to spend an hour on, and they can
 do nothing with it. If the topics you researched are not covered, the answer is

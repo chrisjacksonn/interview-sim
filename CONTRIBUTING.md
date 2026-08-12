@@ -128,35 +128,17 @@ def brute(items):
 Hand-computed answers for anything with an off-by-one or a window in it are how
 you end up asserting that a wrong solution is right.
 
-## Adding a company preset
+## What happened to company presets
 
-`skills/sim/presets.json`. Every entry must carry:
+There used to be a table of companies in this repository, and contributions to it
+were welcome. It has been removed. A file describing what a company does to
+candidates is out of date the moment a hiring cycle turns over, and every
+mechanism for managing that (confidence tiers, dates, staleness thresholds)
+turned out to be scaffolding around a bad idea. The agent researches it live now,
+reports its sources, and writes a dated note that is never consulted in place of
+looking again.
 
-- `sources`: at least one real URL
-- `confidence`: how sure you are the company uses CodeSignal at all. `high` for
-  first-party evidence or several independent recent reports, `medium` otherwise
-- `last_confirmed`: `YYYY-MM-DD`
-- `format`: `gca`, `ica`, or `null`
-
-**`null` is the expected answer for most companies, and it is not a gap.**
-CodeSignal publishes its customer list, so the platform is usually knowable; it
-publishes nothing about which assessment each customer chooses. Seventeen of the
-eighteen shipped presets say `null`, and the tool then asks the user which format
-they want instead of guessing for them.
-
-If and only if you state a format, you must also give:
-
-- `format_confidence`: `high` or `medium`, kept separate from `confidence`
-  because they are different claims and conflating them is how a guess becomes
-  received wisdom
-- `minutes`: the time limit
-
-`questions` is optional. Adding `format_confidence` without a format is rejected.
-
-`tools/qa.py` rejects entries missing any of these, and CI runs it. A preset is a
-factual claim about what a company currently does to candidates and people plan
-their preparation around it, so an unsourced one is a guess wearing a fact's
-clothing. If you cannot source it, do not add it.
+So there is nothing to contribute here any more, which is the point.
 
 ## Running the tests
 

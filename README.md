@@ -23,12 +23,11 @@ every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
 
-Company presets cover nineteen companies. Each records two separate claims: that
-the company uses CodeSignal, and which assessment they give. The first is usually
-first-party and solid, because CodeSignal publishes its customer list. The second
-usually is not, because CodeSignal publishes nothing about which format any
-customer chooses, so most entries record the format as unknown and ask you which
-one you want rather than guessing.
+There is no table of companies. Paste a job posting and the agent running the
+skill goes and finds out what that company currently runs, every time, rather
+than reading you something that was true last season. What it finds is written
+down with its sources and the date, for comparing against next time, and never
+used in place of looking again.
 
 ## What it looks like
 
@@ -44,7 +43,7 @@ sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 <summary>The same thing as text</summary>
 
 ```console
-$ sim start --preset capital-one
+$ sim start --company capital-one --format gca
 Session started: gca-20260812T013654Z
 
 capital-one. GCA-style exam.
@@ -295,113 +294,55 @@ you never reached. There is deliberately no single improvement number: questions
 differ in difficulty and the draw is random, so across a bank this size a rising
 percentage can just mean an easier session.
 
-### Company presets
-
-```
-python3 skills/sim/scripts/session.py start --preset capital-one
-```
-
-```
-capital-one preset: uses CodeSignal (high confidence).
-Format GCA, medium confidence.
-A community-maintained OA repo records Capital One moving to the CodeSignal GCA
-around the 2021-22 season. Not first-party, and several seasons old.
-```
-
-For most companies the format is not confirmed and the tool says so rather than
-picking one:
-
-```
-$ ... start --preset ramp
-ramp is a confirmed CodeSignal customer, but which assessment they use is not
-confirmed. Pick one: --preset ramp --format gca, or --format ica.
-```
-
-A company that is not in the table at all is not a dead end either. Name a format
-and it runs, and says what it is doing:
-
-```
-$ ... start --preset stripe --format gca
-stripe is not in the preset table, so nothing here knows what they actually use.
-Running GCA because you asked for it. Your invite email names the platform and
-the format.
-```
-
-Every entry carries source URLs, a confidence tier, and the date it was last
-confirmed, and `tools/qa.py` rejects entries missing any of them. Formats change
-every hiring cycle and your actual invite email beats this table.
-
-```
-python3 skills/sim/scripts/session.py presets            # the whole table
-python3 skills/sim/scripts/session.py presets capital-one
-```
-
 ### Paste a job posting
 
-The engine never looks anything up. The agent running it can, when you ask.
-
-Paste a posting and it fetches that page, works out the company and the role,
-and takes the name to the table above. If the company is not in the table it goes
-and looks, without asking first, because naming the company was the request. It
-comes back with what it found, what the sources are, how old they are, and what
-it could not establish, and then writes it down:
-
 ```
-python3 skills/sim/scripts/session.py learn stripe \
-    --confidence medium --format gca --format-confidence low \
-    --round "60 minute async assessment, 2 problems" \
-    --source https://... --source https://...
+/interview-sim:sim https://jobs.example.com/shopify-swe-intern
 ```
 
-That lands in `presets.local.json` next to your sessions, never in this
-repository. `learn` refuses without a source and refuses to overwrite a reviewed
-entry, and every session started from one repeats where it came from, with the
-links, before the clock starts:
+The agent fetches that page, works out the company and the role, and searches for
+what their screen currently is: candidate reports with dates on them, not the
+company's own careers page and not the prep sites that rank for "interview
+questions". It tells you what it found and how well sourced it is, then builds
+the sitting out of it:
 
 ```
-$ ... presets stripe
-stripe: researched on this machine, medium confidence, last looked at 2026-08-12.
-Rounds recorded:
-  oa           GCA, 2 question(s), 60 minutes, topics: strings, hash map
+sim start --company shopify --round pairing \
+    --format gca --mode interview --minutes 45 \
+    --topic "rate limiting" --topic "object oriented design" --open
+```
+
+Nothing is looked up by the engine. It does not know who any company is, and
+naming one without a format is refused rather than guessed at, because naming a
+company is a claim about what they run.
+
+What the search found is written down with `learn`, dated and sourced. `recall`
+reads it back:
+
+```
+$ sim recall shopify
+shopify: found on 2026-08-12, today, medium confidence.
+  pairing      GCA, live round, 45 minutes, topics: rate limiting
 source: https://...
+
+This is what a search turned up on that date and nothing more. It is not current
+and was never checked by anyone else. Look it up again before you plan an evening
+around it.
 ```
 
-Starting a session does not repeat any of that. `start` announces the sitting and
-nothing else, because a paragraph about sourcing at the moment a clock starts is
-not something anyone can act on. `presets` is where the evidence lives, and the
-agent running the skill states it once, in its own words, before the session
-begins.
-
-A hiring process is usually more than one sitting, so it is recorded as more than
-one. Calling `learn` again with a different `--round` adds a round instead of
-replacing one:
-
-```
-$ ... presets shopify
-shopify: researched on this machine, medium confidence, last looked at 2026-08-12.
-Rounds recorded:
-  oa           GCA, 2 question(s), 60 minutes, topics: strings, hash map
-  pairing      GCA, live round, 45 minutes, topics: graphs
-Start one with --preset shopify --round oa
-```
-
-`start --preset shopify` on its own refuses and lists them, because choosing
-which round you should sit is the same guess as choosing a format. Name one and
-you get that shape: `--round oa` is a 60 minute two-question exam, `--round
-pairing` is 45 minutes, one problem, in interview mode with an interviewer who
-talks and whose hints are counted.
+That is a log, not a cache. A session is never built from it without looking
+again, because a hiring process that was rebuilt between cycles has no way of
+telling this file about it.
 
 What research will never come back with is the company's actual questions. What
 it does come back with is the **topics**, which is the part that transfers.
 Recorded topics steer which questions are drawn, spread across the subjects
-rather than stacked on whichever the bank has most of. `--topic graphs` works
-without a preset too, for drilling something specific.
+rather than stacked on whichever the bank has most of. `--topic graphs` works on
+its own too, for drilling something specific.
 
 Which topics a sitting covered, and which it could not, is reported in
 `start --json` rather than on screen. That is for the agent, whose job it is to
-write a question for an uncovered subject before the clock starts. It is not for
-the candidate, who cannot do anything with it except lose confidence in the hour
-they are about to spend.
+write a question for an uncovered subject before the clock starts.
 
 If the bank has nothing shaped like the role, the agent can write questions for
 it and run a session on those:

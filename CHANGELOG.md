@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.0
+
+**The company table is gone, and nothing replaces it.** `presets.json`, its
+nineteen rows, the confidence tiers, the reviewed-versus-researched distinction,
+the staleness thresholds: all removed. Every one of those existed to manage a
+file that was out of date the moment a hiring cycle turned over, and a search
+answers the same question better and more currently.
+
+So a company is researched every time it is named. The engine has no idea who
+any company is: `--company` and `--round` are labels for the record, and the
+shape of the sitting arrives as `--format`, `--mode`, `--questions`, `--minutes`
+and `--topic` from whoever just looked it up. **Naming a company without a format
+is refused rather than guessed at**, because naming a company is a claim about
+what they run.
+
+`learn` still writes down what was found, with its sources and the date, and
+`recall` reads it back saying plainly that it is not current. That is a log for
+comparing this month's answer with last month's, and it is never consulted in
+place of searching. `presets` is gone; `recall` replaces it.
+
+This deletes more code than it adds, which is the correct direction for a
+feature that was propping up a bad idea.
+
 ## 0.9.6
 
 **New demo.** The old one showed output the tool no longer produces and paths in

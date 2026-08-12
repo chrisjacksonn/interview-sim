@@ -741,12 +741,12 @@ class TestListing(BankAwareTestCase):
         self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
 
 
-class TestLearn(BankAwareTestCase):
-    """Recording a company researched on this machine.
+class TestResearchLog(BankAwareTestCase):
+    """The dated note a search leaves behind.
 
-    The point of the guards here is that this file is the one place unreviewed
-    claims about real employers can accumulate. It is allowed to hold them. It
-    is not allowed to hold them quietly.
+    It is a log and never an answer. The guarantee that matters is the last
+    test here: starting a session does not read it, so nothing recorded months
+    ago can quietly shape a sitting today.
     """
 
     def learn(self, *extra):
@@ -768,169 +768,110 @@ class TestLearn(BankAwareTestCase):
         self.assertEqual(code, EXIT_USAGE)
         self.assertIn("Not a link", err)
 
-    def test_it_will_not_shadow_a_reviewed_entry(self):
-        code, _, err = self.run_session(
-            "learn", "capital-one", "--confidence", "high",
-            "--source", "https://example.com",
-        )
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("pull request", err)
-
-    def test_what_was_learned_can_be_looked_up(self):
-        code, _, err = self.learn("--round", "live pairing, 45 minutes")
+    def test_what_was_found_can_be_recalled(self):
+        code, _, err = self.learn("--round", "pairing", "--minutes", "45")
         self.assertEqual(code, EXIT_OK, err)
-        code, out, _ = self.run_session("presets", "shopify")
+        code, out, _ = self.run_session("recall", "shopify")
         self.assertEqual(code, EXIT_OK)
         flat = " ".join(out.split())
-        self.assertIn("researched on this machine", flat)
-        self.assertIn("live pairing", flat)
+        self.assertIn("pairing", flat)
+        self.assertIn("https://example.com/thread", flat)
 
-    def test_it_does_not_claim_they_use_codesignal(self):
-        """A locally researched company may not use CodeSignal at all."""
+    def test_recall_says_it_is_not_current(self):
         self.learn()
-        _, out, _ = self.run_session("presets", "shopify")
-        self.assertNotIn("uses CodeSignal", out)
+        _, out, _ = self.run_session("recall", "shopify")
+        flat = " ".join(out.split())
+        self.assertIn("not current", flat)
+        self.assertIn("Look it up again", flat)
 
-    def test_a_session_started_from_it_says_where_it_came_from(self):
-        self.learn("--format", "gca")
-        code, out, err = self.run_session(
-            "start", "--preset", "shopify", "--questions", "1", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        # Not recited at the moment the clock starts. Handed to the proctor,
-        # who says it once in their own words before any of this.
-        self.assertNotIn("https://example.com/thread", out)
-        self.assertNotIn("research done on this machine", out)
+    def test_recalling_something_never_researched(self):
+        code, out, _ = self.run_session("recall", "nintendo")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("Nothing recorded", out)
 
-        _, brief, _ = self.run_session(
-            "start", "--preset", "shopify", "--questions", "1",
-            "--now", T0, "--force", "--json",
-        )
-        preset = json.loads(brief)["briefing"]["preset"]
-        self.assertTrue(preset["researched"])
-        self.assertEqual(preset["sources"], ["https://example.com/thread"])
+    def test_a_second_round_adds_rather_than_replaces(self):
+        self.learn("--round", "oa", "--format", "gca")
+        self.learn("--round", "pairing", "--mode", "interview")
+        _, out, _ = self.run_session("recall", "shopify", "--json")
+        rounds = json.loads(out)["rounds"]
+        self.assertEqual([item["name"] for item in rounds], ["oa", "pairing"])
 
-    def test_a_live_round_runs_as_an_interview(self):
-        """The honest simulation of a pairing round is not a silent proctor."""
-        self.learn("--format", "gca", "--mode", "interview")
-        code, _, err = self.run_session(
-            "start", "--preset", "shopify", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        state = self.state()
-        self.assertEqual(state["mode"], "interview")
-        self.assertEqual(len(state["questions"]), 1)
-        self.assertEqual(state["clock"]["duration_seconds"], 45 * 60)
-
-    def test_an_explicit_mode_still_wins(self):
-        self.learn("--format", "gca", "--mode", "interview")
-        self.run_session(
-            "start", "--preset", "shopify", "--mode", "exam", "--now", T0
-        )
-        self.assertEqual(self.state()["mode"], "exam")
-
-    def test_a_local_note_is_not_evidence_of_anything_about_codesignal(self):
-        """Recording a company must not make the tool assert they use CodeSignal.
-
-        The refusal for a missing format was written for the reviewed table,
-        where being a CodeSignal customer is the established half of the claim.
-        Reused verbatim for a researched entry, it announced a customer
-        relationship on the strength of a note somebody typed.
-        """
-        self.learn("--round", "live pairing")
-        code, _, err = self.run_session("start", "--preset", "shopify", "--now", T0)
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertNotIn("CodeSignal", err)
-        self.assertIn("does not name a format", err)
-
-    def test_the_local_file_is_valid_json_with_its_sources(self):
+    def test_the_file_is_valid_json_with_its_sources(self):
         self.learn()
-        with open(str(self.root / "presets.local.json")) as handle:
+        with open(str(self.root / "researched.json")) as handle:
             payload = json.load(handle)
         entry = payload["presets"]["shopify"]
         self.assertEqual(entry["sources"], ["https://example.com/thread"])
-        self.assertTrue(entry["researched"])
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_starting_a_session_does_not_consult_it(self):
+        """The whole point of the design. A note is not a source of truth.
+
+        Something recorded months ago must not shape a sitting today, so the
+        shape comes from the flags the caller passes after looking it up, and
+        the log is never read on the way past.
+        """
+        self.learn("--round", "pairing", "--mode", "interview", "--minutes", "45",
+                   "--format", "gca", "--topic", "graphs")
+        code, out, err = self.run_session(
+            "start", "--company", "shopify", "--format", "gca", "--now", T0, "--json"
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        payload = json.loads(out)
+        state = self.state()
+        # None of the recorded shape leaked in: not the mode, not the minutes,
+        # not the topics.
+        self.assertEqual(state["mode"], "exam")
+        self.assertEqual(state["clock"]["duration_seconds"], 70 * 60)
+        self.assertEqual(len(state["questions"]), 4)
+        self.assertEqual(payload["briefing"]["topics"]["asked"], [])
 
 
 class TestStaleness(BankAwareTestCase):
-    """A note has a date on it, and the date has to mean something.
-
-    The failure being guarded: research done while applying in one autumn is
-    served silently during the next hiring cycle, after the company has rebuilt
-    its process, and someone plans an evening around it.
-    """
+    """A note has a date on it, and the date has to mean something."""
 
     YEAR = 400 * 24 * 3600
 
-    def learn(self):
+    def learn(self, now=T0):
         code, _, err = self.run_session(
             "learn", "shopify", "--round", "oa", "--format", "gca",
             "--confidence", "medium", "--source", "https://example.com/a",
-            "--now", T0,
+            "--now", now,
         )
         self.assertEqual(code, EXIT_OK, err)
 
-    def test_fresh_is_not_flagged(self):
+    def test_recall_reports_the_age(self):
         self.learn()
-        _, out, _ = self.run_session(
-            "start", "--preset", "shopify", "--now", T0 + 60, "--json"
-        )
-        preset = json.loads(out)["briefing"]["preset"]
-        self.assertFalse(preset["stale"])
-        self.assertEqual(preset["age_days"], 0)
+        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR, "--json")
+        self.assertGreater(json.loads(out)["age_days"], 365)
 
-    def test_a_year_later_it_is_flagged(self):
+    def test_a_year_old_note_says_so_in_words(self):
         self.learn()
-        _, out, _ = self.run_session(
-            "start", "--preset", "shopify", "--now", T0 + self.YEAR, "--json"
-        )
-        preset = json.loads(out)["briefing"]["preset"]
-        self.assertTrue(preset["stale"])
-        self.assertGreater(preset["age_days"], 365)
+        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR)
+        self.assertIn("days ago", " ".join(out.split()))
 
-    def test_lookup_says_so_in_words(self):
-        self.learn()
-        _, out, _ = self.run_session(
-            "presets", "shopify", "--now", T0 + self.YEAR
-        )
-        self.assertIn("worth checking again", " ".join(out.split()))
-
-    def test_a_missing_date_counts_as_stale_not_as_fresh(self):
-        self.learn()
-        path = self.root / "presets.local.json"
-        payload = json.loads(path.read_text())
-        del payload["presets"]["shopify"]["last_confirmed"]
-        path.write_text(json.dumps(payload))
-        _, out, _ = self.run_session(
-            "start", "--preset", "shopify", "--now", T0 + 60, "--json"
-        )
-        preset = json.loads(out)["briefing"]["preset"]
-        self.assertIsNone(preset["age_days"])
-        self.assertTrue(preset["stale"])
-
-    def test_learning_again_restamps_it(self):
+    def test_learning_again_restamps_it_and_keeps_both_sources(self):
         self.learn()
         self.run_session(
             "learn", "shopify", "--round", "oa", "--format", "gca",
             "--confidence", "medium", "--source", "https://example.com/b",
             "--now", T0 + self.YEAR,
         )
-        _, out, _ = self.run_session(
-            "start", "--preset", "shopify", "--now", T0 + self.YEAR + 60, "--json"
-        )
-        preset = json.loads(out)["briefing"]["preset"]
-        self.assertFalse(preset["stale"])
+        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR + 60, "--json")
+        entry = json.loads(out)
+        self.assertEqual(entry["age_days"], 0)
         self.assertEqual(
-            preset["sources"], ["https://example.com/a", "https://example.com/b"]
+            entry["sources"], ["https://example.com/a", "https://example.com/b"]
         )
 
-    def test_the_reviewed_table_is_dated_too(self):
-        """Nothing is exempt. A reviewed row can go out of date the same way."""
-        _, out, _ = self.run_session(
-            "start", "--preset", "capital-one", "--now", T0 + self.YEAR * 3, "--json"
-        )
-        self.assertTrue(json.loads(out)["briefing"]["preset"]["stale"])
+    def test_an_undated_note_reports_no_age_rather_than_zero(self):
+        self.learn()
+        path = self.root / "researched.json"
+        payload = json.loads(path.read_text())
+        del payload["presets"]["shopify"]["last_confirmed"]
+        path.write_text(json.dumps(payload))
+        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + 60, "--json")
+        self.assertIsNone(json.loads(out)["age_days"])
 
 
 class TestOpeningTheEditor(unittest.TestCase):
@@ -1032,21 +973,10 @@ class TestStartIsQuiet(BankAwareTestCase):
         _, out, _ = self.run_session("start", "--format", "gca", "--now", T0)
         self.assert_quiet(out)
 
-    def test_a_reviewed_preset_is_quiet(self):
+    def test_a_company_session_is_quiet(self):
         _, out, _ = self.run_session(
-            "start", "--preset", "capital-one", "--now", T0
-        )
-        self.assert_quiet(out)
-        self.assertIn("capital-one", out)
-
-    def test_a_researched_preset_is_quiet(self):
-        self.run_session(
-            "learn", "shopify", "--round", "pairing", "--format", "gca",
-            "--mode", "interview", "--confidence", "low",
-            "--topic", "rate limiting", "--source", "https://example.com/x",
-        )
-        _, out, _ = self.run_session(
-            "start", "--preset", "shopify", "--now", T0
+            "start", "--company", "shopify", "--round", "pairing",
+            "--format", "gca", "--mode", "interview", "--now", T0,
         )
         self.assert_quiet(out)
         self.assertIn("pairing round", out)
@@ -1136,103 +1066,43 @@ class TestTopics(BankAwareTestCase):
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(len(self.state()["questions"]), 4)
 
-    def test_topics_recorded_for_a_company_are_used_without_the_flag(self):
-        self.run_session(
-            "learn", "shopify", "--confidence", "low", "--format", "gca",
-            "--source", "https://example.com/thread", "--topic", "graphs",
-        )
-        code, out, err = self.run_session(
-            "start", "--preset", "shopify", "--questions", "2", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        drawn = [self.topics_of(index) for index in range(2)]
-        self.assertTrue(any("graphs" in tags for tags in drawn), drawn)
 
+class TestCompanyLabels(BankAwareTestCase):
+    """Company and round are labels on the record, not keys into anything."""
 
-class TestRounds(BankAwareTestCase):
-    """A hiring process is more than one sitting.
-
-    An assessment and then a live round are different shapes, and the tool has
-    to hold both without averaging them into one.
-    """
-
-    def record_both(self):
-        self.run_session(
-            "learn", "shopify", "--round", "oa", "--format", "gca",
-            "--questions", "2", "--minutes", "60", "--confidence", "medium",
-            "--topic", "strings", "--source", "https://example.com/one",
-        )
-        self.run_session(
-            "learn", "shopify", "--round", "pairing", "--format", "gca",
-            "--mode", "interview", "--minutes", "45", "--confidence", "medium",
-            "--topic", "graphs", "--source", "https://example.com/two",
-        )
-
-    def test_a_second_round_adds_rather_than_replaces(self):
-        self.record_both()
-        with open(str(self.root / "presets.local.json")) as handle:
-            entry = json.load(handle)["presets"]["shopify"]
-        self.assertEqual(
-            [item["name"] for item in entry["rounds"]], ["oa", "pairing"]
-        )
-        self.assertEqual(
-            entry["sources"], ["https://example.com/one", "https://example.com/two"]
-        )
-
-    def test_it_will_not_pick_a_round_for_you(self):
-        self.record_both()
-        code, _, err = self.run_session("start", "--preset", "shopify", "--now", T0)
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("2 rounds", err)
-        self.assertIn("--round", err)
-
-    def test_each_round_runs_with_its_own_shape(self):
-        self.record_both()
+    def test_they_are_recorded_on_the_session(self):
         code, _, err = self.run_session(
-            "start", "--preset", "shopify", "--round", "oa", "--now", T0
+            "start", "--company", "Shopify", "--round", "Pairing",
+            "--format", "gca", "--now", T0,
         )
         self.assertEqual(code, EXIT_OK, err)
         state = self.state()
-        self.assertEqual(state["mode"], "exam")
+        self.assertEqual(state["company"], "shopify")
+        self.assertEqual(state["round"], "pairing")
+
+    def test_an_unknown_company_is_not_a_special_case_any_more(self):
+        """Nothing is looked up, so nothing can be missing."""
+        code, _, err = self.run_session(
+            "start", "--company", "a-company-nobody-has-heard-of",
+            "--format", "gca", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+    def test_the_shape_comes_from_the_flags(self):
+        code, _, err = self.run_session(
+            "start", "--company", "shopify", "--round", "oa", "--format", "gca",
+            "--questions", "2", "--minutes", "60", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        state = self.state()
         self.assertEqual(len(state["questions"]), 2)
         self.assertEqual(state["clock"]["duration_seconds"], 60 * 60)
 
+    def test_a_company_without_a_format_still_needs_one(self):
         code, _, err = self.run_session(
-            "start", "--preset", "shopify", "--round", "pairing",
-            "--force", "--now", T0 + HOUR * 3,
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        state = self.state()
-        self.assertEqual(state["mode"], "interview")
-        self.assertEqual(len(state["questions"]), 1)
-        self.assertEqual(state["clock"]["duration_seconds"], 45 * 60)
-
-    def test_a_live_round_still_honours_its_topics(self):
-        """Interview mode draws from one slot, which used to skip topics."""
-        self.record_both()
-        code, out, err = self.run_session(
-            "start", "--preset", "shopify", "--round", "pairing", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        source = self.state()["questions"][0]["source"]
-        with open(str(QUESTIONS / source / "meta.json")) as handle:
-            topics = [tag.lower() for tag in json.load(handle).get("topics", [])]
-        self.assertIn("graphs", topics)
-
-    def test_an_unknown_round_name_is_refused_with_the_list(self):
-        self.record_both()
-        code, _, err = self.run_session(
-            "start", "--preset", "shopify", "--round", "onsite", "--now", T0
+            "start", "--company", "shopify", "--now", T0
         )
         self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("oa", err)
-        self.assertIn("pairing", err)
-
-    def test_a_reviewed_preset_still_needs_no_round(self):
-        code, _, err = self.run_session(
-            "start", "--preset", "capital-one", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
 
 
 class TestCheck(SessionTestCase):
@@ -1372,154 +1242,6 @@ class TestSlotSelection(SessionTestCase):
             "start", "--slot", "1", "--questions", "99", "--now", T0
         )
         self.assertEqual(code, EXIT_BANK)
-
-
-class TestPresets(SessionTestCase):
-    def test_a_preset_with_a_known_format_just_runs(self):
-        code, out, err = self.run_session(
-            "start", "--preset", "capital-one", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        self.assertEqual(self.state()["format"], "gca")
-        self.assertEqual(self.state()["clock"]["duration_seconds"], 70 * 60)
-
-    def test_platform_and_format_confidence_are_reported_separately(self):
-        """Conflating them is how a guess becomes received wisdom.
-
-        Capital One is a confirmed CodeSignal customer, which is first-party and
-        solid, but the claim that they use the GCA comes from a community repo
-        and is several seasons old. Printing "high confidence" next to the
-        format would launder the first claim into the second.
-        """
-        _, out, _ = self.run_session("presets", "capital-one")
-        self.assertIn("uses CodeSignal (high confidence)", out)
-        self.assertIn("Format GCA, medium confidence", out)
-
-        # And not at the start of a session, where it is noise the candidate
-        # cannot act on with seventy minutes to spend.
-        _, started, _ = self.run_session(
-            "start", "--preset", "capital-one", "--now", T0
-        )
-        self.assertNotIn("confidence", started)
-
-    def test_a_preset_with_an_unknown_format_refuses_to_guess(self):
-        code, _, err = self.run_session("start", "--preset", "ramp", "--now", T0)
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("not confirmed", err)
-        self.assertIn("--format", err)
-
-    def test_an_unknown_format_preset_runs_once_you_choose(self):
-        code, out, err = self.run_session(
-            "start", "--preset", "ramp", "--format", "ica", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        self.assertEqual(self.state()["format"], "ica")
-        _, brief, _ = self.run_session(
-            "start", "--preset", "ramp", "--format", "ica",
-            "--now", T0, "--force", "--json",
-        )
-        preset = json.loads(brief)["briefing"]["preset"]
-        self.assertEqual(preset["name"], "ramp")
-        self.assertIsNone(preset["format_confidence"])
-
-    def test_matching_ignores_case_and_punctuation(self):
-        for spelling in ("Capital One", "capital-one", "CAPITALONE"):
-            code, _, err = self.run_session(
-                "start", "--preset", spelling, "--now", T0, "--force"
-            )
-            self.assertEqual(code, EXIT_OK, "%s: %s" % (spelling, err))
-
-    def test_an_unknown_company_runs_once_you_name_a_format(self):
-        """Not being in the table means we cannot tell you what they use.
-
-        It does not mean you cannot practise for them, and refusing outright was
-        a dead end: seventeen of eighteen entries already have no format, so a
-        company simply being absent is barely a different situation.
-        """
-        code, out, err = self.run_session(
-            "start", "--preset", "stripe", "--format", "gca", "--now", T0
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        state = self.state()
-        self.assertEqual(state["format"], "gca")
-        self.assertEqual(state["company"], "stripe")
-        self.assertFalse(state["company_known"])
-        # The session names the company and the shape and stops there. That the
-        # format was a choice rather than a finding is the proctor's to say, and
-        # it is in the briefing so they can say it.
-        _, brief, _ = self.run_session(
-            "start", "--preset", "stripe", "--format", "gca",
-            "--now", T0, "--force", "--json",
-        )
-        briefing = json.loads(brief)["briefing"]
-        self.assertFalse(briefing["company_known"])
-        self.assertIsNone(briefing["preset"])
-
-    def test_a_known_company_is_recorded_as_known(self):
-        self.run_session("start", "--preset", "capital-one", "--now", T0)
-        state = self.state()
-        self.assertEqual(state["company"], "capital-one")
-        self.assertTrue(state["company_known"])
-
-    def test_an_unknown_company_without_a_format_still_refuses(self):
-        code, _, err = self.run_session("start", "--preset", "stripe", "--now", T0)
-        self.assertEqual(code, EXIT_BANK)
-        self.assertIn("capital-one", err)
-
-    def test_presets_lookup_of_an_unknown_company(self):
-        code, out, _ = self.run_session("presets", "stripe", "--json")
-        self.assertEqual(code, EXIT_OK)
-        payload = json.loads(out)
-        self.assertFalse(payload["known"])
-        self.assertEqual(payload["query"], "stripe")
-
-    def test_presets_lookup_of_a_known_company(self):
-        code, out, _ = self.run_session("presets", "capital-one", "--json")
-        self.assertEqual(code, EXIT_OK)
-        payload = json.loads(out)
-        self.assertTrue(payload["known"])
-        self.assertEqual(payload["format"], "gca")
-        self.assertTrue(payload["sources"])
-
-    def test_prose_is_wrapped_rather_than_broken_mid_word(self):
-        """Preset notes are long enough to wrap, and a terminal wraps them badly.
-
-        URLs are exempt: breaking one to fit the column would stop it being
-        clickable, which costs more than the ragged edge.
-        """
-        code, out, _ = self.run_session("presets", "capital-one")
-        self.assertEqual(code, EXIT_OK)
-        prose = [
-            line for line in out.splitlines()
-            if line and not line.startswith("source:")
-        ]
-        self.assertTrue(any(len(line) > 40 for line in prose), out)
-        for line in prose:
-            self.assertLessEqual(len(line), 88, line)
-        self.assertIn("2021-22 season", " ".join(out.split()))
-
-    def test_unknown_company_lists_the_known_ones(self):
-        code, _, err = self.run_session("start", "--preset", "nintendo", "--now", T0)
-        self.assertEqual(code, EXIT_BANK)
-        self.assertIn("capital-one", err)
-
-    def test_every_preset_carries_its_evidence(self):
-        """The validator enforces this in CI; this is the same check at unit level."""
-        presets_file = REPO / "skills" / "sim" / "presets.json"
-        with open(str(presets_file)) as handle:
-            presets = json.load(handle)["presets"]
-        self.assertGreater(len(presets), 10)
-        for name, entry in presets.items():
-            self.assertTrue(entry.get("sources"), "%s cites nothing" % name)
-            for source in entry["sources"]:
-                self.assertTrue(source.startswith("http"), "%s: %r" % (name, source))
-            self.assertRegex(entry.get("last_confirmed", ""), r"^\d{4}-\d{2}-\d{2}$")
-            self.assertIn(entry.get("confidence"), ("high", "medium"), name)
-            if entry.get("format") is None:
-                self.assertIsNone(entry.get("format_confidence"), name)
-            else:
-                self.assertIn(entry.get("format_confidence"), ("high", "medium"), name)
-                self.assertIsInstance(entry.get("minutes"), int, name)
 
 
 class TestWorkspaceReadme(SessionTestCase):

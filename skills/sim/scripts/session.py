@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.9.6"
+VERSION = "0.10.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -89,7 +89,6 @@ MODE_DEFAULTS = {
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 QUESTIONS_DIR = SKILL_DIR / "questions"
-PRESETS_FILE = SKILL_DIR / "presets.json"
 
 SESSIONS_DIR_NAME = "interview-sim-sessions"
 LEGACY_ROOT = Path.home() / "interview-sim-sessions"
@@ -538,7 +537,7 @@ def remember_questions(ids: List[str]) -> None:
         pass
 
 
-def local_presets_path() -> Path:
+def research_log_path() -> Path:
     """Where a company researched on this machine is remembered.
 
     Kept out of the repository on purpose. The shipped table is reviewed and
@@ -553,25 +552,25 @@ def local_presets_path() -> Path:
     from the next one is the same knowledge thrown away for no reason.
     """
     if os.environ.get("INTERVIEW_SIM_HOME"):
-        return sessions_root() / "presets.local.json"
-    return Path.home() / ".interview-sim" / "presets.local.json"
+        return sessions_root() / "researched.json"
+    return Path.home() / ".interview-sim" / "researched.json"
 
 
-def legacy_local_presets_paths() -> List[Path]:
+def legacy_research_log_paths() -> List[Path]:
     """Where it used to be written, before it stopped following the sessions."""
     if os.environ.get("INTERVIEW_SIM_HOME"):
         return []
     return [
-        sessions_root() / "presets.local.json",
-        LEGACY_ROOT / "presets.local.json",
+        sessions_root() / "researched.json",
+        LEGACY_ROOT / "researched.json",
     ]
 
 
-def load_local_presets() -> Dict[str, Any]:
+def load_research_log() -> Dict[str, Any]:
     found = {}  # type: Dict[str, Any]
     # Older locations first, so the current file wins where they overlap and
     # research done before the move is still there.
-    for path in legacy_local_presets_paths() + [local_presets_path()]:
+    for path in legacy_research_log_paths() + [research_log_path()]:
         try:
             with open(str(path), "r") as handle:
                 found.update(json.load(handle).get("presets", {}))
@@ -582,55 +581,6 @@ def load_local_presets() -> Dict[str, Any]:
     for entry in found.values():
         entry["researched"] = True
     return found
-
-
-def load_presets(include_local: bool = True) -> Dict[str, Any]:
-    try:
-        with open(str(PRESETS_FILE), "r") as handle:
-            shipped = json.load(handle).get("presets", {})
-    except IOError:
-        shipped = {}
-    except ValueError as exc:
-        raise SessionError("%s is not valid JSON: %s" % (PRESETS_FILE, exc), EXIT_BANK)
-    if not include_local:
-        return shipped
-    merged = dict(load_local_presets())
-    # Shipped last: a reviewed entry always wins over a local one, so nothing
-    # researched here can quietly overwrite something that was checked.
-    merged.update(shipped)
-    return merged
-
-
-def resolve_preset(name: str) -> Dict[str, Any]:
-    """Look up a company preset.
-
-    Matching is case and punctuation insensitive, because people type "Capital
-    One", "capital-one", and "capitalone" for the same thing.
-    """
-    presets = load_presets()
-
-    def normalise(text: str) -> str:
-        return "".join(char for char in text.lower() if char.isalnum())
-
-    wanted = normalise(name)
-    for key, value in presets.items():
-        if normalise(key) == wanted:
-            preset = dict(value)
-            preset["_name"] = key
-            return preset
-
-    if not presets:
-        raise SessionError(
-            "No company presets are configured yet, so %r cannot be looked up.\n"
-            "Start a format directly instead: --format gca or --format ica." % (name,),
-            EXIT_BANK,
-        )
-    raise SessionError(
-        "No preset for %r. Known: %s\n"
-        "Start a format directly instead: --format gca or --format ica."
-        % (name, ", ".join(sorted(presets))),
-        EXIT_BANK,
-    )
 
 
 def find_editor() -> Optional[Tuple[str, str]]:
@@ -1309,100 +1259,31 @@ def print_status(payload: Dict[str, Any], as_json: bool) -> None:
 def command_start(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
 
-    preset = None
-    unknown_company = None
-    if args.preset:
-        try:
-            preset = resolve_preset(args.preset)
-        except SessionError:
-            # Not in the table. That is only a dead end if we also do not know
-            # what to run. If they named a format, run it: the missing entry
-            # means we cannot tell them what that company uses, not that they
-            # cannot practise for it.
-            if not args.format_given:
-                raise
-            unknown_company = args.preset
-    # Which round of their process this is. A company that runs an assessment
-    # and then a live round is two sittings with different shapes, and picking
-    # one for the candidate would be the same guess this tool refuses to make
-    # about formats.
-    round_entry = None
-    if preset is not None:
-        rounds = preset_rounds(preset)
-        wanted = (getattr(args, "round", None) or "").strip().lower()
-        if wanted:
-            named = [item for item in rounds if (item.get("name") or "") == wanted]
-            if not named:
-                raise SessionError(
-                    "%s has no round called %r. Recorded: %s"
-                    % (
-                        preset["_name"],
-                        wanted,
-                        ", ".join(item.get("name") or "(unnamed)" for item in rounds),
-                    ),
-                    EXIT_USAGE,
-                )
-            round_entry = named[0]
-        elif len(rounds) == 1:
-            round_entry = rounds[0]
-        else:
-            raise SessionError(
-                "%s has %d rounds recorded, and they are different sittings.\n%s\n"
-                "Pick one: --preset %s --round %s"
-                % (
-                    preset["_name"],
-                    len(rounds),
-                    "\n".join(
-                        "  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item))
-                        for item in rounds
-                    ),
-                    preset["_name"],
-                    (rounds[0].get("name") or "<name>"),
-                ),
-                EXIT_USAGE,
-            )
-        # Everything downstream reads the round's shape, not the entry's.
-        merged = dict(preset)
-        for key in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
-            if round_entry.get(key) is not None:
-                merged[key] = round_entry[key]
-            else:
-                merged.pop(key, None)
-        merged["_round"] = round_entry.get("name")
-        preset = merged
+    # No company lookup. There used to be a table here, nineteen rows deep, and
+    # a local cache beside it, and machinery for deciding when either had gone
+    # stale. All of it was answering a question that a search answers better and
+    # more currently: what does this company actually run right now.
+    #
+    # So the shape of the sitting arrives as flags, from whoever just looked it
+    # up, and the company is a label on the record rather than a key into
+    # anything. What is written down afterwards is a dated note of what was
+    # found, which is history and never an answer.
+    company = (args.company or "").strip().lower() or None
+    round_name = (getattr(args, "round", None) or "").strip().lower() or None
 
-    if preset is not None and preset.get("format") is None:
-        # The company is a confirmed CodeSignal customer but which assessment
-        # they give is not known. Say so and let the caller choose, rather than
-        # picking one and letting them believe it was researched.
-        if args.format_given:
-            fmt = args.format
-        else:
-            # A researched entry proves nothing about CodeSignal. Saying it did,
-            # on the strength of a local note somebody typed, would be the tool
-            # inventing exactly the kind of claim it refuses to store.
-            if preset.get("researched"):
-                lead = (
-                    "What was recorded here for %s does not name a format, so "
-                    "there is nothing to run without you choosing one."
-                    % (preset["_name"],)
-                )
-            else:
-                lead = (
-                    "%s is a confirmed CodeSignal customer, but which assessment "
-                    "they use is not confirmed." % (preset["_name"],)
-                )
-            raise SessionError(
-                "%s%s\nPick one: --preset %s --format gca, or --format ica."
-                % (
-                    lead,
-                    ("\n" + preset["note"]) if preset.get("note") else "",
-                    preset["_name"],
-                ),
-                EXIT_USAGE,
-            )
-    else:
-        fmt = preset["format"] if preset else args.format
+    # Naming a company is a claim about what that company runs, so the format
+    # has to be said out loud rather than defaulted into. The old table refused
+    # to guess a format for a company it did not know; nothing is known now, so
+    # the refusal applies to all of them.
+    if company and not getattr(args, "format_given", False):
+        raise SessionError(
+            "Naming a company does not say what they run, and this will not "
+            "guess.\nLook it up, then pass what you found: --company %s "
+            "--format gca, or --format ica." % (company,),
+            EXIT_USAGE,
+        )
+
+    fmt = args.format
     if fmt not in FORMATS:
         raise SessionError(
             "Unknown format %r. Known: %s" % (fmt, ", ".join(sorted(FORMATS))),
@@ -1410,42 +1291,23 @@ def command_start(args: argparse.Namespace) -> int:
         )
     config = FORMATS[fmt]
 
-    # A preset may record that the company runs a live round rather than an
-    # asynchronous assessment, in which case the honest simulation of it is
-    # interview mode: one problem, a conversation, hints that get counted. An
-    # explicit --mode still wins.
-    if (
-        preset is not None
-        and preset.get("mode") in MODE_DEFAULTS
-        and not getattr(args, "mode_given", False)
-    ):
-        args.mode = preset["mode"]
-
     # What a company is reported to ask about, from research recorded for them
     # or straight from the flag. It steers which questions are drawn out of the
     # bank. It never reaches into what a question says: the topic is the part of
     # someone else's assessment that is fair to imitate, and the wording is not.
     topics = [item for item in (getattr(args, "topic", None) or []) if item.strip()]
-    if not topics and preset:
-        topics = [str(item) for item in (preset.get("topics") or [])]
 
-    # Explicit flags beat the preset, the preset beats the format default.
-    # Explicit flags beat the preset, the preset beats the mode's defaults, and
-    # those beat the format's.
+    # Flags beat the mode's defaults, and those beat the format's.
     mode_defaults = MODE_DEFAULTS.get(args.mode, {})
     slot = args.slot
     if slot is None:
         slot = mode_defaults.get("slot")
     count = args.questions
     if count is None:
-        count = (preset or {}).get(
-            "questions", mode_defaults.get("questions", config["questions"])
-        )
+        count = mode_defaults.get("questions", config["questions"])
     minutes = args.minutes
     if minutes is None:
-        minutes = (preset or {}).get(
-            "minutes", mode_defaults.get("minutes", config["minutes"])
-        )
+        minutes = mode_defaults.get("minutes", config["minutes"])
     if count < 1:
         raise SessionError("--questions must be at least 1", EXIT_USAGE)
     # `minutes != minutes` is the NaN test without importing math. A bare
@@ -1559,8 +1421,8 @@ def command_start(args: argparse.Namespace) -> int:
         "session_id": session_id,
         "mode": args.mode,
         "format": fmt,
-        "company": (preset or {}).get("_name") or unknown_company,
-        "company_known": preset is not None,
+        "company": company,
+        "round": round_name,
         "generated": bool(args.generated),
         "workspace": str(workspace),
         "seed": args.seed,
@@ -1594,34 +1456,14 @@ def command_start(args: argparse.Namespace) -> int:
     payload = status_payload(state, now, STATE_ACTIVE)
     # Everything the human output no longer says, in the channel the agent
     # reads. Removed from the candidate's screen, not from the record: the
-    # proctor still needs to know a format was researched rather than reviewed,
-    # and still needs to know which requested topics went uncovered, because
-    # that is the cue to write a question for them.
+    # proctor needs to know which requested topics went uncovered, because that
+    # is the cue to write a question for them.
     briefing = {
         "generated": bool(args.generated),
-        "company_known": preset is not None,
-        "preset": None,
+        "company": company,
+        "round": round_name,
         "topics": {"asked": list(topics), "covered": {}, "uncovered": []},
     }
-    if preset is not None:
-        age = entry_age_days(preset, now)
-        briefing["preset"] = {
-            "name": preset["_name"],
-            "round": preset.get("_round"),
-            "researched": bool(preset.get("researched")),
-            "confidence": preset.get("confidence"),
-            "format_confidence": preset.get("format_confidence"),
-            "sources": list(preset.get("sources", ())),
-            "last_confirmed": preset.get("last_confirmed"),
-            "age_days": age,
-            # Unknown counts as stale. A missing date is not evidence of
-            # freshness, and the failure it guards against is a note taken
-            # during one hiring cycle being served during the next one as
-            # though nothing had changed.
-            "stale": age is None or age > STALE_AFTER_DAYS,
-            "stale_after_days": STALE_AFTER_DAYS,
-            "note": preset.get("note"),
-        }
     for want in topics:
         hits = [
             question.get("title", question["id"])
@@ -1646,12 +1488,10 @@ def command_start(args: argparse.Namespace) -> int:
         # starts reads as a tool apologising for itself, and none of it is
         # something a candidate can act on with forty-five minutes to spend.
         headline = None
-        if preset is not None:
-            headline = preset["_name"]
-            if preset.get("_round"):
-                headline += ", %s round" % (preset["_round"],)
-        elif unknown_company is not None:
-            headline = unknown_company
+        if company:
+            headline = company
+            if round_name:
+                headline += ", %s round" % (round_name,)
         if args.mode == "interview":
             shape = "live interview"
         elif config["gated"]:
@@ -2411,22 +2251,13 @@ def command_learn(args: argparse.Namespace) -> int:
     evaporating, so the second session for that company does not start from
     nothing.
 
-    Everything the shipped table demands is demanded here too. A source, a date,
-    and a confidence, or it does not get recorded. A claim about what a company
-    does to candidates without a link is a rumour, and this tool has no business
-    storing rumours as facts.
+    A source, a date and a confidence, or it does not get written down. A claim
+    about what a company does to candidates, with nothing behind it, is a rumour,
+    and a rumour with a timestamp on it is worse rather than better.
     """
     name = args.name.strip().lower()
     if not name:
         raise SessionError("Which company?", EXIT_USAGE)
-
-    if name in load_presets(include_local=False):
-        raise SessionError(
-            "%s is already in the reviewed table, which wins over anything "
-            "recorded here.\nIf it is wrong or out of date, that is a pull "
-            "request against presets.json, not a local note." % (name,),
-            EXIT_USAGE,
-        )
 
     sources = [source for source in (args.source or []) if source.strip()]
     if not sources:
@@ -2447,12 +2278,12 @@ def command_learn(args: argparse.Namespace) -> int:
     if args.format and args.format.lower() not in FORMATS:
         raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
 
-    path = local_presets_path()
+    path = research_log_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     # Everything already known, including anything written to an older location,
     # so re-recording one company does not drop the rest on the way past.
     existing = {}
-    for source in legacy_local_presets_paths() + [path]:
+    for source in legacy_research_log_paths() + [path]:
         try:
             with open(str(source), "r") as handle:
                 existing.update(json.load(handle).get("presets", {}))
@@ -2530,99 +2361,86 @@ def command_learn(args: argparse.Namespace) -> int:
         for item in rounds:
             print("  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item)))
     paragraph(
-        "This is a local note, not a reviewed entry, and every session that uses "
-        "it will say so. If you are confident in it, the useful next step is a "
-        "pull request adding it to presets.json where other people benefit from "
-        "the same sources."
+        "A dated note about what a search turned up, for comparing against next "
+        "time. It is not consulted instead of looking again."
     )
     return EXIT_OK
 
 
-def command_presets(args: argparse.Namespace) -> int:
-    """List what is known about companies, or look one up.
+def command_recall(args: argparse.Namespace) -> int:
+    """What was found about a company last time somebody looked.
 
-    Exists so the agent has a clean way to answer "do you know this company"
-    without parsing presets.json itself. It answers only from the file: there is
-    no lookup, no fetch, and no network in this process at all.
+    Not an answer, and never a substitute for looking again. Hiring processes
+    are rebuilt between cycles and this file has no way of noticing, so what it
+    holds is a dated note about the past. It is here because comparing what was
+    found last month with what is found today is useful, and because a search
+    that fails leaves you with something rather than nothing.
     """
-    presets = load_presets()
+    log = load_research_log()
+    now = resolve_now(args.now)
 
     if args.name:
-        try:
-            entry = resolve_preset(args.name)
-        except SessionError as exc:
+        wanted = "".join(c for c in args.name.lower() if c.isalnum())
+        entry = None
+        for key, value in log.items():
+            if "".join(c for c in key.lower() if c.isalnum()) == wanted:
+                entry = dict(value)
+                entry["_name"] = key
+                break
+        if entry is None:
             if args.json:
-                print(json.dumps({"known": False, "query": args.name}, indent=2))
+                print(json.dumps({"found": False, "query": args.name}, indent=2))
                 return EXIT_OK
-            raise exc
-        if args.json:
-            print(json.dumps(dict(entry, known=True), indent=2))
+            print(
+                "Nothing recorded for %r. Look it up, then write down what you "
+                "find with `learn`." % (args.name,)
+            )
             return EXIT_OK
-        if entry.get("researched"):
-            # Not a CodeSignal claim. A locally researched company may not use
-            # CodeSignal at all, which is the whole reason the round is recorded
-            # in words rather than forced into one of two format names.
-            print(
-                "%s: researched on this machine, %s confidence, last looked at %s%s."
-                % (
-                    entry["_name"],
-                    entry.get("confidence", "unknown"),
-                    entry.get("last_confirmed", "an unknown date"),
-                    age_phrase(entry, resolve_now(args.now)),
-                )
+        if args.json:
+            print(json.dumps(dict(entry, found=True, age_days=entry_age_days(entry, now)), indent=2))
+            return EXIT_OK
+
+        print(
+            "%s: found on %s%s, %s confidence."
+            % (
+                entry["_name"],
+                entry.get("last_confirmed", "an unknown date"),
+                age_phrase(entry, now),
+                entry.get("confidence", "unknown"),
             )
-            rounds = preset_rounds(entry)
-            named = [item for item in rounds if item.get("name")]
-            if named:
-                print("Rounds recorded:")
-                for item in named:
-                    print("  %-12s %s" % (item["name"], describe_round(item)))
-                    if item.get("note"):
-                        print("               %s" % (item["note"],))
-                print(
-                    "Start one with --preset %s --round %s"
-                    % (entry["_name"], named[0]["name"])
-                )
-            elif entry.get("mode") == "interview":
-                print("Closest simulation: interview mode, which is a live round.")
-        else:
-            print(
-                "%s: uses CodeSignal (%s confidence)."
-                % (entry["_name"], entry.get("confidence"))
-            )
-        if entry.get("format"):
-            print("Format %s, %s confidence." % (entry["format"].upper(), entry.get("format_confidence")))
-        elif not entry.get("researched"):
-            print("Which assessment they use is not confirmed.")
-        if entry.get("note"):
-            paragraph(entry["note"])
+        )
+        for item in preset_rounds(entry):
+            if item.get("name"):
+                print("  %-12s %s" % (item["name"], describe_round(item)))
+                if item.get("note"):
+                    print("               %s" % (item["note"],))
         for source in entry.get("sources", ()):
             print("source: %s" % (source,))
-        age = entry_age_days(entry, resolve_now(args.now))
-        if age is None or age > STALE_AFTER_DAYS:
-            paragraph(
-                "That is old enough to be worth checking again. Hiring processes "
-                "get rebuilt between cycles, and what was true when this was "
-                "written down may not be what they run now."
-            )
+        print("")
+        paragraph(
+            "This is what a search turned up on that date and nothing more. It "
+            "is not current and was never checked by anyone else. Look it up "
+            "again before you plan an evening around it."
+        )
         return EXIT_OK
 
     if args.json:
-        print(json.dumps(presets, indent=2, sort_keys=True))
+        print(json.dumps(log, indent=2, sort_keys=True))
         return EXIT_OK
-
-    if not presets:
-        print("No presets configured.")
+    if not log:
+        print("Nothing researched yet. Paste a job posting and it will be.")
         return EXIT_OK
-    for name in sorted(presets):
-        entry = presets[name]
-        fmt = entry.get("format")
+    for name in sorted(log):
+        entry = log[name]
         print(
-            "  %-20s %s"
-            % (name, (fmt.upper() + " (" + str(entry.get("format_confidence")) + ")") if fmt else "format not confirmed")
+            "  %-22s %s%s"
+            % (name, entry.get("last_confirmed", "undated"), age_phrase(entry, now))
         )
     print("")
-    print("%d companies. Formats change every hiring cycle." % (len(presets),))
+    paragraph(
+        "Dated notes, not a table of facts. Every one of them is worth checking "
+        "again before it is used."
+    )
     return EXIT_OK
 
 
@@ -2658,7 +2476,6 @@ def walk_sessions() -> List[Tuple[Path, Optional[Dict[str, Any]]]]:
     )
     return found
 
-
 def time_used(state: Dict[str, Any], now: float) -> float:
     """Seconds spent in a session, which is not the same as seconds elapsed.
 
@@ -2670,7 +2487,6 @@ def time_used(state: Dict[str, Any], now: float) -> float:
     if clock.get("ended_epoch"):
         return max(0.0, clock["ended_epoch"] - started)
     return max(0.0, min(now, clock["deadline_epoch"]) - started)
-
 
 def command_progress(args: argparse.Namespace) -> int:
     """History across sessions: what was sat, what passed, what was never reached.
@@ -2834,7 +2650,6 @@ def command_progress(args: argparse.Namespace) -> int:
     print("")
     paragraph(payload["note"])
     return EXIT_OK
-
 
 def command_check(args: argparse.Namespace) -> int:
     """Say whether this machine can run a session, before the clock is involved.
@@ -3118,11 +2933,14 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--minutes", type=float, default=None)
     start.add_argument("--workspace", default=None)
     start.add_argument("--project", default=None, help="ICA project id")
-    start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
+    start.add_argument(
+        "--company", default=None,
+        help="who this sitting is for, e.g. --company shopify. A label on the "
+             "record: nothing is looked up, the shape comes from the flags",
+    )
     start.add_argument(
         "--round", default=None,
-        help="which round of that company's process, when more than one is "
-             "recorded, e.g. --round pairing",
+        help="which round of their process, e.g. --round pairing. A label too",
     )
     start.add_argument(
         "--open", action="store_true",
@@ -3159,12 +2977,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(submit)
     submit.set_defaults(func=command_submit)
 
-    presets_cmd = subparsers.add_parser(
-        "presets", help="what is known about a company, from the local table"
+    recall = subparsers.add_parser(
+        "recall", help="what a search turned up for a company last time"
     )
-    presets_cmd.add_argument("name", nargs="?", default=None)
-    add_common(presets_cmd)
-    presets_cmd.set_defaults(func=command_presets)
+    recall.add_argument("name", nargs="?", default=None)
+    add_common(recall)
+    recall.set_defaults(func=command_recall)
 
     listing = subparsers.add_parser("list", help="show past sessions")
     listing.add_argument("--limit", type=int, default=20)

@@ -1,0 +1,8 @@
+{
+  "served": [
+    "run-compression",
+    "build-order",
+    "sensor-median",
+    "batch-split"
+  ]
+}

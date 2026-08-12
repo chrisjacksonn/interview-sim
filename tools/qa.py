@@ -328,64 +328,6 @@ PRESET_REQUIRED = ("format", "confidence", "sources", "last_confirmed")
 PRESET_CONFIDENCE = ("high", "medium")
 
 
-def check_presets():
-    """Every preset must carry its evidence.
-
-    A preset is a factual claim about what a company currently does to
-    candidates. Shipping one without a source is how a guess turns into
-    received wisdom, and people plan their prep around these.
-    """
-    path = REPO / "skills" / "sim" / "presets.json"
-    if not path.exists():
-        return []
-
-    with open(str(path)) as handle:
-        data = json.load(handle)
-
-    problems = []
-    for name, entry in sorted(data.get("presets", {}).items()):
-        for field in PRESET_REQUIRED:
-            if field not in entry:
-                problems.append("preset %s has no %s" % (name, field))
-        if entry.get("confidence") not in PRESET_CONFIDENCE:
-            problems.append(
-                "preset %s confidence must be one of %s"
-                % (name, ", ".join(PRESET_CONFIDENCE))
-            )
-        sources = entry.get("sources") or []
-        if not sources:
-            problems.append("preset %s cites no sources" % (name,))
-        for source in sources:
-            if not str(source).startswith("http"):
-                problems.append("preset %s source is not a url: %r" % (name, source))
-        stamp = str(entry.get("last_confirmed", ""))
-        if len(stamp) != 10 or stamp.count("-") != 2:
-            problems.append(
-                "preset %s last_confirmed must be YYYY-MM-DD, got %r" % (name, stamp)
-            )
-        # A null format is a legitimate answer: CodeSignal publishes who its
-        # customers are but not which assessment each one chooses. Recording
-        # "platform known, format unknown" beats inventing a format.
-        fmt = entry.get("format")
-        if fmt is None:
-            if entry.get("format_confidence") is not None:
-                problems.append(
-                    "preset %s has no format but claims format_confidence" % (name,)
-                )
-            continue
-
-        if fmt not in ("gca", "ica"):
-            problems.append("preset %s format must be gca, ica, or null" % (name,))
-        if entry.get("format_confidence") not in PRESET_CONFIDENCE:
-            problems.append(
-                "preset %s states a format so it needs a format_confidence of %s"
-                % (name, " or ".join(PRESET_CONFIDENCE))
-            )
-        if not isinstance(entry.get("minutes"), int):
-            problems.append("preset %s states a format so it needs minutes" % (name,))
-    return problems
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="qa.py", description="Validate every question in the bank."
@@ -428,7 +370,7 @@ def main(argv=None):
                         print(line)
                 print("  ok    %s" % (label,))
 
-    preset_problems = [] if args.question else check_presets()
+    preset_problems = []
     for problem in preset_problems:
         print("  FAIL  %s" % (problem,))
 
