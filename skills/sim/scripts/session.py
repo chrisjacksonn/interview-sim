@@ -792,12 +792,33 @@ def load_bank(fmt: str) -> List[Dict[str, Any]]:
     return questions
 
 
+def topic_match(question: Dict[str, Any], wanted: List[str]) -> bool:
+    """Does this question cover any of the topics asked for?
+
+    Substring matching in both directions, because the topics that come out of
+    research are phrases a person wrote ("sliding window problems", "graphs")
+    and the bank's are tags ("sliding window", "graphs"). Requiring them to be
+    equal would match almost nothing and quietly fall back to a random draw,
+    which looks identical to working.
+    """
+    tags = [str(tag).lower() for tag in question.get("topics", ())]
+    for want in wanted:
+        want = want.strip().lower()
+        if not want:
+            continue
+        for tag in tags:
+            if want in tag or tag in want:
+                return True
+    return False
+
+
 def select_questions(
     fmt: str,
     count: int,
     seed: Optional[int] = None,
     slot: Optional[int] = None,
     explicit_slot: bool = True,
+    topics: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """Pick one question per difficulty slot.
 
@@ -865,15 +886,36 @@ def select_questions(
     seen = set() if seed is not None else recent_question_ids()
 
     chosen = []
+    covered = set()
     for slot in slots[:count]:
         options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
+        if topics:
+            # Topic is a preference, never a filter that can empty a slot. A
+            # session missing its hard question because nothing in the bank was
+            # tagged "rate limiting" would be a worse imitation of the format
+            # than one whose topics are only partly right.
+            #
+            # Uncovered topics come first, so four sliding-window questions and
+            # one graph question do not produce a session of sliding windows
+            # when both were asked for. Spread beats depth here: the point is to
+            # rehearse the subjects they are reported to ask about.
+            uncovered = [want for want in topics if want not in covered]
+            matching = [item for item in options if topic_match(item, uncovered)]
+            if not matching:
+                matching = [item for item in options if topic_match(item, topics)]
+            if matching:
+                options = matching
         if len(options) == 1:
-            chosen.append(options[0])
-            continue
-        fresh = [item for item in options if item.get("id") not in seen]
-        # Once every question in a slot has been seen, the slot starts over
-        # rather than refusing to serve anything.
-        chosen.append(chooser.choice(fresh if fresh else options))
+            pick = options[0]
+        else:
+            fresh = [item for item in options if item.get("id") not in seen]
+            # Once every question in a slot has been seen, the slot starts over
+            # rather than refusing to serve anything.
+            pick = chooser.choice(fresh if fresh else options)
+        chosen.append(pick)
+        for want in topics or []:
+            if topic_match(pick, [want]):
+                covered.add(want)
     return chosen
 
 
@@ -1217,6 +1259,14 @@ def command_start(args: argparse.Namespace) -> int:
     ):
         args.mode = preset["mode"]
 
+    # What a company is reported to ask about, from research recorded for them
+    # or straight from the flag. It steers which questions are drawn out of the
+    # bank. It never reaches into what a question says: the topic is the part of
+    # someone else's assessment that is fair to imitate, and the wording is not.
+    topics = [item for item in (getattr(args, "topic", None) or []) if item.strip()]
+    if not topics and preset:
+        topics = [str(item) for item in (preset.get("topics") or [])]
+
     # Explicit flags beat the preset, the preset beats the format default.
     # Explicit flags beat the preset, the preset beats the mode's defaults, and
     # those beat the format's.
@@ -1313,7 +1363,9 @@ def command_start(args: argparse.Namespace) -> int:
     else:
         project = None
         questions = select_questions(
-            fmt, count, args.seed, slot, explicit_slot=args.slot is not None
+            fmt, count, args.seed, slot,
+            explicit_slot=args.slot is not None,
+            topics=topics,
         )
 
     duration = minutes * 60.0
@@ -1424,7 +1476,7 @@ def command_start(args: argparse.Namespace) -> int:
             else:
                 print(
                     "Format %s, %s confidence."
-                    % (fmt.upper(), preset.get("format_confidence", "unknown"))
+                    % (fmt.upper(), preset.get("format_confidence") or "unstated")
                 )
             if preset.get("note"):
                 paragraph(preset["note"])
@@ -1444,6 +1496,30 @@ def command_start(args: argparse.Namespace) -> int:
                 % (len(state["questions"]), format_duration(duration))
             )
         print("Deadline %s UTC." % (state["clock"]["deadline_utc"],))
+        if topics and questions:
+            print("")
+            print("Topics asked for:")
+            for want in topics:
+                hits = [
+                    question
+                    for question in questions
+                    if topic_match(question, [want])
+                ]
+                if hits:
+                    print(
+                        "  %-24s %s"
+                        % (want, ", ".join(hit.get("title", hit["id"]) for hit in hits))
+                    )
+                elif any(topic_match(item, [want]) for item in load_bank(fmt)):
+                    # In the bank, just not drawn. Saying the bank cannot cover
+                    # it would be a false claim about the bank, and would send
+                    # the agent off to write a question that already exists.
+                    print("  %-24s in the bank, not drawn this time" % (want,))
+                else:
+                    # The actionable half. A topic the bank cannot cover is the
+                    # cue to write a question for it rather than to pretend the
+                    # session covered it.
+                    print("  %-24s nothing in the bank covers this" % (want,))
         print("")
         print("Work here:")
         print("  %s" % (workspace,))
@@ -2149,6 +2225,9 @@ def command_learn(args: argparse.Namespace) -> int:
         entry["minutes"] = args.minutes
     if args.round:
         entry["round"] = args.round
+    topics = [item.strip() for item in (args.topic or []) if item.strip()]
+    if topics:
+        entry["topics"] = topics
     if args.note:
         entry["note"] = args.note
 
@@ -2759,6 +2838,11 @@ def build_parser() -> argparse.ArgumentParser:
              "checked for answerability first, but have not been through the "
              "mutation gate.",
     )
+    start.add_argument(
+        "--topic", action="append", default=None,
+        help="prefer bank questions on this topic, e.g. --topic graphs. "
+             "Repeatable. Taken from the preset when it records any",
+    )
     start.add_argument("--seed", type=int, default=None, help="repeatable question choice")
     start.add_argument(
         "--slot", type=int, default=None,
@@ -2810,6 +2894,10 @@ def build_parser() -> argparse.ArgumentParser:
     learn.add_argument(
         "--round", default=None,
         help="what the round reportedly is, e.g. 'live pairing, 45 minutes'",
+    )
+    learn.add_argument(
+        "--topic", action="append", default=None,
+        help="a subject candidates report being asked about. Repeatable",
     )
     learn.add_argument("--note", default=None)
     add_common(learn)

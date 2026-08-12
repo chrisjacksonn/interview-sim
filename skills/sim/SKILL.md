@@ -211,12 +211,37 @@ the closest thing this tool has to that round: one problem, a conversation, and
 hints that get counted.
 
 **What you may never do is reproduce their questions.** Not the ones in a forum
-post, not the ones on a practice site, not a lightly reworded version. Question
-text you find while researching is a signal about format and topic and nothing
-else. If the bank has nothing shaped like what you found, write original
-questions for it, which is the section below. This is not a preference: real
-assessment items are the one thing a company will act on, and serving them would
-also make this a tool for memorising answers rather than practising.
+post, not the ones on a practice site, not a lightly reworded version. This is
+not a preference: real assessment items are the one thing a company will act on,
+and a takedown against this repository is a real outcome with precedent.
+
+**What you do instead is take the topics.** If people report being asked about
+rate limiting and graph traversal, that is the useful part and it is fair game.
+Record it:
+
+```
+... learn stripe --confidence medium --format gca \
+    --topic "graphs" --topic "sliding window" --topic "rate limiting" \
+    --source https://...
+```
+
+Sessions for that company then draw questions on those subjects out of the bank,
+spread across them rather than stacked on whichever the bank has most of, and the
+start output says which topics it covered and which it could not:
+
+```
+Topics asked for:
+  graphs                   Build Order
+  sliding window           Rolling Median
+  rate limiting            nothing in the bank covers this
+```
+
+That last line is your cue, and the only correct response to it is to write an
+original question on that subject, which is the section below. Never fill the
+gap by pasting in something you found.
+
+`--topic` works without a preset too, whenever someone tells you what they want
+to drill.
 
 ### Writing questions for a posting
 

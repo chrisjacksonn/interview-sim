@@ -336,10 +336,25 @@ recorded with `--mode interview`, and `start --preset <company>` then runs the
 closest thing this tool has: one problem, forty-five minutes, a conversation, and
 hints that get counted.
 
-What research will never do is come back with the company's actual questions.
-Question text found while looking is a signal about format and topic and nothing
-else. Copying it would be someone else's property, and it would also make this a
-tool for memorising answers instead of practising.
+What research will never come back with is the company's actual questions. What
+it does come back with is the **topics**, which is the part that transfers:
+
+```
+python3 skills/sim/scripts/session.py start --preset stripe --questions 3
+```
+
+```
+Topics asked for:
+  graphs                   Build Order
+  sliding window           Rolling Median
+  rate limiting            nothing in the bank covers this
+```
+
+Recorded topics steer which questions are drawn, spread across the subjects
+rather than stacked on whichever the bank has most of. A topic the bank cannot
+cover is reported as exactly that, which is the cue to write an original question
+for it rather than to pretend the session covered it. `--topic graphs` works
+without a preset too, for drilling something specific.
 
 If the bank has nothing shaped like the role, the agent can write questions for
 it and run a session on those:

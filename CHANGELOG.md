@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Topics, which is the part of someone else's assessment that transfers.**
+Research comes back with what candidates report being asked about, `learn
+--topic` records it, and sessions for that company draw on those subjects. Spread
+across them rather than stacked on whichever the bank has most of, since four
+sliding-window questions should not crowd out the one graph question when both
+were asked for. `--topic` works without a preset too.
+
+The start output says which topics it covered and which it could not:
+
+```
+Topics asked for:
+  graphs                   Build Order
+  sliding window           Rolling Median
+  rate limiting            nothing in the bank covers this
+```
+
+A topic in the bank but not drawn says so instead, because claiming the bank
+cannot cover something it can would send the agent writing a question that
+already exists. Topic is a preference and never a filter: a subject nothing
+matches still yields a full session rather than a short one.
+
 **Paste a posting for a company nobody has heard of, and it can go and find
 out.** The skill could already read a posting and take the company name to the
 preset table. The table has nineteen rows, so for most postings that ended in a

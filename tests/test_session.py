@@ -845,6 +845,83 @@ class TestLearn(BankAwareTestCase):
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class TestTopics(BankAwareTestCase):
+    """Steering the draw by subject.
+
+    This is what replaces copying a company's questions: practise the subjects
+    they are reported to ask about, on original problems. So the two things that
+    matter are that the steering works, and that what it says about coverage is
+    true.
+    """
+
+    def topics_of(self, index):
+        source = self.state()["questions"][index]["source"]
+        with open(str(QUESTIONS / source / "meta.json")) as handle:
+            return [tag.lower() for tag in json.load(handle).get("topics", [])]
+
+    def test_a_topic_steers_the_draw(self):
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", "2",
+            "--topic", "graphs", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        drawn = [self.topics_of(index) for index in range(2)]
+        self.assertTrue(
+            any("graphs" in tags for tags in drawn),
+            "asked for graphs, drew %s" % (drawn,),
+        )
+
+    def test_several_topics_are_spread_rather_than_stacked(self):
+        """Four sliding window questions must not crowd out the graph one."""
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", "3",
+            "--topic", "graphs", "--topic", "sliding window", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        drawn = [self.topics_of(index) for index in range(3)]
+        flat = [tag for tags in drawn for tag in tags]
+        self.assertIn("graphs", flat)
+        self.assertTrue(any("sliding window" in tag for tag in flat), flat)
+
+    def test_a_topic_the_bank_cannot_cover_is_said_so(self):
+        _, out, _ = self.run_session(
+            "start", "--format", "gca", "--questions", "2",
+            "--topic", "quantum teleportation", "--now", T0,
+        )
+        self.assertIn("nothing in the bank covers this", out)
+
+    def test_a_topic_present_but_undrawn_is_not_called_missing(self):
+        """Saying the bank lacks something it has would send the agent writing
+        a question that already exists."""
+        _, out, _ = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--topic", "graphs", "--now", T0,
+        )
+        # One question, slot 1, and no slot 1 question is a graph question.
+        self.assertIn("in the bank, not drawn this time", out)
+
+    def test_a_topic_never_empties_a_slot(self):
+        """Preference, not filter. A full session still appears."""
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--topic", "nonsense", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(len(self.state()["questions"]), 4)
+
+    def test_topics_recorded_for_a_company_are_used_without_the_flag(self):
+        self.run_session(
+            "learn", "shopify", "--confidence", "low", "--format", "gca",
+            "--source", "https://example.com/thread", "--topic", "graphs",
+        )
+        code, out, err = self.run_session(
+            "start", "--preset", "shopify", "--questions", "2", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("Topics asked for", out)
+        drawn = [self.topics_of(index) for index in range(2)]
+        self.assertTrue(any("graphs" in tags for tags in drawn), drawn)
+
+
 class TestCheck(SessionTestCase):
     """The preflight.
 
