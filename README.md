@@ -137,8 +137,26 @@ Python 3. That is the whole list: no pip install, no virtualenv, no
 dependencies. The engine is standard library only and runs on 3.9, which is what
 Apple's Command Line Tools still ship, so it works on a stock Mac.
 
+To find out before you start a session rather than during one:
+
+```
+python3 skills/sim/scripts/session.py check
+```
+
+```
+ok    python    3.9.6 at /usr/bin/python3
+ok    bank      23 questions under .../skills/sim/questions
+ok    sessions  ~/interview-sim-sessions
+ok    editor    code, so --open will use it
+```
+
 If `python3` is missing, run `xcode-select --install` on macOS or install it from
 python.org.
+
+Developed on macOS, and Linux works the same way. Windows is not something I have
+run it on: the timeout in the grader kills a whole process group there, which is
+POSIX only, so it falls back to killing the direct child. Everything else is
+plain Python. If you try it, `check` first, and an issue either way is useful.
 
 ## Using it
 

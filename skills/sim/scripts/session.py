@@ -553,6 +553,10 @@ def open_in_editor(workspace: Path) -> None:
         candidates.append(["open", str(workspace)])
     elif sys.platform.startswith("linux"):
         candidates.append(["xdg-open", str(workspace)])
+    elif os.name == "nt":
+        opener = shutil.which("explorer")
+        if opener:
+            candidates.append([opener, str(workspace)])
 
     for command in candidates:
         try:
@@ -2249,6 +2253,125 @@ def command_progress(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def command_check(args: argparse.Namespace) -> int:
+    """Say whether this machine can run a session, before the clock is involved.
+
+    Everything here is knowable in advance, and every one of these failures is
+    otherwise discovered halfway through a start, which is the worst moment: the
+    workspace is half built and the user is deciding whether the tool is broken
+    or they are. Cheap to run, so the skill runs it when anything else fails.
+    """
+    checks = []  # type: List[Dict[str, Any]]
+
+    version = sys.version_info
+    running = "%d.%d.%d" % (version[0], version[1], version[2])
+    if version < (3, 6):
+        checks.append(
+            {
+                "name": "python",
+                "ok": False,
+                "detail": "%s at %s, too old. 3.9 is what this is tested on."
+                % (running, sys.executable),
+            }
+        )
+    elif version < (3, 9):
+        checks.append(
+            {
+                "name": "python",
+                "ok": True,
+                "warn": True,
+                "detail": "%s at %s. Older than the 3.9 this is tested on, so it "
+                "may work and is not something I have checked."
+                % (running, sys.executable),
+            }
+        )
+    else:
+        checks.append(
+            {"name": "python", "ok": True, "detail": "%s at %s" % (running, sys.executable)}
+        )
+
+    try:
+        questions = sorted(
+            entry
+            for family in QUESTIONS_DIR.iterdir()
+            if family.is_dir()
+            for entry in family.iterdir()
+            if (entry / "meta.json").exists()
+        )
+    except OSError as exc:
+        questions = []
+        checks.append({"name": "bank", "ok": False, "detail": str(exc)})
+    else:
+        checks.append(
+            {
+                "name": "bank",
+                "ok": bool(questions),
+                "detail": "%d question%s under %s"
+                % (len(questions), "" if len(questions) == 1 else "s", QUESTIONS_DIR)
+                if questions
+                else "no questions found under %s" % (QUESTIONS_DIR,),
+            }
+        )
+
+    root = sessions_root()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / ".write-probe"
+        probe.write_text("")
+        probe.unlink()
+    except OSError as exc:
+        checks.append(
+            {"name": "sessions", "ok": False, "detail": "%s is not writable: %s" % (root, exc)}
+        )
+    else:
+        checks.append({"name": "sessions", "ok": True, "detail": str(root)})
+
+    editor = None
+    for name in ("code", "cursor", "subl", "zed"):
+        if shutil.which(name):
+            editor = name
+            break
+    checks.append(
+        {
+            "name": "editor",
+            "ok": True,
+            "detail": "%s, so --open will use it" % (editor,)
+            if editor
+            else "none of code, cursor, subl or zed found. --open falls back to "
+            "the file manager",
+        }
+    )
+
+    # Not a pass or fail, just the thing people ask for after their first
+    # session, and this is the one command that knows the path.
+    shortcut = 'sim() { python3 "%s" "$@"; }' % (Path(__file__).resolve(),)
+
+    failed = [entry for entry in checks if not entry["ok"]]
+    if args.json:
+        print(
+            json.dumps(
+                {"ok": not failed, "checks": checks, "shortcut": shortcut}, indent=2
+            )
+        )
+        return EXIT_OK if not failed else EXIT_ENVIRONMENT
+
+    for entry in checks:
+        mark = "ok  " if entry["ok"] else "FAIL"
+        if entry.get("warn"):
+            mark = "note"
+        print("%s  %-9s %s" % (mark, entry["name"], entry["detail"]))
+    print("")
+    if failed:
+        paragraph(
+            "Not ready: fix the FAIL line%s above. Nothing here needs a network "
+            "connection or an install." % ("" if len(failed) == 1 else "s")
+        )
+        return EXIT_ENVIRONMENT
+    print("Ready. A shortcut, if you want one:")
+    print("  %s" % (shortcut,))
+    return EXIT_OK
+
+
 def command_list(args: argparse.Namespace) -> int:
     """Show past sessions, newest first."""
     rows = []
@@ -2458,6 +2581,12 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--limit", type=int, default=20)
     add_common(listing)
     listing.set_defaults(func=command_list)
+
+    check = subparsers.add_parser(
+        "check", help="whether this machine can run a session"
+    )
+    add_common(check)
+    check.set_defaults(func=command_check)
 
     progress = subparsers.add_parser(
         "progress", help="what your sessions add up to over time"

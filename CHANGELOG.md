@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**`check`, a preflight.** Python version and path, how many questions the bank
+holds, whether the sessions directory is writable, and which editor `--open`
+will reach for. Everything it looks at is knowable before a session exists, and
+every one of those failures was otherwise found halfway through a `start`, which
+is the worst moment to find it: the workspace is half built and the user is
+deciding whether the tool is broken or they are. It exits 7 on a real problem,
+and the skill now runs it whenever anything else exits 7.
+
+**Windows no longer crashes the grader outright.** The timeout killed a whole
+process group, which is POSIX only, so the run refused to start there at all.
+It asks for a process group where there is one and kills the direct child where
+there is not. Still untested on Windows, and the README says so rather than
+implying support.
+
 **`progress`, what your sessions add up to.** One sitting is a data point and
 several are a shape. It prints the sittings in order, then hidden tests passed
 by difficulty band, then the count of questions never submitted at all, which is

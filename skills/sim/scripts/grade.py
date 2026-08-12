@@ -213,6 +213,11 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
         shutil.copyfile(str(solution_path), str(Path(workdir) / SOLUTION_NAME))
         shutil.copyfile(str(hidden), str(Path(workdir) / HIDDEN_TESTS))
 
+        # Its own process group, so a solution that spawns children can be killed
+        # as a whole. Without this a leaked grandchild holding the pipe open
+        # outlives the timeout. POSIX only: Windows rejects the argument, and
+        # there the timeout falls back to killing the direct child.
+        group = {"start_new_session": True} if os.name == "posix" else {}
         try:
             proc = subprocess.Popen(
                 [
@@ -226,10 +231,7 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
                 cwd=workdir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                # Its own process group, so a solution that spawns children can
-                # be killed as a whole. Without this a leaked grandchild holding
-                # the pipe open outlives the timeout.
-                start_new_session=True,
+                **group
             )
             try:
                 proc.communicate(timeout=timeout)

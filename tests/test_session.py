@@ -25,6 +25,7 @@ EXIT_NO_SESSION = 3
 EXIT_EXPIRED = 4
 EXIT_ACTIVE_SESSION = 5
 EXIT_BANK = 6
+EXIT_ENVIRONMENT = 7
 
 # An arbitrary fixed point on the clock. Any epoch works; a constant keeps the
 # arithmetic in the tests readable.
@@ -40,7 +41,7 @@ class SessionTestCase(unittest.TestCase):
     def run_session(self, *args, **kwargs):
         """Invoke the CLI. Returns (exit_code, stdout, stderr)."""
         env = dict(os.environ)
-        env["INTERVIEW_SIM_HOME"] = str(self.root)
+        env["INTERVIEW_SIM_HOME"] = str(kwargs.get("home", self.root))
         env.pop("INTERVIEW_SIM_NOW", None)
         env.pop("INTERVIEW_SIM_SESSION", None)
         proc = subprocess.Popen(
@@ -738,6 +739,49 @@ class TestListing(BankAwareTestCase):
         code, _, err = self.run_session("start", "--mode", "interview", "--now", T0)
         self.assertEqual(code, EXIT_OK, err)
         self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
+
+
+class TestCheck(SessionTestCase):
+    """The preflight.
+
+    Its whole value is being right about the environment before a session
+    exists, so the failure path matters as much as the happy one.
+    """
+
+    def test_a_working_machine_passes(self):
+        code, out, err = self.run_session("check")
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("python", out)
+        self.assertIn("Ready", out)
+        self.assertNotIn("FAIL", out)
+
+    def test_it_counts_the_bank(self):
+        _, out, _ = self.run_session("check", "--json")
+        payload = json.loads(out)
+        self.assertTrue(payload["ok"])
+        bank = [row for row in payload["checks"] if row["name"] == "bank"][0]
+        self.assertTrue(bank["ok"])
+        self.assertRegex(bank["detail"], r"^\d+ questions? under ")
+
+    def test_an_unwritable_sessions_root_fails_before_a_session_exists(self):
+        blocked = self.root / "blocked"
+        blocked.mkdir()
+        os.chmod(str(blocked), 0o500)
+        try:
+            code, out, _ = self.run_session(
+                "check", home=str(blocked / "sessions")
+            )
+            self.assertEqual(code, EXIT_ENVIRONMENT)
+            self.assertIn("FAIL", out)
+            self.assertIn("not writable", out)
+        finally:
+            os.chmod(str(blocked), 0o700)
+
+    def test_it_hands_over_the_shortcut(self):
+        _, out, _ = self.run_session("check", "--json")
+        payload = json.loads(out)
+        self.assertIn("session.py", payload["shortcut"])
+        self.assertTrue(payload["shortcut"].startswith("sim() {"))
 
 
 class TestProgress(BankAwareTestCase):

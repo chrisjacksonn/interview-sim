@@ -122,6 +122,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | you gave a nudge in interview mode | `hint --note "..."` |
 | "what have I done before", "my past sessions" | `list` |
 | "am I improving", "how am I doing overall" | `progress` |
+| "is this thing set up", or anything failed oddly | `check` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
 | a pasted job posting URL | read it, get the company, then `presets <company>` |
@@ -261,7 +262,7 @@ Branch on these, not on the wording of the output.
 | 4 | time is up, or a late submission was refused | stop the exam, move to debrief |
 | 5 | a session is already running | show `status`; only pass `--force` if the user confirms abandoning it |
 | 6 | question bank problem, or an unknown company preset | for a preset, ask which format they want. For the bank, report it and do not improvise a question |
-| 7 | environment problem | report the message verbatim |
+| 7 | environment problem | run `check` and report what it says. It names the thing that is wrong, which the failing command usually cannot |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
 | 9 | nothing could be graded: it did not import, died mid-run, or is missing | report which of those it was, from the message; it is not a score of zero, it is no score |
 
