@@ -221,6 +221,18 @@ Every entry carries source URLs, a confidence tier, and the date it was last
 confirmed, and `tools/qa.py` rejects entries missing any of them. Formats change
 every hiring cycle and your actual invite email beats this table.
 
+```
+python3 skills/sim/scripts/session.py presets            # the whole table
+python3 skills/sim/scripts/session.py presets capital-one
+```
+
+**Nothing here is looked up at run time.** The engine opens no network
+connection and imports nothing that could; it answers from that file and nothing
+else. If you paste a job posting to the agent running the skill, the agent can
+read it and work out which company it is, but all that buys you is a name to
+look up in the same table. No question is ever generated from a posting, because
+a question that has not been through the gate cannot be graded honestly.
+
 ## What leaves your machine
 
 Nothing, from the engine. It opens no network connection and the scripts import

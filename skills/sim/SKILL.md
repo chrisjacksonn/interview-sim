@@ -123,11 +123,49 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "what have I done before", "my past sessions" | `list` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
+| a pasted job posting URL | read it, get the company, then `presets <company>` |
+| "what companies do you know" | `presets` |
 
 When a preset says a company's format is not confirmed, do not pick one for them
 and do not treat the widely-repeated claim as fact. Ask which they want. The
 whole point of recording it as unknown is that guessing would be indistinguishable
 from research.
+
+### When someone names a company, or pastes a job posting
+
+Two different things are going on and only one of them is yours to do.
+
+**The engine never looks anything up.** It has no network access of any kind and
+answers only from `presets.json`, a table of eighteen companies with sources and
+dates. Ask it what it knows:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" presets ramp
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" presets --json
+```
+
+**You may read a posting they paste.** You have a fetch tool and they gave you
+the URL, so use it to work out which company it is and what the role is, then
+take it to the table above. That is the whole of what a link buys: a company
+name.
+
+So the flow is: read the posting if there is one, look the company up, and then
+
+- **known, with a format**: start it. Say the confidence out loud and say that
+  their invite email beats this table.
+- **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
+  Do not pick. Seventeen of the eighteen entries are in this state and the
+  honest answer is a question.
+- **not known at all**: say that plainly. Then ask which format they want, or
+  suggest GCA as the more common screen. Do not infer a format from the job
+  description, the seniority, or the company's size.
+
+**What you must not do with a posting**: write a question from it. Every question
+this tool serves has passed a gate that proves a reference solution passes its
+hidden suite and that wrong answers fail it. A question invented from a job
+description has none of that, and serving it would mean grading someone against
+tests nobody has checked. If they ask for that, say it is not something the tool
+does.
 
 ### ICA sessions
 

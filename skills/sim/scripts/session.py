@@ -1805,6 +1805,56 @@ def command_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def command_presets(args: argparse.Namespace) -> int:
+    """List what is known about companies, or look one up.
+
+    Exists so the agent has a clean way to answer "do you know this company"
+    without parsing presets.json itself. It answers only from the file: there is
+    no lookup, no fetch, and no network in this process at all.
+    """
+    presets = load_presets()
+
+    if args.name:
+        try:
+            entry = resolve_preset(args.name)
+        except SessionError as exc:
+            if args.json:
+                print(json.dumps({"known": False, "query": args.name}, indent=2))
+                return EXIT_OK
+            raise exc
+        if args.json:
+            print(json.dumps(dict(entry, known=True), indent=2))
+            return EXIT_OK
+        print("%s: uses CodeSignal (%s confidence)." % (entry["_name"], entry.get("confidence")))
+        if entry.get("format"):
+            print("Format %s, %s confidence." % (entry["format"].upper(), entry.get("format_confidence")))
+        else:
+            print("Which assessment they use is not confirmed.")
+        if entry.get("note"):
+            print(entry["note"])
+        for source in entry.get("sources", ()):
+            print("source: %s" % (source,))
+        return EXIT_OK
+
+    if args.json:
+        print(json.dumps(presets, indent=2, sort_keys=True))
+        return EXIT_OK
+
+    if not presets:
+        print("No presets configured.")
+        return EXIT_OK
+    for name in sorted(presets):
+        entry = presets[name]
+        fmt = entry.get("format")
+        print(
+            "  %-20s %s"
+            % (name, (fmt.upper() + " (" + str(entry.get("format_confidence")) + ")") if fmt else "format not confirmed")
+        )
+    print("")
+    print("%d companies. Formats change every hiring cycle." % (len(presets),))
+    return EXIT_OK
+
+
 def command_list(args: argparse.Namespace) -> int:
     """Show past sessions, newest first.
 
@@ -2005,6 +2055,13 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--timeout", type=float, default=30.0)
     add_common(submit)
     submit.set_defaults(func=command_submit)
+
+    presets_cmd = subparsers.add_parser(
+        "presets", help="what is known about a company, from the local table"
+    )
+    presets_cmd.add_argument("name", nargs="?", default=None)
+    add_common(presets_cmd)
+    presets_cmd.set_defaults(func=command_presets)
 
     listing = subparsers.add_parser("list", help="show past sessions")
     listing.add_argument("--limit", type=int, default=20)
