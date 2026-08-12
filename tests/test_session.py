@@ -951,6 +951,57 @@ class TestAuditRegressions(BankAwareTestCase):
         self.assertIsNotNone(recorded["result"])
 
 
+class TestQuestionRotation(SessionTestCase):
+    def test_consecutive_sittings_do_not_repeat(self):
+        """Drawing independently each time repeated a question 98.7% of runs.
+
+        Measured over the real selector before rotation existed: three sittings
+        repeated at least one question almost always, and the warm-up repeated
+        back to back a third of the time. That is memory practice.
+        """
+        seen = []
+        for index in range(3):
+            code, _, err = self.run_session(
+                "start", "--format", "gca", "--force", "--now", T0 + index * 100
+            )
+            self.assertEqual(code, EXIT_OK, err)
+            seen.extend(q["id"] for q in self.state()["questions"])
+        self.assertEqual(len(seen), len(set(seen)), "a question repeated: %s" % (seen,))
+
+    def test_a_seed_still_reproduces_regardless_of_history(self):
+        """--seed promises the same exam from the same number.
+
+        Letting history shift a seeded draw would make that promise depend on
+        what this machine happened to have run before.
+        """
+        first = None
+        for index in range(3):
+            self.run_session("start", "--format", "gca", "--force", "--now", T0 + index)
+        for _ in range(2):
+            self.run_session(
+                "start", "--format", "gca", "--seed", "7", "--force", "--now", T0
+            )
+            ids = [q["id"] for q in self.state()["questions"]]
+            if first is None:
+                first = ids
+            self.assertEqual(ids, first)
+
+    def test_the_bank_starts_over_once_everything_has_been_seen(self):
+        """Rotation must never run out of questions to serve."""
+        for index in range(6):
+            code, _, err = self.run_session(
+                "start", "--format", "gca", "--force", "--now", T0 + index * 100
+            )
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertEqual(len(self.state()["questions"]), 4)
+
+    def test_an_unreadable_history_file_does_not_stop_a_session(self):
+        (self.root).mkdir(parents=True, exist_ok=True)
+        (self.root / "history.json").write_text("{not json")
+        code, _, err = self.run_session("start", "--format", "gca", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

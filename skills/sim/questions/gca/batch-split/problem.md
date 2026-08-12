@@ -32,5 +32,6 @@ solve([10], 1)
 - `1 <= len(weights) <= 200_000`
 - `1 <= crews <= len(weights)`
 - `0 <= weights[i] <= 1_000_000`
+- The input you are given must be left as it was. Do not modify or consume it.
 
 Trying every split will not finish in time.

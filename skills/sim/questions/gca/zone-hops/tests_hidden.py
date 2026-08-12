@@ -115,6 +115,21 @@ class TestZoneHops(unittest.TestCase):
         self.assertEqual(len(result), 3001)
         self.assertEqual(result["z3000"], 3000)
 
+    def test_long_chain_listed_against_the_traversal_order(self):
+        """40k conveyors, listed backwards.
+
+        A single traversal does not care about input order and finishes in
+        hundredths of a second. Relaxing every edge repeatedly until nothing
+        changes is correct and converges quickly when the list happens to run
+        with the chain; listed against it, each pass advances one zone. Without
+        this the question had no complexity pressure at all and a slow solution
+        scored full marks.
+        """
+        conveyors = [("z%05d" % i, "z%05d" % (i + 1)) for i in range(40000)][::-1]
+        result = solve(conveyors, "z00000")
+        self.assertEqual(len(result), 40001)
+        self.assertEqual(result["z40000"], 40000)
+
     def test_wide_graph(self):
         conveyors = [("hub", "leaf%d" % i) for i in range(5000)]
         result = solve(conveyors, "hub")

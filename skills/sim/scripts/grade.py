@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -95,6 +96,35 @@ def execute_suite(module_name):
     }
 
 
+STALE_AFTER_SECONDS = 3600
+
+
+def _sweep_stale_workdirs():
+    """Remove grading directories left behind by a hard kill.
+
+    Cleanup normally happens in a finally block, which SIGKILL and SIGTERM skip,
+    so a session interrupted with Ctrl-C at the wrong moment leaves a directory
+    holding a copy of a hidden suite. That is litter rather than a leak, since
+    the suites are public files in the repository and the workspace is never
+    touched, but it accumulates.
+
+    Only directories older than an hour are removed, so a grading run happening
+    right now in another process is never disturbed.
+    """
+    root = Path(tempfile.gettempdir())
+    cutoff = time.time() - STALE_AFTER_SECONDS
+    try:
+        candidates = list(root.glob("interview-sim-grade-*"))
+    except OSError:
+        return
+    for stale in candidates:
+        try:
+            if stale.is_dir() and stale.stat().st_mtime < cutoff:
+                shutil.rmtree(str(stale), ignore_errors=True)
+        except OSError:
+            continue
+
+
 def _kill_group(proc):
     """Kill the child and anything it spawned.
 
@@ -134,6 +164,8 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
             "outcome": "missing",
             "detail": "no solution file at %s" % (solution_path,),
         }
+
+    _sweep_stale_workdirs()
 
     workdir = tempfile.mkdtemp(prefix="interview-sim-grade-")
     # The result channel is a file, not the child's stdout.

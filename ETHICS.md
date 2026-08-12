@@ -6,10 +6,19 @@ be hard is the problem itself.
 
 ## What this tool does not do
 
-**It does not touch real assessments.** It runs entirely offline against
-questions stored in this repository. It does not interact with any assessment
-platform, proctoring system, browser session, or exam environment, and it never
-will. There is no feature request that changes this.
+**It does not touch real assessments.** The engine runs entirely offline against
+questions stored in this repository. It opens no network connection, and the
+scripts import nothing that could.
+
+It does not interact with any assessment platform, proctoring system, browser
+session, or exam environment, and it never will. There is no feature request that
+changes this.
+
+One honest caveat, since the usual way to run this is inside an AI coding agent:
+the agent is not offline. If you use the skill through Claude Code or a similar
+tool, your prompts, the problem text, and whatever you show it of your code go to
+that provider like anything else you type there. The grading and the clock are
+local either way, and the scripts work with no agent at all.
 
 **It is not a cheating tool.** Nothing here is designed to be undetectable,
 because there is nothing to detect: the tool has no contact with the systems it

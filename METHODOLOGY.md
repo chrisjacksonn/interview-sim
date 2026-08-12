@@ -49,14 +49,20 @@ basis for saying one edge case is worth more than another, and there isn't one.
 guards, so listing them would hand over the answer. Working out what you missed
 is the exercise.
 
-**Four outcomes are distinguished**, because they mean different things:
+**Outcomes are distinguished**, because they mean different things:
 
 | Outcome | Meaning |
 | --- | --- |
 | pass | every hidden test passed |
-| partial | some passed |
+| partial | some passed, some did not |
+| fail | none passed, but the tests did run |
 | import error | the file does not parse or import, so nothing could run |
 | timeout | the solution did not finish |
+| crashed | the run stopped before a result could be read |
+| missing | there is no solution file |
+
+The last four mean the tests never ran, which is not the same as scoring zero on
+them. They exit non-zero so the difference is visible.
 
 A timeout is a real result, not a technical failure. A quadratic solution that
 cannot finish on the largest input has not solved the problem, and a real
@@ -69,8 +75,12 @@ or that timed out, counts as zero rather than being left out of the average.
 Dropping it would report three quarters of a session as if it were all of it.
 
 **ICA:** levels are graded cumulatively, so each level's score already contains
-every level below it. The overall figure is the deepest level reached, not the
-sum, and passing two of four levels is 50 percent.
+every level below it. The hidden-test counts shown are the deepest level reached
+rather than the sum of the levels, which would count level 1 four times.
+
+The overall percentage is the mean of the levels' credits, so a level never
+reached is a zero and passing two of four is 50 percent. A level that timed out
+or crashed is also a zero, whatever the levels below it scored.
 
 ## How questions are validated
 
@@ -101,9 +111,10 @@ solution squeaked under the timeout.
 - **Difficulty calibration is a judgement call.** Slots are assigned by the
   author against the public difficulty descriptions. There is no candidate data
   behind them.
-- **The bank is small.** With few questions per slot, sitting the format
-  repeatedly will repeat questions, and a remembered question measures memory
-  rather than ability.
+- **The bank is small.** Fifteen questions and three projects is three or four
+  sittings of each format. Recently served questions are tracked and avoided, but
+  once the bank is exhausted it starts over, and a remembered question measures
+  memory rather than ability.
 - **Hidden tests are readable in this repository.** They are hidden from the
   session, not from you. See [ETHICS.md](ETHICS.md).
 - **Company presets are reported behaviour, not guarantees.** Every entry carries

@@ -26,5 +26,6 @@ solve([])
 
 - `0 <= len(codes) <= 200_000`
 - Codes are non-empty, case-sensitive strings.
+- The input you are given must be left as it was. Do not modify or consume it.
 
 Checking every stretch will not finish in time.

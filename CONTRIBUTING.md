@@ -64,9 +64,9 @@ level2/  level3/  level4/
 ```
 
 The shape that makes an ICA project work: level 1 is basic operations with corner
-cases, level 2 is reporting over that data, level 3 adds a feature through an
-optional argument that must not disturb existing calls, and **level 4 invalidates
-a design decision from level 1** while requiring everything before it to keep
+cases, level 2 is reporting over that data, level 3 adds a feature without
+disturbing any existing call, by an optional argument or by new methods over the
+same data, and **level 4 invalidates a design decision from level 1** while requiring everything before it to keep
 working.
 
 Level 4 is where the marks are. Weight its hidden suite toward re-checking the
@@ -115,10 +115,25 @@ you end up asserting that a wrong solution is right.
 `skills/sim/presets.json`. Every entry must carry:
 
 - `sources`: at least one real URL
-- `confidence`: `high` (multiple independent recent reports, or the company says
-  so publicly) or `medium` (reported, but thinly or not recently)
+- `confidence`: how sure you are the company uses CodeSignal at all. `high` for
+  first-party evidence or several independent recent reports, `medium` otherwise
 - `last_confirmed`: `YYYY-MM-DD`
-- `format`, `minutes`, and where relevant `questions`
+- `format`: `gca`, `ica`, or `null`
+
+**`null` is the expected answer for most companies, and it is not a gap.**
+CodeSignal publishes its customer list, so the platform is usually knowable; it
+publishes nothing about which assessment each customer chooses. Seventeen of the
+eighteen shipped presets say `null`, and the tool then asks the user which format
+they want instead of guessing for them.
+
+If and only if you state a format, you must also give:
+
+- `format_confidence`: `high` or `medium`, kept separate from `confidence`
+  because they are different claims and conflating them is how a guess becomes
+  received wisdom
+- `minutes`: the time limit
+
+`questions` is optional. Adding `format_confidence` without a format is rejected.
 
 `tools/qa.py` rejects entries missing any of these, and CI runs it. A preset is a
 factual claim about what a company currently does to candidates and people plan

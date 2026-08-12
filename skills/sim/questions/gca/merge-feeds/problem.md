@@ -36,6 +36,6 @@ solve([], 5)
 - Total readings across all feeds is at most `500_000`.
 - Readings are integers and may be negative.
 - Some feeds may be empty.
+- The input you are given must be left as it was. Do not modify or consume it.
 
-`limit` is often far smaller than the total number of readings, and the solution
-should take advantage of that.
+`limit` is often far smaller than the total number of readings.

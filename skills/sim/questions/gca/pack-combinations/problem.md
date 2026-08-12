@@ -35,6 +35,7 @@ solve([], 7)
 - `0 <= len(sizes) <= 200`
 - `0 <= target <= 20_000`
 - Box sizes are positive integers. `sizes` may contain duplicates, and a repeated
+- The input you are given must be left as it was. Do not modify or consume it.
   size does not create extra combinations.
 
 Enumerating every combination will not finish in time. The answer can be very

@@ -40,7 +40,7 @@ single file, and every level re-runs the tests from the levels below it.
 | --- | --- |
 | 1 | basic operations with corner cases: create, read, delete, refuse duplicates |
 | 2 | reporting over the level 1 data: counts, totals, ranking with a tie-break |
-| 3 | a feature added through an optional argument that must not disturb existing calls |
+| 3 | a feature added without disturbing existing calls, whether by an optional argument or by new methods over the same data |
 | 4 | an extension that invalidates a design decision from level 1, with everything earlier still required to pass |
 
 **Level 4 is the level that matters.** It must make the obvious level 1 data

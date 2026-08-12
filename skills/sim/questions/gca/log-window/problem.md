@@ -31,3 +31,4 @@ solve([], 3)
 - `0 <= len(counts) <= 300_000`
 - `0 <= counts[i] <= 10_000`
 - Recomputing each window from scratch will not finish in time.
+- The input you are given must be left as it was. Do not modify or consume it.

@@ -18,9 +18,10 @@ The engine is complete. Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **fifteen GCA questions and three ICA projects**: three or four questions in
-every difficulty slot, so three sittings of each format before anything repeats. A session takes one question per slot and picks at random,
-so two sittings are not the same exam twice.
+The bank is **fifteen GCA questions and three ICA projects**, three or four in
+every difficulty slot. A session takes one question per slot, and it remembers
+what it has already served you, so consecutive sittings do not repeat a question
+until the bank runs out.
 
 Company presets cover eighteen companies. Each records two separate claims: that
 the company uses CodeSignal, and which assessment they give. The first is usually
@@ -30,6 +31,12 @@ customer chooses, so most entries record the format as unknown and ask you which
 one you want rather than guessing.
 
 ## What it looks like
+
+`sim` below is the shell function the tool writes into every session workspace:
+
+```
+sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
+```
 
 ```console
 $ sim start --format gca
@@ -200,6 +207,16 @@ confirmed. Pick one: --preset ramp --format gca, or --format ica.
 Every entry carries source URLs, a confidence tier, and the date it was last
 confirmed, and `tools/qa.py` rejects entries missing any of them. Formats change
 every hiring cycle and your actual invite email beats this table.
+
+## What leaves your machine
+
+Nothing, from the engine. It opens no network connection and the scripts import
+nothing that could; the clock and the grading are entirely local.
+
+If you run it through an AI coding agent, which is the usual way, that agent is
+not local: the problem text and whatever you show it of your code go to that
+provider, exactly as they would if you pasted them in yourself. The scripts work
+with no agent at all if you would rather.
 
 ## On the score
 

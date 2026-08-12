@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.0
+
+The rest of the audit findings.
+
+**Questions no longer repeat between sittings.** Selection drew independently
+each time, which measured at 98.7% of three-sitting runs repeating a question
+and the warm-up repeating back to back a third of the time. The tool now
+remembers what it has served and prefers what it has not, so three consecutive
+sittings use twelve distinct questions. `--seed` is unaffected and still
+reproduces exactly, since history would otherwise make it depend on what the
+machine had run.
+
+**`--workspace` bypassed the one-session-at-a-time guard**, so naming a fresh
+directory started a second clock alongside a live session and moved the pointer
+to it. **`--minutes nan`** and friends crashed with a traceback after creating
+the workspace; they are rejected now, along with values large enough to overflow
+the platform time type.
+
+`zone-hops` had no complexity pressure: its largest test was small enough that
+an O(V*E) relaxation scored full marks. Added a 40k-edge test listed against the
+traversal order, where the reference takes 0.011s and relaxation does not
+finish, plus that solution as a mutant so the gate proves it bites.
+
+Grading directories left behind by a hard kill are now swept.
+
+Documentation corrections, all of them cases where the docs claimed something
+the code did not do: METHODOLOGY listed four grading outcomes where there are
+seven and described the ICA overall figure wrongly; CONTRIBUTING's preset rules
+contradicted the validator after the schema change; ETHICS said "runs entirely
+offline" without noting that the agent you run it through is not; six question
+statements never mentioned that their suites forbid mutating the input; the
+README transcript used a shell function it defined nowhere; and interview mode
+appeared to be exempt from the after-time rule.
+
 ## 0.4.0
 
 Fixes from a six-lens audit of the project. Four of these produced a wrong

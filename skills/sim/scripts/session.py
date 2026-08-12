@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -381,6 +381,65 @@ def finalize(
 # --------------------------------------------------------------------------
 
 
+HISTORY_NAME = "history.json"
+HISTORY_KEEP = 60
+
+
+def history_path() -> Path:
+    return sessions_root() / HISTORY_NAME
+
+
+def recent_question_ids() -> set:
+    """Question ids served recently on this machine.
+
+    Kept in one small file rather than derived by walking session directories,
+    so deleting an old workspace does not resurrect its questions, and a session
+    started somewhere odd with --workspace still counts.
+    """
+    try:
+        with open(str(history_path()), "r") as handle:
+            data = json.load(handle)
+    except (IOError, ValueError):
+        return set()
+    served = data.get("served")
+    return set(served) if isinstance(served, list) else set()
+
+
+def remember_questions(ids: List[str]) -> None:
+    """Append served question ids, newest last, oldest trimmed.
+
+    Best effort: a read-only or unwritable sessions root must not stop a session
+    from starting, it just means no rotation.
+    """
+    if not ids:
+        return
+    try:
+        served = [item for item in recent_question_ids()]
+        # recent_question_ids returns a set, so order is rebuilt from the file
+        # when it parses and simply reset when it does not.
+        try:
+            with open(str(history_path()), "r") as handle:
+                stored = json.load(handle).get("served") or []
+            served = [item for item in stored if isinstance(item, str)]
+        except (IOError, ValueError):
+            served = []
+
+        for question_id in ids:
+            if question_id in served:
+                served.remove(question_id)
+            served.append(question_id)
+
+        path = history_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / (HISTORY_NAME + ".tmp")
+        with open(str(tmp), "w") as handle:
+            json.dump({"served": served[-HISTORY_KEEP:]}, handle, indent=2)
+            handle.write("\n")
+        os.replace(str(tmp), str(path))
+    except OSError:
+        pass
+
+
 def load_presets() -> Dict[str, Any]:
     try:
         with open(str(PRESETS_FILE), "r") as handle:
@@ -549,10 +608,27 @@ def select_questions(
         )
 
     chooser = random.Random(seed)
+    # Prefer questions this machine has not served recently. Drawing
+    # independently each sitting sounds fair and is not: measured over the real
+    # selector, 98.7% of three-sitting runs repeated a question and the warm-up
+    # repeated back to back a third of the time, which is memory practice rather
+    # than the thing this tool is for.
+    #
+    # Skipped entirely when a seed is given, because --seed promises the same
+    # exam from the same number and history would make that depend on what the
+    # machine happened to have run.
+    seen = set() if seed is not None else recent_question_ids()
+
     chosen = []
     for slot in slots[:count]:
         options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
-        chosen.append(options[0] if len(options) == 1 else chooser.choice(options))
+        if len(options) == 1:
+            chosen.append(options[0])
+            continue
+        fresh = [item for item in options if item.get("id") not in seen]
+        # Once every question in a slot has been seen, the slot starts over
+        # rather than refusing to serve anything.
+        chosen.append(chooser.choice(fresh if fresh else options))
     return chosen
 
 
@@ -872,15 +948,43 @@ def command_start(args: argparse.Namespace) -> int:
         )
     if count < 1:
         raise SessionError("--questions must be at least 1", EXIT_USAGE)
-    if minutes <= 0:
-        raise SessionError("--minutes must be positive", EXIT_USAGE)
+    # `minutes != minutes` is the NaN test without importing math. A bare
+    # `<= 0` check passes NaN straight through, and it then reaches
+    # time.strftime as a deadline and raises a traceback at the user, after the
+    # workspace directory has already been created. The upper bound is not
+    # pedantry either: 1e17 is finite and still overflows the platform time
+    # type. A year of exam is past the point of arguing about.
+    if minutes != minutes or minutes <= 0 or minutes > 525600:
+        raise SessionError(
+            "--minutes must be a positive number of minutes, at most 525600",
+            EXIT_USAGE,
+        )
 
+    # Look for a session already running, in the named workspace AND in the
+    # usual place. Resolving only through args meant that passing --workspace
+    # pointed the search at a directory that does not exist yet, the lookup
+    # failed, and the guard concluded nothing was running: a second clock
+    # started alongside a live session and the pointer moved to it silently.
     existing = None
+    candidates = []
+    if getattr(args, "workspace", None):
+        candidates.append(Path(args.workspace).expanduser().resolve())
+    incumbent = argparse.Namespace(
+        workspace=None, session=getattr(args, "session", None)
+    )
     try:
-        existing_workspace = resolve_workspace(args)
-        existing = (existing_workspace, read_state(existing_workspace))
+        candidates.append(resolve_workspace(incumbent))
     except SessionError:
-        existing = None
+        pass
+
+    for candidate in candidates:
+        try:
+            candidate_state = read_state(candidate)
+        except SessionError:
+            continue
+        if classify(candidate_state, now) in (STATE_ACTIVE, STATE_EXPIRED):
+            existing = (candidate, candidate_state)
+            break
 
     if existing is not None:
         existing_workspace, existing_state = existing
@@ -953,6 +1057,7 @@ def command_start(args: argparse.Namespace) -> int:
     write_state(workspace, state)
     write_readme(workspace, state)
     write_pointer(workspace)
+    remember_questions([question["id"] for question in state["questions"]])
 
     payload = status_payload(state, now, STATE_ACTIVE)
     if args.json:
