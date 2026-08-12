@@ -740,6 +740,76 @@ class TestListing(BankAwareTestCase):
         self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
 
 
+class TestProgress(BankAwareTestCase):
+    """History across sessions.
+
+    What is being guarded here is honesty as much as arithmetic. Progress is the
+    one place a practice tool is tempted to flatter, and every number it prints
+    has to be one it actually measured.
+    """
+
+    def test_no_sessions(self):
+        code, out, _ = self.run_session("progress", cwd=str(self.root))
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("No sessions", out)
+
+    def test_a_solved_question_shows_up_with_its_difficulty(self):
+        self.run_session("start", "--format", "gca", "--questions", "1", "--now", T0)
+        self.install_reference(self.workspace())
+        self.run_session("submit", "--question", "q1", "--now", T0 + 600)
+        code, out, _ = self.run_session("progress", "--now", T0 + 700, "--json")
+        self.assertEqual(code, EXIT_OK)
+        payload = json.loads(out)
+        self.assertEqual(len(payload["sessions"]), 1)
+        row = payload["sessions"][0]
+        self.assertEqual(row["solved"], 1)
+        self.assertEqual(row["passed"], row["total"])
+        self.assertGreater(row["total"], 0)
+        self.assertEqual(payload["by_difficulty"][0]["difficulty"], "warmup")
+        self.assertEqual(payload["attempted"], 1)
+
+    def test_a_question_never_submitted_is_counted_as_such(self):
+        """The number a pass rate hides: what you never reached."""
+        self.run_session("start", "--format", "gca", "--now", T0)
+        self.install_reference(self.workspace())
+        self.run_session("submit", "--question", "q1", "--now", T0 + 600)
+        _, out, _ = self.run_session("progress", "--now", T0 + 700, "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["attempted"], 1)
+        self.assertEqual(payload["never_submitted"], 3)
+
+    def test_time_used_stops_at_the_deadline(self):
+        """A session left running overnight did not take nine hours."""
+        self.run_session("start", "--format", "gca", "--now", T0)
+        _, out, _ = self.run_session("progress", "--now", T0 + HOUR * 9, "--json")
+        payload = json.loads(out)
+        row = payload["sessions"][0]
+        self.assertEqual(row["used_seconds"], row["duration_seconds"])
+
+    def test_sessions_are_newest_first_and_filterable(self):
+        self.run_session("start", "--format", "gca", "--now", T0)
+        self.run_session("start", "--format", "ica", "--now", T0 + HOUR * 3, "--force")
+        _, out, _ = self.run_session("progress", "--now", T0 + HOUR * 4, "--json")
+        payload = json.loads(out)
+        self.assertEqual([row["format"] for row in payload["sessions"]], ["ica", "gca"])
+
+        _, out, _ = self.run_session(
+            "progress", "--format", "gca", "--now", T0 + HOUR * 4, "--json"
+        )
+        payload = json.loads(out)
+        self.assertEqual(len(payload["sessions"]), 1)
+        self.assertEqual(payload["sessions"][0]["format"], "gca")
+
+    def test_it_refuses_to_pretend_a_percentage_is_a_score(self):
+        self.run_session("start", "--format", "gca", "--questions", "1", "--now", T0)
+        self.install_reference(self.workspace())
+        self.run_session("submit", "--question", "q1", "--now", T0 + 600)
+        _, out, _ = self.run_session("progress", "--now", T0 + 700)
+        flat = " ".join(out.split())
+        self.assertIn("A history, not a score", flat)
+        self.assertNotIn("200-600", flat)
+
+
 class TestSlotSelection(SessionTestCase):
     def test_slot_picks_that_difficulty(self):
         code, _, err = self.run_session(

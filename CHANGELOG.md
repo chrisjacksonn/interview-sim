@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**`progress`, what your sessions add up to.** One sitting is a data point and
+several are a shape. It prints the sittings in order, then hidden tests passed
+by difficulty band, then the count of questions never submitted at all, which is
+the number a pass rate hides: running out of time is a result too.
+
+It stops deliberately short of a single improvement figure. Questions differ in
+difficulty and the draw is random, so across a bank this size a rising percentage
+is as likely to mean an easier session as a better one, and a trend line drawn
+through that would be the same kind of invented number as a score estimate.
+
 **A fourth ICA project, Payment Intents.** Idempotent intent creation, per
 merchant reporting, refunds with a ceiling, and then a level 4 that replaces the
 model the first three levels let you get away with: status stops being whatever

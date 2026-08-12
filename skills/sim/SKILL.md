@@ -121,6 +121,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim interview`, "mock interview", "interview me" | `start --mode interview` (slot 3 by default, which is the technical-screen band) |
 | you gave a nudge in interview mode | `hint --note "..."` |
 | "what have I done before", "my past sessions" | `list` |
+| "am I improving", "how am I doing overall" | `progress` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
 | a pasted job posting URL | read it, get the company, then `presets <company>` |
@@ -344,3 +345,11 @@ question that timed out or never ran is a zero, and `report` already counts it t
 way. And do not present the percentage as a CodeSignal score. It is what these
 particular hidden tests measured. The real 200-600 scale is proprietary and this
 tool does not estimate it, which `report` says out loud.
+
+If they have sat more than one session, run `progress` as well. One sitting is a
+data point and several are a shape, and the shape is usually the more useful
+thing to talk about: which difficulty band they lose tests in, and how many
+questions they never reached at all. Read those two rows out and build the drill
+plan from them. Do not turn the percentages into a trend on their behalf. The
+draw is random and the bank is small, so a better-looking session may only be an
+easier one, and `progress` says so for a reason.

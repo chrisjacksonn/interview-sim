@@ -2045,33 +2045,225 @@ def command_presets(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def command_list(args: argparse.Namespace) -> int:
-    """Show past sessions, newest first.
+def walk_sessions() -> List[Tuple[Path, Optional[Dict[str, Any]]]]:
+    """Every session under the root, newest first, state or None if unreadable.
 
-    Without this the only reachable session is whatever the pointer file names,
-    so a sitting from yesterday is on disk but effectively lost. Sessions are
-    read straight from their state files rather than from an index, because an
+    Unreadable ones are kept rather than skipped. A session written by an older
+    schema still exists on disk, and dropping it silently is how a tool ends up
+    unable to show you something you can plainly see in your file manager.
+
+    Read from the state files themselves rather than from an index, because an
     index is another thing that can disagree with the truth.
     """
     root = sessions_root()
-    rows = []
+    found = []  # type: List[Tuple[Path, Optional[Dict[str, Any]]]]
     if root.is_dir():
         for entry in root.iterdir():
             if not state_path(entry).exists():
                 continue
             try:
-                state = read_state(entry)
+                found.append((entry, read_state(entry)))
             except SessionError:
-                # A session written by a different schema version still deserves
-                # a line, so it can be seen and deleted.
-                rows.append(
-                    {
-                        "session_id": entry.name,
-                        "unreadable": True,
-                        "workspace": str(entry),
-                    }
-                )
+                found.append((entry, None))
+    found.sort(
+        key=lambda pair: ((pair[1] or {}).get("clock") or {}).get("started_epoch", 0),
+        reverse=True,
+    )
+    return found
+
+
+def time_used(state: Dict[str, Any], now: float) -> float:
+    """Seconds spent in a session, which is not the same as seconds elapsed.
+
+    A session left running overnight did not take nine hours. Anything still on
+    the clock is counted up to the deadline and no further.
+    """
+    clock = state["clock"]
+    started = clock["started_epoch"]
+    if clock.get("ended_epoch"):
+        return max(0.0, clock["ended_epoch"] - started)
+    return max(0.0, min(now, clock["deadline_epoch"]) - started)
+
+
+def command_progress(args: argparse.Namespace) -> int:
+    """History across sessions: what was sat, what passed, what was never reached.
+
+    The stickiest thing a practice tool can show you is that you are getting
+    better, and the one number this tool will not print is a score. So it prints
+    what it did measure and puts the rows next to each other, which is the
+    honest version of a progress chart.
+
+    It deliberately stops short of a single improvement figure. Questions differ
+    in difficulty and the draw is random, so across a bank this size a rising
+    percentage is as likely to mean an easier session as a better one. The
+    difficulty rows below carry the signal a single number would bury.
+    """
+    now = resolve_now(args.now)
+    sessions = [
+        (workspace, state)
+        for workspace, state in walk_sessions()
+        if state is not None
+    ]
+    if args.format:
+        sessions = [
+            pair for pair in sessions if pair[1]["format"] == args.format.lower()
+        ]
+    if args.limit and args.limit > 0:
+        sessions = sessions[: args.limit]
+
+    rows = []
+    by_difficulty = {}  # type: Dict[str, Dict[str, int]]
+    order = []  # type: List[str]
+    attempted = 0
+    never = 0
+    for workspace, state in sessions:
+        passed = total = solved = hints = 0
+        for question in state["questions"]:
+            hints += question.get("hints", 0) or 0
+            difficulty = question.get("difficulty") or "unknown"
+            if difficulty not in by_difficulty:
+                by_difficulty[difficulty] = {"passed": 0, "total": 0, "questions": 0}
+                order.append(difficulty)
+            result = question.get("result") or {}
+            if not result:
+                never += 1
                 continue
+            attempted += 1
+            passed += result.get("passed", 0)
+            total += result.get("total", 0)
+            if result.get("outcome") == "pass":
+                solved += 1
+            bucket = by_difficulty[difficulty]
+            bucket["passed"] += result.get("passed", 0)
+            bucket["total"] += result.get("total", 0)
+            bucket["questions"] += 1
+        rows.append(
+            {
+                "session_id": state["session_id"],
+                "date": state["clock"]["started_utc"][:10],
+                "format": state["format"],
+                "mode": state["mode"],
+                "company": state.get("company"),
+                "solved": solved,
+                "questions": len(state["questions"]),
+                "passed": passed,
+                "total": total,
+                "hints": hints,
+                "used_seconds": round(time_used(state, now), 3),
+                "duration_seconds": state["clock"]["duration_seconds"],
+            }
+        )
+
+    # Named order, so the rows read as a ramp rather than in whatever sequence
+    # the sessions happened to be drawn in.
+    ramp = ("warmup", "medium", "hard", "level1", "level2", "level3", "level4")
+    order.sort(key=lambda name: (ramp.index(name) if name in ramp else len(ramp), name))
+    difficulties = [
+        dict(by_difficulty[name], difficulty=name)
+        for name in order
+        if by_difficulty[name]["questions"]
+    ]
+    payload = {
+        "sessions": rows,
+        "by_difficulty": difficulties,
+        "attempted": attempted,
+        "never_submitted": never,
+        "note": (
+            "A history, not a score. Questions differ in difficulty and the draw "
+            "is random, so a rising percentage can mean an easier session rather "
+            "than a better one."
+        ),
+    }
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return EXIT_OK
+
+    if not rows:
+        if args.format:
+            print("No %s sessions yet under %s" % (args.format.lower(), sessions_root()))
+        else:
+            print("No sessions yet under %s" % (sessions_root(),))
+        return EXIT_OK
+
+    formats = {}  # type: Dict[str, int]
+    for row in rows:
+        formats[row["format"]] = formats.get(row["format"], 0) + 1
+    spread = ", ".join(
+        "%d %s" % (count, name.upper()) for name, count in sorted(formats.items())
+    )
+    print(
+        "%d session%s since %s. %s."
+        % (len(rows), "" if len(rows) == 1 else "s", rows[-1]["date"], spread)
+    )
+    print("")
+    for row in rows:
+        tests = (
+            "%d/%d tests" % (row["passed"], row["total"]) if row["total"] else "no tests run"
+        )
+        print(
+            "  %s  %-4s  %d/%d solved  %-14s %s of %s%s"
+            % (
+                row["date"],
+                row["format"],
+                row["solved"],
+                row["questions"],
+                tests,
+                format_duration(row["used_seconds"]),
+                format_duration(row["duration_seconds"]),
+                ", %d hint%s" % (row["hints"], "" if row["hints"] == 1 else "s")
+                if row["hints"]
+                else "",
+            )
+        )
+
+    if difficulties:
+        print("")
+        print("Hidden tests passed, by difficulty:")
+        for entry in difficulties:
+            share = (
+                100.0 * entry["passed"] / entry["total"] if entry["total"] else 0.0
+            )
+            print(
+                "  %-10s %3d%%   (%d of %d, across %d question%s)"
+                % (
+                    entry["difficulty"],
+                    round(share),
+                    entry["passed"],
+                    entry["total"],
+                    entry["questions"],
+                    "" if entry["questions"] == 1 else "s",
+                )
+            )
+
+    if never:
+        print("")
+        paragraph(
+            "Never submitted: %d of %d question%s. Running out of time is a "
+            "result too, and it is the one a pass rate hides."
+            % (never, attempted + never, "" if attempted + never == 1 else "s")
+        )
+
+    print("")
+    paragraph(payload["note"])
+    return EXIT_OK
+
+
+def command_list(args: argparse.Namespace) -> int:
+    """Show past sessions, newest first."""
+    rows = []
+    for workspace, state in walk_sessions():
+        if state is None:
+            # A session written by a different schema version still deserves a
+            # line, so it can be seen and deleted.
+            rows.append(
+                {
+                    "session_id": workspace.name,
+                    "unreadable": True,
+                    "workspace": str(workspace),
+                }
+            )
+        else:
             clock = state["clock"]
             solved = sum(
                 1
@@ -2094,7 +2286,6 @@ def command_list(args: argparse.Namespace) -> int:
                 }
             )
 
-    rows.sort(key=lambda row: row.get("started_epoch", 0), reverse=True)
     if args.limit and args.limit > 0:
         rows = rows[: args.limit]
 
@@ -2103,7 +2294,7 @@ def command_list(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     if not rows:
-        print("No sessions yet under %s" % (root,))
+        print("No sessions yet under %s" % (sessions_root(),))
         return EXIT_OK
 
     current = read_pointer()
@@ -2267,6 +2458,14 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--limit", type=int, default=20)
     add_common(listing)
     listing.set_defaults(func=command_list)
+
+    progress = subparsers.add_parser(
+        "progress", help="what your sessions add up to over time"
+    )
+    progress.add_argument("--format", default=None, help="only gca, or only ica")
+    progress.add_argument("--limit", type=int, default=20)
+    add_common(progress)
+    progress.set_defaults(func=command_progress)
 
     hint = subparsers.add_parser("hint", help="record an interviewer hint")
     hint.add_argument("--question", default=None)

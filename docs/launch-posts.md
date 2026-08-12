@@ -7,7 +7,14 @@ Order that works: Show HN and r/ClaudeAI the same morning, r/csMajors and
 r/leetcode the next day. Clear the calendar to answer comments for the first six
 to eight hours, because the first hour of replies decides how the thread goes.
 Tell friends it is live so they can try it and comment honestly. Never coordinate
-upvotes.
+upvotes, and do not ask anyone for a star. A star from someone who never ran it
+is worth nothing to you anyway: it is the one number that can look like traction
+without being any.
+
+Post each of these as its own text, not the same text four times. Identical
+copies across subreddits is what spam filters and moderators are looking for, and
+these communities treat undisclosed self-promotion as spam, so say you built it
+in the first line.
 
 ---
 
@@ -50,6 +57,11 @@ timed out counts as a zero rather than being quietly dropped from the average.
 
 Every question is original, written against public format descriptions. Nothing
 is scraped, and PRs containing real assessment items are rejected.
+
+The weakest part, since someone will find it anyway: difficulty calibration is
+one person's judgement. The gate proves a question's tests can tell right from
+wrong, and proves nothing about whether a question belongs in the medium slot or
+the hard one. That needs candidate data I do not have yet.
 
 Python 3, standard library only, no dependencies. Runs as an Agent Skill in
 Claude Code, or as plain scripts anywhere.
@@ -111,7 +123,9 @@ Built this because the format was what kept catching me out, not the problems.
   previous one and earlier levels keep being tested, so breaking level 1 while
   adding level 4 costs you
 - Real files in your own editor, hidden tests, hard stop at time
-- Fifteen questions and three projects, all original
+- Nineteen questions and four projects, all original
+- `progress` shows what your sittings add up to: which difficulty band you lose
+  tests in, and how many questions you never reached
 
 Two things it deliberately does not do.
 
@@ -134,7 +148,12 @@ Free, MIT, no signup, no account.
   way to lose the thread.
 - If someone points out the hidden tests are readable in the repo: yes, and it
   says so in the README. They are hidden from the session, not from you.
-- If someone asks why not just use LeetCode: LeetCode has the problems and not
-  the clock, the triage, or the not-finishing.
+- If someone asks why not just use LeetCode with a timer: concede most of it.
+  For reps on algorithms, LeetCode with a timer gets you most of the way at zero
+  setup, and saying otherwise makes you look like you are selling something. What
+  it does not give you is the triage of four questions at once, the not-finishing,
+  and above all the ICA shape, where level 4 makes you refactor code levels 1 to 3
+  still have to pass. Nothing else practises that, and it is the level people
+  report failing.
 - Difficulty calibration is one person's judgement and there is no candidate data
   behind it. Say so if asked. It is the weakest part.

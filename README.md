@@ -106,8 +106,10 @@ Claude Code, as a plugin:
 /plugin install interview-sim@interview-sim
 ```
 
-The skill is then `/interview-sim:sim`. Plain `/sim` also works when no other
-command has claimed that name.
+The skill is then `/interview-sim:sim`, and plain `/sim` also works when no other
+command has claimed that name. You do not have to remember either: asking for
+what you want in plain words ("run a GCA mock", "give me an OA practice session")
+fires it too.
 
 Any agent that reads the Agent Skills convention:
 
@@ -122,9 +124,12 @@ git clone https://github.com/chrisjacksonn/interview-sim
 cp -r interview-sim/skills/sim ~/.claude/skills/
 ```
 
-Claude Code is first-class here. Codex, Cursor, and the rest load the skill and
-run the same scripts, but slash commands and Claude-specific frontmatter do not
-apply there.
+Claude Code is where this is developed and tested. Codex, Cursor, and anything
+else that reads the Agent Skills convention should load it and run the same
+scripts, since the engine is plain Python with no dependencies, but I have not
+sat a full session in one, so treat that as untested rather than supported.
+Slash commands and Claude-specific frontmatter do not apply there either. If you
+try it somewhere else, an issue saying whether it worked is genuinely useful.
 
 ## Requirements
 
@@ -210,6 +215,33 @@ python3 skills/sim/scripts/session.py report --session gca-20260811T193740Z
 ```
 
 Sessions are kept, so you can look at what you did last week.
+
+### What it adds up to
+
+```
+python3 skills/sim/scripts/session.py progress
+```
+
+```
+3 sessions since 2026-07-28. 2 GCA, 1 ICA.
+
+  2026-08-12  gca   2/4 solved  38/48 tests    1:04:22 of 1:10:00
+  2026-08-05  gca   1/4 solved  21/44 tests    1:10:00 of 1:10:00
+  2026-07-28  ica   0/4 solved  12/20 tests    1:30:00 of 1:30:00
+
+Hidden tests passed, by difficulty:
+  warmup      92%   (24 of 26, across 3 questions)
+  medium      61%   (28 of 46, across 4 questions)
+  hard        18%   (7 of 40, across 2 questions)
+
+Never submitted: 5 of 16 questions. Running out of time is a result too, and it
+is the one a pass rate hides.
+```
+
+The difficulty rows are the ones worth reading, and so is the count of questions
+you never reached. There is deliberately no single improvement number: questions
+differ in difficulty and the draw is random, so across a bank this size a rising
+percentage can just mean an easier session.
 
 ### Company presets
 
