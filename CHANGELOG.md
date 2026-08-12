@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 **Sessions land where you are working.** The workspace used to be built under
 `~/interview-sim-sessions` regardless of where you invoked it, so the tool
