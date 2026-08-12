@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.4
+
+**One line about permission prompts, at the start, once.** A timed sitting stops
+being timed if it pauses to ask permission every time the proctor reads your
+file or runs the grader. The skill now says so before the clock starts and then
+drops it.
+
+It says it rather than asking it, because it cannot turn auto mode on and a yes
+it cannot honour is worse than a sentence someone can act on. The README also
+documents the narrower option, an allow rule for this one script, which is a
+smaller thing to hand over than auto mode for everything.
+
 ## 0.9.3
 
 **What you learn about a company follows you between projects.** Local research

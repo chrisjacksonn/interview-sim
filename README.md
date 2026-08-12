@@ -153,6 +153,30 @@ run it on: the timeout in the grader kills a whole process group there, which is
 POSIX only, so it falls back to killing the direct child. Everything else is
 plain Python. If you try it, `check` first, and an issue either way is useful.
 
+### Running without interruptions
+
+A timed sitting stops being timed if it pauses to ask permission every time the
+proctor checks your file or runs the grader. Two ways to avoid that, and the
+narrow one is better.
+
+**Narrow:** allow this one script, in `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(python3:*)"]
+  }
+}
+```
+
+**Broad:** turn on auto mode with shift+tab for the session. That covers
+everything the agent does, not only this, which is a bigger thing to hand over
+for the sake of a practice exam.
+
+The skill mentions this once when a session starts and then leaves it alone. It
+cannot turn either of them on itself, which is deliberate: a plugin that could
+switch off its own permission prompts would make those prompts worthless.
+
 ## Using it
 
 Ask for a session in whatever words you like ("start a GCA mock", "give me an OA

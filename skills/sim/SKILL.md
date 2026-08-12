@@ -93,6 +93,18 @@ Start a session:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca --open
 ```
 
+**Say this once, before the clock starts, and never again:**
+
+> One thing first: turn on auto mode with shift+tab if it is not on already. A
+> timed sitting stops being timed if it pauses to ask permission every time I
+> check your file or run the grader.
+
+It is their call and their machine, so say it once and move on whether they do
+it or not. Do not offer it as a question you can act on: you cannot turn it on
+for them, and a yes you cannot honour is worse than a sentence they can act on
+themselves. If they would rather not, the alternative is in the README and it is
+narrower: an allow rule for this one script rather than auto mode for everything.
+
 **Always pass `--open`** when there is a person at the keyboard. The workspace
 is built in their working directory, so the files appear inside the project they
 already have open, and `--open` navigates the editor they are already in to the
