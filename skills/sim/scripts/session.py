@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.8.1"
+VERSION = "0.9.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -627,18 +627,23 @@ def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
     candidates = []
     for name in ("code", "cursor", "subl", "zed"):
         found = shutil.which(name)
-        if found:
-            command = [found, str(workspace)]
-            if focus is not None and focus.exists():
-                # -g is the VS Code family's go-to-file flag, and Sublime and
-                # Zed both take a path after the folder. A wrong flag would
-                # otherwise open a file literally named "-g".
-                if name in ("code", "cursor"):
-                    command += ["-g", str(focus)]
-                else:
-                    command.append(str(focus))
-            candidates.append(command)
-            break
+        if not found:
+            continue
+        if focus is not None and focus.exists():
+            if name in ("code", "cursor"):
+                # -r reuses the window that is already open, and -g goes to the
+                # file in it. Passing the workspace folder as well opened a
+                # second window rooted at the session directory, which threw the
+                # candidate out of the editor they were working in to look at a
+                # file tree. Sessions live in the working directory now, so the
+                # file is already inside the project they have open: there is
+                # nothing to open, only somewhere to navigate to.
+                candidates.append([found, "-r", "-g", str(focus)])
+            else:
+                candidates.append([found, str(focus)])
+        else:
+            candidates.append([found, str(workspace)])
+        break
     if sys.platform == "darwin":
         candidates.append(["open", str(workspace)])
     elif sys.platform.startswith("linux"):

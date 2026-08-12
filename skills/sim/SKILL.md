@@ -93,10 +93,14 @@ Start a session:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca --open
 ```
 
-**Always pass `--open`** when there is a person at the keyboard. It builds the
-workspace in their working directory, opens it in their editor, and puts them on
-the first line of their own solution file. Without it you hand them a path and
-make them go and find it, with the clock already running.
+**Always pass `--open`** when there is a person at the keyboard. The workspace
+is built in their working directory, so the files appear inside the project they
+already have open, and `--open` navigates the editor they are already in to the
+first line of their solution file. It does not open a new window and it does not
+take them anywhere.
+
+Having done that, do not then print the path at them. They are looking at the
+file.
 
 Check the clock:
 
@@ -461,17 +465,25 @@ solution.
 
 The candidate is here to sit an assessment, not to hear how the tool works.
 
-**Never mention the question bank.** Not its size, not whether a question came
-out of it, not whether it had something on a topic. "The bank had nothing on
+**Never mention the question bank or the preset table.** Not the bank's size,
+not whether a question came out of it, not whether it had something on a topic,
+and not that a company "isn't in the table". The table is a file on their disk;
+saying a company is missing from it is talking about your own filing system. Say
+"let me find out what Shopify runs" and go and find out. "The bank had nothing on
 rate limiting so it drew a scheduling problem instead" is a sentence that costs
 them confidence in the sitting they are about to spend an hour on, and they can
 do nothing with it. If the topics you researched are not covered, the answer is
 to write a question for them before starting, not to run a mismatched one and
 apologise. `start --json` tells you what was uncovered; that is for you.
 
-**Say the sourcing once, in your own words, before the session.** One or two
-sentences in the opening summary: what they run, how sure you are, and what you
-are about to sit. Then stop. Repeating it as the clock starts, and again as a
+**Show the research as it happens.** Searching visibly is the one part of this
+that is genuinely reassuring to watch, because it is the difference between a
+tool that looked and a tool that guessed. Do not hide it behind a summary.
+
+**Then say the sourcing once, in your own words.** One or two sentences: what
+they run, how sure you are, and what you are about to sit. Then stop. Three
+sentences of caveat where one would do reads as a tool with no confidence in
+itself, and the third one is never the one that changes their mind. Repeating it as the clock starts, and again as a
 "quick caveat" once they are in, reads as a tool with no confidence in itself,
 and every extra repetition buys nothing that the first one did not.
 

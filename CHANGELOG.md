@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.0
+
+**A question shaped like a live round.** Every candidate report of a pairing
+round describes building something to a given API: a rate limiter, an inventory,
+a small store. The bank had twenty of those and none of this, so research would
+turn up "they ask you to build a class" and the session would serve a graph
+traversal, which is a worse mismatch for going unmentioned than for being
+announced.
+
+`request-budget` is the first of the other kind. You are given a class API and
+build it: a sliding-window rate limiter, half-open boundary, where a refused
+request must leave no trace or a brief burst turns into a permanent ban. Eight
+mutants, thirty-two hidden tests, and its expectations were cross-checked
+against a second naive implementation over eighty thousand random calls rather
+than worked out by hand.
+
+**`--open` no longer throws you out of your editor.** It opened a second window
+rooted at the session directory, so starting a session meant losing the window
+you were working in and landing in a file tree. It reuses the window you already
+have and navigates to your solution file, which is inside the project you have
+open anyway now that sessions live in the working directory.
+
+**The proctor stops talking about the preset table too.** "Shopify is not in the
+table, so I will look it up" describes a filing system nobody asked about. It
+says what it is doing and does it.
+
 ## 0.8.1
 
 **`--open` puts you in the file, not in a file tree.** It opened the workspace

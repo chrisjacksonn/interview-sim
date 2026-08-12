@@ -1,0 +1,13 @@
+{
+  "id": "request-budget",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Request Budget",
+  "time_hint_minutes": 20,
+  "entrypoint": "RateLimiter",
+  "topics": ["object-oriented design", "rate limiting", "hash map", "queues", "simulation", "api design"],
+  "original": true,
+  "authored": "2026-08-12",
+  "shape_note": "Build a class to a given API, rather than fill in one function. Live pairing rounds are reported to be this shape far more often than they are single-function algorithm puzzles, and the bank had nothing of it."
+}
