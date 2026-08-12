@@ -44,29 +44,33 @@ sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 <summary>The same thing as text</summary>
 
 ```console
-$ sim start --format gca
-Session started: gca-20260811T193045Z
+$ sim start --preset capital-one
+Session started: gca-20260812T013654Z
+
+capital-one preset: uses CodeSignal (high confidence).
+Format GCA, medium confidence.
+A community-maintained OA repo records Capital One moving to the CodeSignal GCA
+around the 2021-22 season. Not first-party, and several seasons old.
+Formats change every hiring cycle. Your actual invite email names the platform
+and the format; trust that over this.
 
 4 question(s), 1:10:00 on the clock.
-Deadline 2026-08-11T20:40:45Z UTC.
+Deadline 2026-08-12T02:46:54Z UTC.
 
 Work here:
-  ~/interview-sim-sessions/gca-20260811T193045Z
-    q1/solution.py   Run Compression
-    q2/solution.py   Log Window
-    q3/solution.py   Zone Hops
-    q4/solution.py   Batch Split
+  ~/interview-sim-sessions/gca-20260812T013654Z
+    q1/solution.py   Shelf Tally
+    q2/solution.py   Sensor Gaps
+    q3/solution.py   Merge Feeds
+    q4/solution.py   Token Budget
 
-$ cd ~/interview-sim-sessions/gca-20260811T193045Z/q1 && ls
+$ ls ~/interview-sim-sessions/gca-20260812T013654Z/q1
 problem.md   solution.py   tests_public.py
 
-$ sim status
-51:00 remaining
-
 $ sim submit --question q1
-q1  10 of 24 hidden tests passed (42%).
+q1  11 of 20 hidden tests passed (55%).
 
-attempt 1, 50:00 left on the clock.
+attempt 1, 1:09:36 left on the clock.
 ```
 
 </details>

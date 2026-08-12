@@ -6,75 +6,73 @@
 #
 # Produces demo.gif in the repository root. Run it from there.
 #
-# Keep it short. The point is that a real clock starts, real files appear, and
-# submitting gives you a number and nothing else. Not a tour of every subcommand.
-#
-# The hidden block does three things: sends sessions to a scratch directory so
-# recording cannot disturb your own, resolves the script to an absolute path
-# because the demo cd's into the session directory where a relative one stops
-# resolving, and drops in a nearly-correct solution so the last frame shows
-# partial credit instead of a zero from an untouched starter.
+# The shape: name a company, get a real assessment in real files on a real
+# clock, submit, get back a number and nothing else. One command to sitting it.
 #
 # `sim` is the shell function the tool writes into every session README, so the
-# demo shows the same commands a real user would type.
+# commands on screen are the ones a real user types.
 #
-# --seed 7 deals run-compression as q1 every time, which is why the solution
-# path below can be hardcoded. If the bank changes enough that seed 7 deals
-# something else, this tape needs updating; running it will make that obvious.
+# tools/demo-solve.sh drops a nearly-correct solution into q1, standing in for
+# the twenty minutes of work a real candidate would do there. It runs on screen
+# and says what it is, rather than being hidden: vhs keeps hidden commands in the
+# terminal buffer anyway, so they reappear the moment recording resumes, and a
+# visible line the viewer can read beats a half-hidden one they cannot.
 
 Output demo.gif
 
 Set Shell "bash"
 Set FontSize 15
-Set Width 1100
-Set Height 640
+Set Width 1200
+Set Height 700
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 45ms
+Set TypingSpeed 40ms
 
 Hide
 Type "export INTERVIEW_SIM_HOME=/tmp/interview-sim-demo && rm -rf $INTERVIEW_SIM_HOME" Enter
+Type "export BANK=$PWD/skills/sim/questions" Enter
 Type "SIMPATH=$PWD/skills/sim/scripts/session.py" Enter
 Type 'sim() { python3 $SIMPATH "$@"; }' Enter
-Type "export MUTANT=$PWD/skills/sim/questions/gca/run-compression/mutants/compresses_twos.py" Enter
-Type "sim start --format gca --seed 7 >/dev/null 2>&1" Enter
-Type "export W=$(cat $INTERVIEW_SIM_HOME/current)" Enter
-Type "cp $MUTANT $W/q1/solution.py" Enter
 Type "clear" Enter
 Show
 
-Type "# a real 70 minute assessment, in real files, on a real clock"
-Sleep 1200ms
+Type "# name the company you are interviewing with"
+Sleep 1300ms
 Enter
-Sleep 400ms
+Sleep 300ms
 
-Type "sim status"
-Sleep 500ms
+Type "sim start --preset capital-one"
+Sleep 600ms
 Enter
-Sleep 3200ms
+Sleep 5200ms
 
-Type "cd $W/q1 && ls"
-Sleep 400ms
-Enter
+Type "# real files in your editor, and the hidden tests are not among them"
 Sleep 2000ms
-
-Type "# solution.py is yours. the hidden tests are not here."
-Sleep 1600ms
 Enter
-Sleep 500ms
+Sleep 300ms
 
-Type "# submit tells you how many hidden tests passed, and nothing else"
-Sleep 1900ms
-Enter
+Type "ls /tmp/interview-sim-demo/*/q1"
 Sleep 400ms
+Enter
+Sleep 2400ms
+
+Type "# now you write q1/solution.py. this demo skips that part:"
+Sleep 2200ms
+Enter
+Sleep 300ms
+
+Type "bash tools/demo-solve.sh"
+Sleep 500ms
+Enter
+Sleep 1200ms
 
 Type "sim submit --question q1"
-Sleep 400ms
+Sleep 500ms
 Enter
-Sleep 3800ms
+Sleep 4200ms
 
-Type "# which five failed is the exercise"
-Sleep 1800ms
+Type "# which ones failed is the exercise"
+Sleep 2000ms
 Enter
 
 Sleep 2500ms
