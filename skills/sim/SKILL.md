@@ -100,10 +100,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca
 > check your file or run the grader.
 
 It is their call and their machine, so say it once and move on whether they do
-it or not. Do not offer it as a question you can act on: you cannot turn it on
-for them, and a yes you cannot honour is worse than a sentence they can act on
-themselves. If they would rather not, the alternative is in the README and it is
-narrower: an allow rule for this one script rather than auto mode for everything.
+it or not. Do not offer it as a question you can act on: nothing you emit can
+change the permission mode, only shift+tab or the flag the session was launched
+with, and a yes you cannot honour is worse than a sentence they can act on
+themselves.
+
+If they ask for something more permanent, it is a `.claude/settings.json` in the
+directory they practise in, holding `{"permissions": {"defaultMode": "auto"}}`.
+Sessions there then start in auto mode and nothing else on their machine
+changes. Offer it once; do not write it for them without being asked.
 
 **Always pass `--open`** when there is a person at the keyboard. The workspace
 is built in their working directory, so the files appear inside the project they

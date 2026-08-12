@@ -140,9 +140,9 @@ python3 skills/sim/scripts/session.py check
 
 ```
 ok    python    3.9.6 at /usr/bin/python3
-ok    bank      23 questions under .../skills/sim/questions
+ok    bank      24 questions under .../skills/sim/questions
 ok    sessions  ./interview-sim-sessions
-ok    editor    code, so --open will use it
+ok    editor    /Applications/Visual Studio Code.app/..., so --open will open your solution file in it
 ```
 
 If `python3` is missing, run `xcode-select --install` on macOS or install it from
@@ -156,10 +156,22 @@ plain Python. If you try it, `check` first, and an issue either way is useful.
 ### Running without interruptions
 
 A timed sitting stops being timed if it pauses to ask permission every time the
-proctor checks your file or runs the grader. Two ways to avoid that, and the
-narrow one is better.
+proctor checks your file or runs the grader.
 
-**Narrow:** allow this one script, in `~/.claude/settings.json`:
+The tidiest fix is a `.claude/settings.json` in whichever directory you practise
+in, so sessions there start in auto mode and nowhere else changes:
+
+```json
+{
+  "permissions": {
+    "defaultMode": "auto"
+  }
+}
+```
+
+Project settings beat user settings, so this is scoped to that folder. If you
+would rather keep confirmations on and only exempt this tool, allow its commands
+instead:
 
 ```json
 {
@@ -169,13 +181,13 @@ narrow one is better.
 }
 ```
 
-**Broad:** turn on auto mode with shift+tab for the session. That covers
-everything the agent does, not only this, which is a bigger thing to hand over
-for the sake of a practice exam.
+Or press shift+tab at the start of a session and change nothing on disk.
 
 The skill mentions this once when a session starts and then leaves it alone. It
-cannot turn either of them on itself, which is deliberate: a plugin that could
-switch off its own permission prompts would make those prompts worthless.
+cannot turn any of it on itself, and that is deliberate rather than an
+oversight: a plugin able to switch off its own permission prompts would make
+those prompts worthless. There is even a `disableAutoMode` setting so an
+administrator can forbid auto mode outright.
 
 ## Using it
 

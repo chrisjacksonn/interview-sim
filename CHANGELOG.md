@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.5
+
+**The permanent version of "turn on auto mode".** `permissions.defaultMode` in a
+`.claude/settings.json` makes sessions in that directory start in auto mode, so
+a practice folder can be prompt-free without changing anything else on the
+machine. Documented in the README, and the skill offers it if asked rather than
+writing it for anyone.
+
+Nothing a skill emits can change the permission mode: only shift+tab, or the
+flag the session was launched with. That is by design, and Claude Code even
+ships a `disableAutoMode` setting so an administrator can forbid it, so the
+skill says the sentence and never pretends to hold the switch.
+
 ## 0.9.4
 
 **One line about permission prompts, at the start, once.** A timed sitting stops
