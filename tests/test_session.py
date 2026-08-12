@@ -776,6 +776,51 @@ class TestPresets(SessionTestCase):
                 self.assertIsInstance(entry.get("minutes"), int, name)
 
 
+class TestWorkspaceReadme(SessionTestCase):
+    def test_the_documented_test_command_actually_works(self):
+        """The first instruction a candidate follows must not fail.
+
+        It used to say `unittest discover -s q1 -t .` from the workspace root,
+        which dies with "Start directory is not importable" because the question
+        directory is not a package. Running from inside it is what works.
+        """
+        workspace = self.start()
+        readme = (workspace / "README.md").read_text()
+        self.assertIn("cd q1", readme)
+        self.assertIn("python3 -m unittest tests_public", readme)
+        self.assertNotIn("discover -s", readme)
+
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "unittest", "tests_public"],
+            cwd=str(workspace / "q1"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
+        _, err = proc.communicate()
+        # The starter is unfilled so the tests fail, but they must RUN.
+        self.assertNotIn("is not importable", err)
+        self.assertIn("Ran 5 tests", err)
+
+    def test_the_readme_says_how_to_submit(self):
+        workspace = self.start()
+        readme = (workspace / "README.md").read_text()
+        self.assertIn("submit", readme)
+        self.assertIn("report", readme)
+
+    def test_the_ica_readme_explains_gating(self):
+        code, _, err = self.run_session(
+            "start", "--format", "ica", "--project", "ledger", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        readme = (self.workspace() / "README.md").read_text()
+        self.assertIn("How the levels work", readme)
+        self.assertIn("re-runs the levels below", readme)
+        self.assertIn("one `solution.py`", readme)
+        # It must not talk about several solution files when there is one.
+        self.assertNotIn("each `solution.py`", readme)
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

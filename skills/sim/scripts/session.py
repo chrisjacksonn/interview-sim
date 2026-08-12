@@ -599,34 +599,75 @@ Started {started} UTC. Deadline {deadline} UTC. You have {duration}.
 
 {listing}
 
-Write your answer in each `solution.py`. Run the sample tests however you like:
+{intro}
 
-    python3 -m unittest discover -s {first_dir} -p 'tests_public.py' -t .
+## Running things
 
-The sample tests are a sanity check, not the grade. Passing them all does not
-mean the question is done.
+Save yourself the typing:
+
+    sim() {{ python3 "{script}" "$@"; }}
+
+Sample tests, from inside a question directory:
+
+    cd {first_dir}
+    python3 -m unittest tests_public
+
+They are a sanity check, not the grade. Passing them all does not mean the
+question is done.
+
+Time remaining:
+
+    sim status
+
+Grade a question against the hidden tests:
+
+    sim submit --question {first_dir}
+
+It tells you how many hidden tests passed and nothing else. Which ones failed is
+the part you work out. Resubmit as often as you like, it only costs time.
+
+When the clock runs out:
+
+    sim report
 
 ## Rules
 
 - The clock does not stop. Closing your editor does not pause it.
-- Check the time with `status`; do not guess.
+- Check the time with `sim status`; do not guess.
 - The person proctoring will clarify what a question is asking. They will not
   tell you how to solve it.
-- Work submitted after the deadline does not count.
-
-## Time remaining
-
-    python3 "{script}" status
-"""
+- Work submitted after the deadline does not count, even if it is correct.
+{extra}"""
 
 
 def write_readme(workspace: Path, state: Dict[str, Any]) -> None:
     clock = state["clock"]
     questions = state["questions"]
+    gated = FORMATS[state["format"]]["gated"]
     lines = []
-    for question in questions:
-        title = question["title"] or question["id"]
-        lines.append("- `%s/` %s" % (question["dir"], title))
+    if gated:
+        project = questions[0]["dir"] if questions else "project"
+        lines.append("- `%s/solution.py` is the whole project." % (project,))
+        lines.append("- `%s/level1.md` is the only level you can see." % (project,))
+        lines.append(
+            "- Levels 2 to %d appear as you pass the one before." % (len(questions),)
+        )
+    else:
+        for question in questions:
+            title = question["title"] or question["id"]
+            lines.append("- `%s/` %s" % (question["dir"], title))
+
+    extra = ""
+    if gated:
+        extra = (
+            "\n## How the levels work\n\n"
+            "You extend one `solution.py` the whole way through. Passing a level\n"
+            "reveals the next one, and there is no way to read ahead.\n\n"
+            "Every submission re-runs the levels below the one you are on, so a\n"
+            "level 4 feature that breaks level 1 costs you the marks it broke.\n"
+            "`submit` with no argument means whichever level is open.\n"
+        )
+
     body = README_TEMPLATE.format(
         label=FORMATS[state["format"]]["label"],
         started=clock["started_utc"],
@@ -635,6 +676,12 @@ def write_readme(workspace: Path, state: Dict[str, Any]) -> None:
         listing="\n".join(lines),
         first_dir=questions[0]["dir"] if questions else "q1",
         script=Path(__file__).resolve(),
+        extra=extra,
+        intro=(
+            "Write your answer in that one `solution.py`. It carries across every level."
+            if gated
+            else "Write your answer in each `solution.py`."
+        ),
     )
     with open(str(workspace / "README.md"), "w") as handle:
         handle.write(body)
