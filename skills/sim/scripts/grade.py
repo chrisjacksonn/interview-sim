@@ -43,6 +43,23 @@ HIDDEN_TESTS = "tests_hidden.py"
 SOLUTION_NAME = "solution.py"
 
 
+class _CountingResult(unittest.TestResult):
+    """A TestResult that counts tests that actually passed.
+
+    unittest offers failures and errors but no success list, and deriving
+    successes by subtraction breaks whenever the number of recorded failures
+    does not equal the number of failed tests.
+    """
+
+    def __init__(self):
+        unittest.TestResult.__init__(self)
+        self.successes = 0
+
+    def addSuccess(self, test):
+        unittest.TestResult.addSuccess(self, test)
+        self.successes += 1
+
+
 def execute_suite(module_name):
     """Load and run a test module in the current directory. Child process only.
 
@@ -76,13 +93,25 @@ def execute_suite(module_name):
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(module)
     total = suite.countTestCases()
-    result = unittest.TestResult()
+    result = _CountingResult()
     suite.run(result)
 
     failing = [test.id().split(".")[-1] for test, _ in result.failures]
     erroring = [test.id().split(".")[-1] for test, _ in result.errors]
     skipped = len(result.skipped)
-    passed = total - len(failing) - len(erroring) - skipped
+
+    # Count successes rather than subtracting failures from the total.
+    # unittest records one entry per failed *assertion*, not per test, so a
+    # subTest that fails five times inside two tests subtracts five and yields
+    # a negative score, and a setUpClass error records one failure for a whole
+    # class, scoring every test in it as passed without running any of them.
+    # Neither is possible for the questions in this repository today, but this
+    # is the scoring core and the gate cannot catch either.
+    passed = result.successes
+    if passed > total - skipped:
+        passed = total - skipped
+    if passed < 0:
+        passed = 0
 
     return {
         "loaded": True,
@@ -253,7 +282,7 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
     credit = (float(passed) / total) if total else 0.0
     if passed == total and total:
         outcome = "pass"
-    elif passed:
+    elif passed > 0:
         outcome = "partial"
     else:
         outcome = "fail"

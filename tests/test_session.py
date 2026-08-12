@@ -663,25 +663,60 @@ class TestListing(BankAwareTestCase):
         _, out, _ = self.run_session("list", "--limit", "2", "--now", T0, "--json")
         self.assertEqual(len(json.loads(out)), 2)
 
-    def test_time_used_never_exceeds_the_time_available(self):
-        """A session abandoned hours late still only had its allotted time.
+    def test_forcing_over_an_expired_session_records_it_as_time(self):
+        """It ended when the clock ran out, not when it was forced over.
 
-        The ending of an abandoned session is the moment it was abandoned, which
-        can be long past the deadline, and reporting that raw gave "used 3:03:20
-        of 1:10:00".
+        Recording "abandoned" at the moment of the force stamped the ending
+        hours late, so status reported elapsed 11:06:40 on a 1:10:00 session.
         """
         self.run_session("start", "--format", "gca", "--now", T0)
         self.run_session("start", "--format", "gca", "--now", T0 + HOUR * 3, "--force")
         _, out, _ = self.run_session("list", "--now", T0 + HOUR * 4, "--json")
-        abandoned = [row for row in json.loads(out) if row["end_reason"] == "abandoned"]
-        self.assertTrue(abandoned)
+        ended = [row for row in json.loads(out) if row["end_reason"]]
+        self.assertTrue(ended)
+        self.assertEqual(ended[0]["end_reason"], "time")
 
+        _, payload = self.status_json_for(ended[0]["session_id"], T0 + HOUR * 4)
+        self.assertEqual(payload["elapsed_display"], "1:10:00")
+
+    def status_json_for(self, session_id, now):
+        code, out, _ = self.run_session(
+            "status", "--session", session_id, "--now", now, "--json"
+        )
+        return code, json.loads(out)
+
+    def test_time_used_never_exceeds_the_time_available(self):
+        self.run_session("start", "--format", "gca", "--now", T0)
+        self.run_session("start", "--format", "gca", "--now", T0 + HOUR * 3, "--force")
+        _, out, _ = self.run_session("list", "--now", T0 + HOUR * 4, "--json")
+        ended = [row for row in json.loads(out) if row["end_reason"]]
         _, report, _ = self.run_session(
-            "report", "--session", abandoned[0]["session_id"],
+            "report", "--session", ended[0]["session_id"],
             "--now", T0 + HOUR * 4, "--json",
         )
         payload = json.loads(report)
         self.assertEqual(payload["time_used_display"], payload["duration_display"])
+
+    def test_one_broken_session_does_not_kill_the_listing(self):
+        """A file holding valid JSON that is not a session used to exit 1."""
+        self.run_session("start", "--format", "gca", "--questions", "1", "--now", T0)
+        good = self.state()["session_id"]
+        self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--now", T0 + HOUR, "--force",
+        )
+        (self.workspace() / ".sim" / "state.json").write_text("[1,2,3]")
+
+        code, out, err = self.run_session("list", "--now", T0 + HOUR * 2)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn(good, out)
+        self.assertIn("unreadable", out)
+
+    def test_interview_mode_is_not_a_warm_up(self):
+        """slots[:1] is always slot 1, so the default was an 8 minute question."""
+        code, _, err = self.run_session("start", "--mode", "interview", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
 
 
 class TestSlotSelection(SessionTestCase):

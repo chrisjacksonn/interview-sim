@@ -118,7 +118,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "submit", "grade this", "check question 1" | `submit --question q1` |
 | "submit" during an ICA run | `submit` with no argument, which means the open level |
 | "how did I do", after time is up | `report` |
-| `/sim interview`, "mock interview", "interview me" | `start --mode interview` |
+| `/sim interview`, "mock interview", "interview me" | `start --mode interview` (slot 3 by default, which is the technical-screen band) |
 | you gave a nudge in interview mode | `hint --note "..."` |
 | "what have I done before", "my past sessions" | `list` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
@@ -177,6 +177,10 @@ Branch on these, not on the wording of the output.
 | 7 | environment problem | report the message verbatim |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
 | 9 | nothing could be graded: it did not import, died mid-run, or is missing | report which of those it was, from the message; it is not a score of zero, it is no score |
+
+Anything else, and especially a traceback, means the tool itself is broken. Report
+the last line of it and stop. Do not edit the question bank, and do not try to
+work around it.
 
 `hint` returns 2 in an exam. That is not a bug to work around.
 

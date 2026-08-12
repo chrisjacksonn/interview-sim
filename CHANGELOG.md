@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.1
+
+The last of the audit findings.
+
+**Interview mode always served a warm-up.** Selection takes `slots[:count]`,
+which for one question is always slot 1, so the headline mode gave an
+eight-minute question with forty-five minutes on the clock and drew from three
+questions forever. It defaults to the slot-3 band now, degrading to the nearest
+available slot rather than failing on a thinner bank.
+
+**Forcing over an expired session recorded it as abandoned at the moment of the
+force**, so `status` reported eleven hours elapsed on a seventy-minute session.
+It ended when the clock ran out, and it now says so.
+
+**Exit 1 with a raw traceback was reachable from three paths** and is not in the
+documented exit-code contract: a state file holding valid JSON that is not a
+session, a deleted working directory, and an unreadable project meta.json. One
+corrupt session also took the whole `list` down. All three now raise the proper
+error, and SKILL.md says a traceback means the tool is broken.
+
+**Grading counted successes by subtraction.** unittest records one entry per
+failed assertion rather than per test, so a `subTest` suite could produce a
+negative score and a `setUpClass` error could score a whole class as passed
+without running anything. Successes are counted directly now.
+
+`run_grader` also waited on the grader with no bound, so a wedged child could
+hang the session with the clock running.
+
 ## 0.5.0
 
 The rest of the audit findings.

@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -78,7 +78,11 @@ STATE_PASSED = "passed"
 # still own the clock and the grades; only the persona changes.
 MODE_DEFAULTS = {
     "exam": {},
-    "interview": {"questions": 1, "minutes": 45},
+    # Slot 3 is the band a forty-five minute technical screen actually sits in.
+    # Without a default slot, selection took slots[:1], which is always slot 1,
+    # so the headline interview mode served an eight-minute warm-up with
+    # forty-five minutes on the clock and drew from three questions forever.
+    "interview": {"questions": 1, "minutes": 45, "slot": 3},
 }
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -172,6 +176,35 @@ def read_state(workspace: Path) -> Dict[str, Any]:
             "Session state at %s is corrupt (%s). Start a new session." % (path, exc),
             EXIT_ENVIRONMENT,
         )
+    # Valid JSON is not a valid session. A file holding a list, or a dict
+    # missing the keys the engine indexes, used to get all the way to an
+    # AttributeError or a KeyError and exit 1 with a traceback, which is not in
+    # the documented exit-code contract the skill branches on. It also took
+    # `list` down entirely: one unreadable session directory and the whole
+    # listing died rather than showing the other sessions.
+    if not isinstance(state, dict):
+        raise SessionError(
+            "Session state at %s is not a session (found %s). Start a new one."
+            % (path, type(state).__name__),
+            EXIT_ENVIRONMENT,
+        )
+    clock = state.get("clock")
+    required = (
+        isinstance(clock, dict)
+        and "started_epoch" in clock
+        and "deadline_epoch" in clock
+        and isinstance(state.get("questions"), list)
+        and "session_id" in state
+        and "format" in state
+        and "mode" in state
+    )
+    if not required:
+        raise SessionError(
+            "Session state at %s is missing fields this build needs. "
+            "Start a new session." % (path,),
+            EXIT_ENVIRONMENT,
+        )
+
     version = state.get("schema_version")
     if version != SCHEMA_VERSION:
         raise SessionError(
@@ -299,7 +332,12 @@ def find_workspace_from_cwd() -> Optional[Path]:
     when they ask how much time is left, so this is the resolution path that
     fires most often in practice.
     """
-    current = Path.cwd().resolve()
+    try:
+        current = Path.cwd().resolve()
+    except OSError:
+        # The working directory was deleted out from under us. Fall through to
+        # the pointer rather than taking down every command.
+        return None
     for directory in [current] + list(current.parents):
         if state_path(directory).exists():
             return directory
@@ -509,8 +547,13 @@ def load_ica_project(project_id: Optional[str], seed: Optional[int] = None) -> D
     meta_file = project / "meta.json"
     if not meta_file.exists():
         raise SessionError("%s has no meta.json" % (project,), EXIT_BANK)
-    with open(str(meta_file), "r") as handle:
-        meta = json.load(handle)
+    try:
+        with open(str(meta_file), "r") as handle:
+            meta = json.load(handle)
+    except ValueError as exc:
+        raise SessionError("%s is not valid JSON: %s" % (meta_file, exc), EXIT_BANK)
+    if not isinstance(meta, dict) or "id" not in meta:
+        raise SessionError("%s has no id" % (meta_file,), EXIT_BANK)
 
     levels = sorted(project.glob("level*"), key=lambda p: int(p.name[5:]))
     if not levels:
@@ -556,6 +599,7 @@ def select_questions(
     count: int,
     seed: Optional[int] = None,
     slot: Optional[int] = None,
+    explicit_slot: bool = True,
 ) -> List[Dict[str, Any]]:
     """Pick one question per difficulty slot.
 
@@ -577,11 +621,14 @@ def select_questions(
         # Drawing from one difficulty on purpose, which is what an interview is:
         # a single question at a chosen level rather than a ramp.
         if slot not in by_slot:
-            raise SessionError(
-                "No questions in slot %d. Slots available: %s"
-                % (slot, ", ".join(str(value) for value in slots)),
-                EXIT_BANK,
-            )
+            if explicit_slot:
+                raise SessionError(
+                    "No questions in slot %d. Slots available: %s"
+                    % (slot, ", ".join(str(value) for value in slots)),
+                    EXIT_BANK,
+                )
+            # A mode default must not fail on a thinner bank than this one.
+            slot = min(slots, key=lambda value: (abs(value - slot), value))
         chooser = random.Random(seed)
         options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
         if count > len(options):
@@ -827,7 +874,9 @@ def status_payload(state: Dict[str, Any], now: float, phase: str) -> Dict[str, A
     clock = state["clock"]
     if phase == STATE_ENDED:
         remaining = 0.0
-        elapsed = clock["ended_epoch"] - clock["started_epoch"]
+        # Clamped: a session ended after its deadline never had more time than
+        # it was given, and report already does this.
+        elapsed = min(clock["ended_epoch"], clock["deadline_epoch"]) - clock["started_epoch"]
     else:
         remaining = max(0.0, clock["deadline_epoch"] - now)
         elapsed = now - clock["started_epoch"]
@@ -936,6 +985,9 @@ def command_start(args: argparse.Namespace) -> int:
     # Explicit flags beat the preset, the preset beats the mode's defaults, and
     # those beat the format's.
     mode_defaults = MODE_DEFAULTS.get(args.mode, {})
+    slot = args.slot
+    if slot is None:
+        slot = mode_defaults.get("slot")
     count = args.questions
     if count is None:
         count = (preset or {}).get(
@@ -997,7 +1049,17 @@ def command_start(args: argparse.Namespace) -> int:
                     % (existing_state["session_id"], existing_workspace),
                     EXIT_ACTIVE_SESSION,
                 )
-            finalize(existing_workspace, existing_state, now, END_REASON_ABANDONED)
+            # An expired session ended when the clock ran out, not when it was
+            # forced over. Recording "abandoned" at `now` stamped the ending
+            # hours late, so status reported elapsed 11:06:40 on a 1:10:00
+            # session and exit 4 never fired for it.
+            existing_phase = classify(existing_state, now)
+            finalize(
+                existing_workspace,
+                existing_state,
+                now,
+                END_REASON_TIME if existing_phase == STATE_EXPIRED else END_REASON_ABANDONED,
+            )
 
     if config["gated"]:
         project = load_ica_project(args.project, args.seed)
@@ -1011,7 +1073,9 @@ def command_start(args: argparse.Namespace) -> int:
         questions = None
     else:
         project = None
-        questions = select_questions(fmt, count, args.seed, args.slot)
+        questions = select_questions(
+            fmt, count, args.seed, slot, explicit_slot=args.slot is not None
+        )
 
     duration = minutes * 60.0
     session_id = "%s-%s" % (fmt, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
@@ -1197,7 +1261,18 @@ def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    out, err = proc.communicate()
+    try:
+        out, err = proc.communicate(timeout=max(timeout * 2 + 30, 60))
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.communicate(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        raise SessionError(
+            "The grader did not return. Nothing was recorded for this attempt.",
+            EXIT_ENVIRONMENT,
+        )
     try:
         return json.loads(out)
     except ValueError:

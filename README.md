@@ -164,6 +164,10 @@ One question, forty-five minutes, and someone in the room with you. They ask how
 you plan to approach it before you write anything, keep an eye on the clock out
 loud, and follow up on complexity and edge cases when you finish.
 
+The question comes from the slot-3 band by default, which is what a
+forty-five minute technical screen actually looks like. `--slot 4` if you want
+the hard one, `--slot 1` for a gentle start.
+
 Hints are allowed here, unlike in exam mode, and every one is recorded. Solving
 it with two nudges is a different result from solving it alone, and the debrief
 says which happened rather than quietly rounding up.
@@ -178,9 +182,7 @@ python3 skills/sim/scripts/session.py list
 python3 skills/sim/scripts/session.py report --session gca-20260811T193740Z
 ```
 
-Sessions are kept, so you can look at what you did last week. `--slot N` draws
-from one difficulty if you want to be interviewed on something specific rather
-than taking the ramp.
+Sessions are kept, so you can look at what you did last week.
 
 ### Company presets
 
