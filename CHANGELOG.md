@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.6.0
+
+**Questions can be written for a role rather than taken from the bank.**
+`start --generated <dir>` runs a session on questions the agent wrote, for a
+company or a posting the bank has nothing close to. They are original problems,
+never real assessment items.
+
+They skip the mutation gate, which is the deliberate trade: nothing has proved
+their hidden tests can tell a wrong answer from a right one, so their grading is
+less trustworthy and the session says so when it starts.
+
+They do not skip the two checks that decide whether an hour is worth spending,
+and those run **before the clock starts**, which is the only moment they are
+free. The reference solution must pass its own hidden suite, or the question is
+unanswerable. The untouched starter must fail it, or the question asks for
+nothing. Either failure refuses the session with a message saying which.
+
+**An unknown company is no longer a dead end.** `start --preset stripe --format
+gca` runs, records the company, and says out loud that it ran that format
+because it was asked to rather than because anything was researched.
+
+**`presets`** lists the table or looks one company up, so the agent can answer
+"do you know this company" without parsing JSON.
+
+ETHICS.md and METHODOLOGY.md updated to match: both previously said every
+question had been through the gate, which is no longer true of generated ones.
+
 ## 0.5.1
 
 The last of the audit findings.

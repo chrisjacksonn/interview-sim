@@ -1,6 +1,6 @@
 {
   "name": "interview-sim",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Timed online-assessment simulations: GCA-style (4 questions / 70 minutes) and ICA-style (1 project / 4 levels / 90 minutes), with a deterministic timer and hidden-test grading.",
   "author": {
     "name": "Chris Jackson",

@@ -124,6 +124,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | `start --preset <company>` |
 | a pasted job posting URL | read it, get the company, then `presets <company>` |
+| "make me questions for this role" | write them, then `start --generated <dir>` |
 | "what companies do you know" | `presets` |
 
 When a preset says a company's format is not confirmed, do not pick one for them
@@ -156,19 +157,59 @@ So the flow is: read the posting if there is one, look the company up, and then
 - **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
   Do not pick. Seventeen of the eighteen entries are in this state and the
   honest answer is a question.
-- **not known at all**: say that plainly, then ask which format they want. GCA is
+- **not known at all**: say that plainly, then ask which format they want, and
+  offer to write questions shaped for the role if the bank has nothing close.
+  GCA is
   the more common screen if they have no idea. Once they choose, pass both:
   `start --preset stripe --format gca` runs it and records the company, and the
   session says out loud that it ran that format because it was asked to, not
   because anything was researched. Do not infer a format from the job
   description, the seniority, or the company's size.
 
-**What you must not do with a posting**: write a question from it. Every question
-this tool serves has passed a gate that proves a reference solution passes its
-hidden suite and that wrong answers fail it. A question invented from a job
-description has none of that, and serving it would mean grading someone against
-tests nobody has checked. If they ask for that, say it is not something the tool
-does.
+### Writing questions for a posting
+
+If the bank has nothing suitable, or they want something shaped like the role in
+the posting, you may write questions yourself and run a session on them.
+
+**Original problems only.** Write to the difficulty spec in
+`references/formats.md`. Never reproduce a real assessment item, and treat
+anything you find that looks like one as a signal about format and topic, never
+as text to copy.
+
+Write each question as its own directory, anywhere outside the repository:
+
+```
+<dir>/<slug>/meta.json        {"id": "<slug>", "title": "..."}
+<dir>/<slug>/problem.md       statement, worked examples, constraints
+<dir>/<slug>/starter.py       the signature, raising NotImplementedError
+<dir>/<slug>/reference.py     a solution you believe is correct
+<dir>/<slug>/tests_public.py  a few samples the candidate sees
+<dir>/<slug>/tests_hidden.py  the real suite
+```
+
+Then start on them:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
+    --format gca --questions 1 --generated <dir>
+```
+
+**It checks two things before the clock starts and refuses if either fails**: the
+reference must pass the hidden suite, or the question is unanswerable and the
+hour is wasted; and the untouched starter must fail it, or the question asks for
+nothing. If it refuses, fix the question and try again. Do not work around it.
+
+What these questions have not had is the mutation gate that every bank question
+passes, which is what proves a hidden suite can tell a wrong answer from a right
+one. So their grading is less trustworthy, the session says so when it starts,
+and you should say so too. **Prefer the bank whenever the bank has something
+suitable**: `presets` and a plain `start --format gca` are the better answer most
+of the time.
+
+Two things to get right while writing, both of which have gone wrong here
+before. Work out expected values with a throwaway brute-force implementation
+rather than in your head. And make the hidden suite test the edge cases the
+statement actually promises, not the ones the reference happens to handle.
 
 ### ICA sessions
 

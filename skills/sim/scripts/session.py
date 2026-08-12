@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -520,6 +520,111 @@ def resolve_preset(name: str) -> Dict[str, Any]:
     )
 
 
+def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
+    """Load questions written outside the bank, and check them before use.
+
+    This is the path for questions generated on the spot, for a company or a
+    posting the bank has nothing for. They have not been through the mutation
+    gate, so nothing has proved their hidden suites can tell a wrong answer from
+    a right one.
+
+    They do get the two cheap checks, because those are what stop a session
+    being a waste of an hour: the reference solution must pass the hidden suite,
+    or the question is unanswerable, and the untouched starter must fail it, or
+    the question asks for nothing. Both have caught real breakage in this
+    repository, most recently a reference that failed its own tests because the
+    author did the arithmetic in his head.
+
+    Checking happens before the clock starts, which is the only time it is free.
+    """
+    directory = Path(directory).expanduser().resolve()
+    if not directory.is_dir():
+        raise SessionError("No such directory: %s" % (directory,), EXIT_BANK)
+
+    candidates = sorted(
+        entry for entry in directory.iterdir()
+        if entry.is_dir() and not entry.name.startswith((".", "_"))
+    )
+    if (directory / "meta.json").exists():
+        candidates = [directory]
+    if not candidates:
+        raise SessionError(
+            "No question directories in %s. Each question is its own directory "
+            "with meta.json, problem.md, starter.py, tests_public.py, "
+            "tests_hidden.py and reference.py." % (directory,),
+            EXIT_BANK,
+        )
+    if len(candidates) < count:
+        raise SessionError(
+            "%s holds %d question(s) but %d were asked for."
+            % (directory, len(candidates), count),
+            EXIT_BANK,
+        )
+
+    grader = Path(__file__).resolve().parent / "grade.py"
+    questions = []
+    for index, entry in enumerate(candidates[:count], start=1):
+        for name in ("meta.json", "problem.md", "starter.py", "tests_public.py",
+                     "tests_hidden.py", "reference.py"):
+            if not (entry / name).exists():
+                raise SessionError("%s is missing %s" % (entry, name), EXIT_BANK)
+        try:
+            with open(str(entry / "meta.json"), "r") as handle:
+                meta = json.load(handle)
+        except ValueError as exc:
+            raise SessionError("%s/meta.json is not valid JSON: %s" % (entry, exc), EXIT_BANK)
+        if not isinstance(meta, dict):
+            raise SessionError("%s/meta.json is not an object" % (entry,), EXIT_BANK)
+
+        reference = _grade_once(grader, entry, entry / "reference.py")
+        if reference.get("outcome") != "pass":
+            raise SessionError(
+                "%s is unanswerable: its own reference solution scores %d/%d (%s). "
+                "Fix the question or the tests before anyone sits it."
+                % (entry.name, reference.get("passed", 0), reference.get("total", 0),
+                   reference.get("outcome")),
+                EXIT_BANK,
+            )
+        starter = _grade_once(grader, entry, entry / "starter.py")
+        if starter.get("outcome") == "pass":
+            raise SessionError(
+                "%s asks for nothing: the untouched starter already passes its "
+                "hidden suite." % (entry.name,),
+                EXIT_BANK,
+            )
+
+        meta["_dir"] = entry
+        meta["_format"] = "generated"
+        meta.setdefault("id", entry.name)
+        meta.setdefault("title", entry.name)
+        meta.setdefault("difficulty", "generated")
+        meta["slot"] = index
+        meta["_hidden_tests"] = reference.get("total", 0)
+        questions.append(meta)
+    return questions
+
+
+def _grade_once(grader: Path, question_dir: Path, solution: Path) -> Dict[str, Any]:
+    proc = subprocess.Popen(
+        [sys.executable, str(grader), "--question", str(question_dir),
+         "--solution", str(solution), "--json"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+    )
+    try:
+        out, err = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        raise SessionError("Checking %s took too long." % (question_dir.name,), EXIT_BANK)
+    try:
+        return json.loads(out)
+    except ValueError:
+        raise SessionError(
+            "Could not check %s: %s" % (question_dir.name, (err or out).strip()[:200]),
+            EXIT_BANK,
+        )
+
+
 def load_ica_project(project_id: Optional[str], seed: Optional[int] = None) -> Dict[str, Any]:
     """Pick an ICA project and describe its levels.
 
@@ -705,11 +810,14 @@ def materialize(workspace: Path, questions: List[Dict[str, Any]]) -> List[Dict[s
                 "slot": index,
                 "id": question.get("id", directory_name),
                 "dir": directory_name,
-                # Where the hidden suite lives, relative to the bank root.
-                # Recorded rather than reconstructed from the id so that
-                # renaming or removing a question breaks loudly at submit time
-                # instead of silently grading against the wrong thing.
-                "source": "%s/%s" % (question["_format"], question["_dir"].name),
+                # Where the hidden suite lives. Relative to the bank root for
+                # bank questions, absolute for generated ones, which sit
+                # wherever they were written.
+                "source": (
+                    str(question["_dir"])
+                    if question["_format"] == "generated"
+                    else "%s/%s" % (question["_format"], question["_dir"].name)
+                ),
                 "title": question.get("title", ""),
                 "difficulty": question.get("difficulty", ""),
                 "state": "unlocked",
@@ -1073,7 +1181,10 @@ def command_start(args: argparse.Namespace) -> int:
                 END_REASON_TIME if existing_phase == STATE_EXPIRED else END_REASON_ABANDONED,
             )
 
-    if config["gated"]:
+    if args.generated:
+        project = None
+        questions = load_generated(Path(args.generated), count)
+    elif config["gated"]:
         project = load_ica_project(args.project, args.seed)
         available = len(project["_levels"])
         if available < count:
@@ -1111,6 +1222,7 @@ def command_start(args: argparse.Namespace) -> int:
         "format": fmt,
         "company": (preset or {}).get("_name") or unknown_company,
         "company_known": preset is not None,
+        "generated": bool(args.generated),
         "workspace": str(workspace),
         "seed": args.seed,
         "clock": {
@@ -1143,6 +1255,13 @@ def command_start(args: argparse.Namespace) -> int:
     else:
         print("Session started: %s" % (session_id,))
         print("")
+        if args.generated:
+            print(
+                "These questions were generated, not taken from the bank. They "
+                "have been checked to be answerable, but nothing has proved "
+                "their hidden tests can tell a wrong answer from a right one."
+            )
+            print("")
         if unknown_company is not None:
             print(
                 "%s is not in the preset table, so nothing here knows what they "
@@ -1261,7 +1380,8 @@ def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict
     if not grader.exists():
         raise SessionError("Grader missing at %s" % (grader,), EXIT_ENVIRONMENT)
 
-    bank_dir = QUESTIONS_DIR / question["source"]
+    source = question["source"]
+    bank_dir = Path(source) if os.path.isabs(source) else QUESTIONS_DIR / source
     if not bank_dir.is_dir():
         raise SessionError(
             "Question %s is no longer in the bank at %s. It was renamed or "
@@ -2060,6 +2180,12 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--workspace", default=None)
     start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
+    start.add_argument(
+        "--generated", default=None,
+        help="use questions from this directory instead of the bank. They are "
+             "checked for answerability first, but have not been through the "
+             "mutation gate.",
+    )
     start.add_argument("--seed", type=int, default=None, help="repeatable question choice")
     start.add_argument(
         "--slot", type=int, default=None,

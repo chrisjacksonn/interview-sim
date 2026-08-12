@@ -84,7 +84,7 @@ or crashed is also a zero, whatever the levels below it scored.
 
 ## How questions are validated
 
-Every question in the bank has passed `tools/qa.py`, which CI runs on every
+Every question **in the bank** has passed `tools/qa.py`, which CI runs on every
 commit, at one of two levels. A **fully validated** question passes all three
 checks below. A question marked `"validated": "basic"` passes only the first two,
 which means nothing has proved its hidden suite can distinguish a wrong answer
@@ -123,6 +123,13 @@ solution squeaked under the timeout.
   memory rather than ability.
 - **Hidden tests are readable in this repository.** They are hidden from the
   session, not from you. See [ETHICS.md](ETHICS.md).
+- **Generated questions have not been through the gate at all.** A session
+  started with `--generated` uses questions written on the spot rather than from
+  the bank. They are checked to be answerable, meaning the reference solution
+  passes the hidden suite and the untouched starter does not, but nothing has
+  proved their hidden tests can distinguish a wrong answer from a right one, so
+  such a question can mark something correct that is not. The session says so
+  when it starts. Prefer the bank when the bank has something suitable.
 - **Company presets are reported behaviour, not guarantees.** Every entry carries
   a source, a confidence tier, and the date it was last confirmed, and formats
   change every hiring cycle. Your actual invite email is better evidence than

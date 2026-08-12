@@ -1081,6 +1081,121 @@ class TestQuestionRotation(SessionTestCase):
         self.assertEqual(code, EXIT_OK, err)
 
 
+class TestGeneratedQuestions(SessionTestCase):
+    """Questions written on the spot rather than taken from the bank.
+
+    They skip the mutation gate by design. They do not skip the two checks that
+    decide whether an hour is worth spending, and those run before the clock
+    starts because that is the only moment they are free.
+    """
+
+    GOOD_REFERENCE = (
+        "def solve(payments):\n"
+        "    totals = {}\n"
+        "    for merchant, amount in payments:\n"
+        "        if amount < 0:\n"
+        "            continue\n"
+        "        totals[merchant] = totals.get(merchant, 0) + amount\n"
+        "    return totals\n"
+    )
+    TESTS = (
+        "import unittest\n"
+        "from solution import solve\n"
+        "class T(unittest.TestCase):\n"
+        "    def test_sums(self):\n"
+        "        self.assertEqual(solve([('a', 1), ('a', 2)]), {'a': 3})\n"
+        "    def test_skips_negative(self):\n"
+        "        self.assertEqual(solve([('a', -1), ('a', 2)]), {'a': 2})\n"
+    )
+
+    def write_question(self, root, reference=None, starter=None):
+        question = Path(root) / "generated-one"
+        question.mkdir(parents=True, exist_ok=True)
+        (question / "meta.json").write_text('{"id": "generated-one", "title": "Generated"}')
+        (question / "problem.md").write_text("# Generated\n\nTotal by merchant.\n")
+        (question / "starter.py").write_text(
+            starter or "def solve(payments):\n    raise NotImplementedError\n"
+        )
+        (question / "reference.py").write_text(reference or self.GOOD_REFERENCE)
+        (question / "tests_public.py").write_text(self.TESTS)
+        (question / "tests_hidden.py").write_text(self.TESTS)
+        return Path(root)
+
+    def test_a_generated_question_can_be_sat_and_graded(self):
+        root = self.write_question(self.root / "gen")
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("generated, not taken from the bank", out)
+        self.assertTrue(self.state()["generated"])
+
+        workspace = self.workspace()
+        (workspace / "q1" / "solution.py").write_text(self.GOOD_REFERENCE)
+        code, out, _ = self.run_session("submit", "--question", "q1", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK)
+        report = json.loads(out)
+        self.assertEqual(report["outcome"], "pass")
+        self.assertGreater(report["total"], 0)
+
+    def test_hidden_material_still_never_reaches_the_workspace(self):
+        root = self.write_question(self.root / "gen")
+        self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        leaked = [
+            str(path) for path in self.workspace().rglob("*")
+            if "hidden" in path.name or "reference" in path.name
+        ]
+        self.assertEqual(leaked, [])
+
+    def test_an_unanswerable_question_is_refused_before_the_clock_starts(self):
+        """Its own reference fails its own tests, so nobody could pass it."""
+        root = self.write_question(
+            self.root / "gen", reference="def solve(payments):\n    return {}\n"
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("unanswerable", err)
+
+    def test_a_question_that_asks_for_nothing_is_refused(self):
+        root = self.write_question(self.root / "gen", starter=self.GOOD_REFERENCE)
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("asks for nothing", err)
+
+    def test_a_directory_missing_files_is_refused(self):
+        root = self.write_question(self.root / "gen")
+        (root / "generated-one" / "tests_hidden.py").unlink()
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("tests_hidden.py", err)
+
+    def test_an_empty_directory_is_refused(self):
+        empty = self.root / "empty"
+        empty.mkdir(parents=True, exist_ok=True)
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(empty), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+
+    def test_bank_sessions_are_not_marked_generated(self):
+        self.start()
+        self.assertFalse(self.state()["generated"])
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()

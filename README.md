@@ -240,8 +240,20 @@ python3 skills/sim/scripts/session.py presets capital-one
 connection and imports nothing that could; it answers from that file and nothing
 else. If you paste a job posting to the agent running the skill, the agent can
 read it and work out which company it is, but all that buys you is a name to
-look up in the same table. No question is ever generated from a posting, because
-a question that has not been through the gate cannot be graded honestly.
+look up in the same table. If the bank has nothing suitable, the agent can also write questions for the
+role and run a session on those:
+
+```
+python3 skills/sim/scripts/session.py start --format gca --questions 1 \
+    --generated /tmp/my-questions
+```
+
+They are original problems, never real assessment items, and they are checked
+before the clock starts: the reference solution must pass its own hidden suite,
+and the untouched starter must fail it. What they have not had is the mutation
+gate, so nothing has proved their tests can tell a wrong answer from a right one.
+The session says so when it starts. Prefer the bank when the bank has something
+close.
 
 ## What leaves your machine
 
