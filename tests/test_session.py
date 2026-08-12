@@ -821,6 +821,20 @@ class TestLearn(BankAwareTestCase):
         )
         self.assertEqual(self.state()["mode"], "exam")
 
+    def test_a_local_note_is_not_evidence_of_anything_about_codesignal(self):
+        """Recording a company must not make the tool assert they use CodeSignal.
+
+        The refusal for a missing format was written for the reviewed table,
+        where being a CodeSignal customer is the established half of the claim.
+        Reused verbatim for a researched entry, it announced a customer
+        relationship on the strength of a note somebody typed.
+        """
+        self.learn("--round", "live pairing")
+        code, _, err = self.run_session("start", "--preset", "shopify", "--now", T0)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertNotIn("CodeSignal", err)
+        self.assertIn("does not name a format", err)
+
     def test_the_local_file_is_valid_json_with_its_sources(self):
         self.learn()
         with open(str(self.root / "presets.local.json")) as handle:

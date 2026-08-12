@@ -1174,12 +1174,24 @@ def command_start(args: argparse.Namespace) -> int:
         if args.format_given:
             fmt = args.format
         else:
+            # A researched entry proves nothing about CodeSignal. Saying it did,
+            # on the strength of a local note somebody typed, would be the tool
+            # inventing exactly the kind of claim it refuses to store.
+            if preset.get("researched"):
+                lead = (
+                    "What was recorded here for %s does not name a format, so "
+                    "there is nothing to run without you choosing one."
+                    % (preset["_name"],)
+                )
+            else:
+                lead = (
+                    "%s is a confirmed CodeSignal customer, but which assessment "
+                    "they use is not confirmed." % (preset["_name"],)
+                )
             raise SessionError(
-                "%s is a confirmed CodeSignal customer, but which assessment "
-                "they use is not confirmed.%s\n"
-                "Pick one: --preset %s --format gca, or --format ica."
+                "%s%s\nPick one: --preset %s --format gca, or --format ica."
                 % (
-                    preset["_name"],
+                    lead,
                     ("\n" + preset["note"]) if preset.get("note") else "",
                     preset["_name"],
                 ),
