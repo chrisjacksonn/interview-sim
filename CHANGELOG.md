@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.3
+
+**What you learn about a company follows you between projects.** Local research
+was written next to the sessions, and the sessions moved into the working
+directory, so researching Shopify from one repository left it forgotten from the
+next one. Sessions belong to the project they were sat in; what a company asks
+does not.
+
+It lives in `~/.interview-sim/presets.local.json` now, and both older locations
+are still read, so nothing already researched is lost.
+
 ## 0.9.2
 
 **A cached company goes stale.** `last_confirmed` was written down and then

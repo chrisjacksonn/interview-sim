@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -546,19 +546,39 @@ def local_presets_path() -> Path:
     reading forum posts. Merging the two silently would launder the second into
     the first, so they stay separate and everything printed from here says which
     it came from.
+
+    Kept out of the sessions directory too, and for a different reason. Sessions
+    belong to the project you sat them in. What a company asks in an interview
+    does not: researching Shopify from one repository and finding it forgotten
+    from the next one is the same knowledge thrown away for no reason.
     """
-    return sessions_root() / "presets.local.json"
+    if os.environ.get("INTERVIEW_SIM_HOME"):
+        return sessions_root() / "presets.local.json"
+    return Path.home() / ".interview-sim" / "presets.local.json"
+
+
+def legacy_local_presets_paths() -> List[Path]:
+    """Where it used to be written, before it stopped following the sessions."""
+    if os.environ.get("INTERVIEW_SIM_HOME"):
+        return []
+    return [
+        sessions_root() / "presets.local.json",
+        LEGACY_ROOT / "presets.local.json",
+    ]
 
 
 def load_local_presets() -> Dict[str, Any]:
-    path = local_presets_path()
-    try:
-        with open(str(path), "r") as handle:
-            found = json.load(handle).get("presets", {})
-    except IOError:
-        return {}
-    except ValueError as exc:
-        raise SessionError("%s is not valid JSON: %s" % (path, exc), EXIT_BANK)
+    found = {}  # type: Dict[str, Any]
+    # Older locations first, so the current file wins where they overlap and
+    # research done before the move is still there.
+    for path in legacy_local_presets_paths() + [local_presets_path()]:
+        try:
+            with open(str(path), "r") as handle:
+                found.update(json.load(handle).get("presets", {}))
+        except IOError:
+            continue
+        except ValueError as exc:
+            raise SessionError("%s is not valid JSON: %s" % (path, exc), EXIT_BANK)
     for entry in found.values():
         entry["researched"] = True
     return found
@@ -2426,13 +2446,17 @@ def command_learn(args: argparse.Namespace) -> int:
 
     path = local_presets_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Everything already known, including anything written to an older location,
+    # so re-recording one company does not drop the rest on the way past.
     existing = {}
-    if path.exists():
+    for source in legacy_local_presets_paths() + [path]:
         try:
-            with open(str(path), "r") as handle:
-                existing = json.load(handle).get("presets", {})
+            with open(str(source), "r") as handle:
+                existing.update(json.load(handle).get("presets", {}))
         except (IOError, ValueError):
-            existing = {}
+            continue
+    for entry in existing.values():
+        entry.pop("researched", None)
 
     # A second call for the same company adds a round rather than replacing what
     # is there. A process is learned in pieces: the assessment turns up in one
