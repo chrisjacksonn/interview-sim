@@ -850,6 +850,13 @@ def select_questions(
             slot = min(slots, key=lambda value: (abs(value - slot), value))
         chooser = random.Random(seed)
         options = sorted(by_slot[slot], key=lambda item: item.get("id", ""))
+        if topics:
+            # The single-slot draw is what interview mode uses, which is what a
+            # recorded live round runs as. Skipping topics here meant the one
+            # sitting most likely to have a subject attached ignored it.
+            matching = [item for item in options if topic_match(item, topics)]
+            if len(matching) >= count:
+                options = matching
         if count > len(options):
             raise SessionError(
                 "Slot %d has %d question(s) but %d were asked for."
@@ -1209,6 +1216,55 @@ def command_start(args: argparse.Namespace) -> int:
             if not args.format_given:
                 raise
             unknown_company = args.preset
+    # Which round of their process this is. A company that runs an assessment
+    # and then a live round is two sittings with different shapes, and picking
+    # one for the candidate would be the same guess this tool refuses to make
+    # about formats.
+    round_entry = None
+    if preset is not None:
+        rounds = preset_rounds(preset)
+        wanted = (getattr(args, "round", None) or "").strip().lower()
+        if wanted:
+            named = [item for item in rounds if (item.get("name") or "") == wanted]
+            if not named:
+                raise SessionError(
+                    "%s has no round called %r. Recorded: %s"
+                    % (
+                        preset["_name"],
+                        wanted,
+                        ", ".join(item.get("name") or "(unnamed)" for item in rounds),
+                    ),
+                    EXIT_USAGE,
+                )
+            round_entry = named[0]
+        elif len(rounds) == 1:
+            round_entry = rounds[0]
+        else:
+            raise SessionError(
+                "%s has %d rounds recorded, and they are different sittings.\n%s\n"
+                "Pick one: --preset %s --round %s"
+                % (
+                    preset["_name"],
+                    len(rounds),
+                    "\n".join(
+                        "  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item))
+                        for item in rounds
+                    ),
+                    preset["_name"],
+                    (rounds[0].get("name") or "<name>"),
+                ),
+                EXIT_USAGE,
+            )
+        # Everything downstream reads the round's shape, not the entry's.
+        merged = dict(preset)
+        for key in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
+            if round_entry.get(key) is not None:
+                merged[key] = round_entry[key]
+            else:
+                merged.pop(key, None)
+        merged["_round"] = round_entry.get("name")
+        preset = merged
+
     if preset is not None and preset.get("format") is None:
         # The company is a confirmed CodeSignal customer but which assessment
         # they give is not known. Say so and let the caller choose, rather than
@@ -2164,6 +2220,53 @@ def command_report(args: argparse.Namespace) -> int:
 CONFIDENCE_LEVELS = ("high", "medium", "low")
 
 
+def preset_rounds(preset: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The rounds a company is recorded as running, always as a list.
+
+    A hiring process is usually more than one thing: an assessment, then a live
+    round, sometimes a take-home between them. Each has its own shape and each
+    is its own sitting, so they are stored separately and run separately.
+
+    Entries that predate this, and every reviewed entry in presets.json, carry
+    one shape at the top level. Those come back as a single unnamed round, so
+    the rest of the code only ever deals with a list.
+    """
+    rounds = preset.get("rounds")
+    if isinstance(rounds, list) and rounds:
+        return [dict(entry) for entry in rounds if isinstance(entry, dict)]
+    single = {
+        "name": None,
+        "format": preset.get("format"),
+        # Carried through with the format it qualifies. Leaving it out dropped
+        # the reviewed table's format_confidence on the floor, so Capital One
+        # went from "medium confidence" to "unstated" without anything changing
+        # in the table.
+        "format_confidence": preset.get("format_confidence"),
+        "mode": preset.get("mode"),
+        "questions": preset.get("questions"),
+        "minutes": preset.get("minutes"),
+        "topics": preset.get("topics"),
+        "note": preset.get("note"),
+    }
+    return [single]
+
+
+def describe_round(entry: Dict[str, Any]) -> str:
+    """One line for a round, saying only what is actually recorded."""
+    bits = []
+    if entry.get("format"):
+        bits.append(str(entry["format"]).upper())
+    if entry.get("mode") == "interview":
+        bits.append("live round")
+    if entry.get("questions"):
+        bits.append("%d question(s)" % (entry["questions"],))
+    if entry.get("minutes"):
+        bits.append("%g minutes" % (entry["minutes"],))
+    if entry.get("topics"):
+        bits.append("topics: %s" % (", ".join(entry["topics"]),))
+    return ", ".join(bits) if bits else "nothing recorded beyond its name"
+
+
 def command_learn(args: argparse.Namespace) -> int:
     """Record what was found out about a company, on this machine only.
 
@@ -2209,28 +2312,6 @@ def command_learn(args: argparse.Namespace) -> int:
     if args.format and args.format.lower() not in FORMATS:
         raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
 
-    entry = {
-        "format": args.format.lower() if args.format else None,
-        "confidence": args.confidence,
-        "format_confidence": args.format_confidence if args.format else None,
-        "sources": sources,
-        "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(resolve_now(args.now))),
-        "researched": True,
-    }
-    if args.mode:
-        entry["mode"] = args.mode
-    if args.questions:
-        entry["questions"] = args.questions
-    if args.minutes:
-        entry["minutes"] = args.minutes
-    if args.round:
-        entry["round"] = args.round
-    topics = [item.strip() for item in (args.topic or []) if item.strip()]
-    if topics:
-        entry["topics"] = topics
-    if args.note:
-        entry["note"] = args.note
-
     path = local_presets_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = {}
@@ -2240,6 +2321,50 @@ def command_learn(args: argparse.Namespace) -> int:
                 existing = json.load(handle).get("presets", {})
         except (IOError, ValueError):
             existing = {}
+
+    # A second call for the same company adds a round rather than replacing what
+    # is there. A process is learned in pieces: the assessment turns up in one
+    # thread and the live round in another, and the second finding should not
+    # erase the first.
+    entry = dict(existing.get(name) or {})
+    entry.update(
+        {
+            "confidence": args.confidence,
+            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
+            "last_confirmed": time.strftime(
+                "%Y-%m-%d", time.gmtime(resolve_now(args.now))
+            ),
+            "researched": True,
+        }
+    )
+
+    this_round = {"name": args.round.strip().lower() if args.round else None}
+    if args.format:
+        this_round["format"] = args.format.lower()
+        this_round["format_confidence"] = args.format_confidence
+    if args.mode:
+        this_round["mode"] = args.mode
+    if args.questions:
+        this_round["questions"] = args.questions
+    if args.minutes:
+        this_round["minutes"] = args.minutes
+    topics = [item.strip() for item in (args.topic or []) if item.strip()]
+    if topics:
+        this_round["topics"] = topics
+    if args.note:
+        this_round["note"] = args.note
+
+    rounds = [
+        item
+        for item in entry.get("rounds", [])
+        if isinstance(item, dict) and item.get("name") != this_round["name"]
+    ]
+    rounds.append(this_round)
+    entry["rounds"] = rounds
+    # The old single-shape keys would otherwise sit alongside the rounds list and
+    # disagree with it.
+    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
+        entry.pop(stale, None)
     existing[name] = entry
     write_json(
         path,
@@ -2257,7 +2382,14 @@ def command_learn(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(dict(entry, name=name), indent=2))
         return EXIT_OK
-    print("Recorded %s in %s" % (name, path))
+    print(
+        "Recorded %s%s in %s"
+        % (name, (" round %r" % (this_round["name"],)) if this_round["name"] else "", path)
+    )
+    if len(rounds) > 1:
+        print("%s now has %d rounds recorded:" % (name, len(rounds)))
+        for item in rounds:
+            print("  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item)))
     paragraph(
         "This is a local note, not a reviewed entry, and every session that uses "
         "it will say so. If you are confident in it, the useful next step is a "
@@ -2299,9 +2431,19 @@ def command_presets(args: argparse.Namespace) -> int:
                     entry.get("last_confirmed", "an unknown date"),
                 )
             )
-            if entry.get("round"):
-                print("Reported round: %s" % (entry["round"],))
-            if entry.get("mode") == "interview":
+            rounds = preset_rounds(entry)
+            named = [item for item in rounds if item.get("name")]
+            if named:
+                print("Rounds recorded:")
+                for item in named:
+                    print("  %-12s %s" % (item["name"], describe_round(item)))
+                    if item.get("note"):
+                        print("               %s" % (item["note"],))
+                print(
+                    "Start one with --preset %s --round %s"
+                    % (entry["_name"], named[0]["name"])
+                )
+            elif entry.get("mode") == "interview":
                 print("Closest simulation: interview mode, which is a live round.")
         else:
             print(
@@ -2829,6 +2971,11 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--project", default=None, help="ICA project id")
     start.add_argument("--preset", default=None, help="company preset, e.g. --preset ramp")
     start.add_argument(
+        "--round", default=None,
+        help="which round of that company's process, when more than one is "
+             "recorded, e.g. --round pairing",
+    )
+    start.add_argument(
         "--open", action="store_true",
         help="open the workspace in your editor once it is ready",
     )
@@ -2893,7 +3040,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     learn.add_argument(
         "--round", default=None,
-        help="what the round reportedly is, e.g. 'live pairing, 45 minutes'",
+        help="name this round, e.g. --round oa or --round pairing. Calling learn "
+             "again with a different name adds a round rather than replacing one",
     )
     learn.add_argument(
         "--topic", action="append", default=None,

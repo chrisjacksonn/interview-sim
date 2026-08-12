@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**A company's process, not just one assessment.** An assessment followed by a
+live round is two sittings with two shapes, and a preset could only hold one.
+Calling `learn` again with a different `--round` now adds a round rather than
+replacing what was there, because a process is learned in pieces: the assessment
+turns up in one thread and the pairing round in another.
+
+`start --preset shopify` refuses when several are recorded and lists them.
+Choosing which round somebody should sit is the same guess as choosing a format,
+and this tool does not make that one either. `--round oa` and `--round pairing`
+each run their own shape, and a round recorded as live runs as an interview.
+
 **Topics, which is the part of someone else's assessment that transfers.**
 Research comes back with what candidates report being asked about, `learn
 --topic` records it, and sessions for that company draw on those subjects. Spread

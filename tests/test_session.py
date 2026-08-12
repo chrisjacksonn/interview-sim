@@ -922,6 +922,92 @@ class TestTopics(BankAwareTestCase):
         self.assertTrue(any("graphs" in tags for tags in drawn), drawn)
 
 
+class TestRounds(BankAwareTestCase):
+    """A hiring process is more than one sitting.
+
+    An assessment and then a live round are different shapes, and the tool has
+    to hold both without averaging them into one.
+    """
+
+    def record_both(self):
+        self.run_session(
+            "learn", "shopify", "--round", "oa", "--format", "gca",
+            "--questions", "2", "--minutes", "60", "--confidence", "medium",
+            "--topic", "strings", "--source", "https://example.com/one",
+        )
+        self.run_session(
+            "learn", "shopify", "--round", "pairing", "--format", "gca",
+            "--mode", "interview", "--minutes", "45", "--confidence", "medium",
+            "--topic", "graphs", "--source", "https://example.com/two",
+        )
+
+    def test_a_second_round_adds_rather_than_replaces(self):
+        self.record_both()
+        with open(str(self.root / "presets.local.json")) as handle:
+            entry = json.load(handle)["presets"]["shopify"]
+        self.assertEqual(
+            [item["name"] for item in entry["rounds"]], ["oa", "pairing"]
+        )
+        self.assertEqual(
+            entry["sources"], ["https://example.com/one", "https://example.com/two"]
+        )
+
+    def test_it_will_not_pick_a_round_for_you(self):
+        self.record_both()
+        code, _, err = self.run_session("start", "--preset", "shopify", "--now", T0)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("2 rounds", err)
+        self.assertIn("--round", err)
+
+    def test_each_round_runs_with_its_own_shape(self):
+        self.record_both()
+        code, _, err = self.run_session(
+            "start", "--preset", "shopify", "--round", "oa", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        state = self.state()
+        self.assertEqual(state["mode"], "exam")
+        self.assertEqual(len(state["questions"]), 2)
+        self.assertEqual(state["clock"]["duration_seconds"], 60 * 60)
+
+        code, _, err = self.run_session(
+            "start", "--preset", "shopify", "--round", "pairing",
+            "--force", "--now", T0 + HOUR * 3,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        state = self.state()
+        self.assertEqual(state["mode"], "interview")
+        self.assertEqual(len(state["questions"]), 1)
+        self.assertEqual(state["clock"]["duration_seconds"], 45 * 60)
+
+    def test_a_live_round_still_honours_its_topics(self):
+        """Interview mode draws from one slot, which used to skip topics."""
+        self.record_both()
+        code, out, err = self.run_session(
+            "start", "--preset", "shopify", "--round", "pairing", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        source = self.state()["questions"][0]["source"]
+        with open(str(QUESTIONS / source / "meta.json")) as handle:
+            topics = [tag.lower() for tag in json.load(handle).get("topics", [])]
+        self.assertIn("graphs", topics)
+
+    def test_an_unknown_round_name_is_refused_with_the_list(self):
+        self.record_both()
+        code, _, err = self.run_session(
+            "start", "--preset", "shopify", "--round", "onsite", "--now", T0
+        )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("oa", err)
+        self.assertIn("pairing", err)
+
+    def test_a_reviewed_preset_still_needs_no_round(self):
+        code, _, err = self.run_session(
+            "start", "--preset", "capital-one", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+
 class TestCheck(SessionTestCase):
     """The preflight.
 

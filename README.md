@@ -331,10 +331,24 @@ from.
   https://...
 ```
 
-A company that runs a **live** round rather than an asynchronous assessment is
-recorded with `--mode interview`, and `start --preset <company>` then runs the
-closest thing this tool has: one problem, forty-five minutes, a conversation, and
-hints that get counted.
+A hiring process is usually more than one sitting, so it is recorded as more than
+one. Calling `learn` again with a different `--round` adds a round instead of
+replacing one:
+
+```
+$ ... presets shopify
+shopify: researched on this machine, medium confidence, last looked at 2026-08-12.
+Rounds recorded:
+  oa           GCA, 2 question(s), 60 minutes, topics: strings, hash map
+  pairing      GCA, live round, 45 minutes, topics: graphs
+Start one with --preset shopify --round oa
+```
+
+`start --preset shopify` on its own refuses and lists them, because choosing
+which round you should sit is the same guess as choosing a format. Name one and
+you get that shape: `--round oa` is a 60 minute two-question exam, `--round
+pairing` is 45 minutes, one problem, in interview mode with an interviewer who
+talks and whose hints are counted.
 
 What research will never come back with is the company's actual questions. What
 it does come back with is the **topics**, which is the part that transfers:

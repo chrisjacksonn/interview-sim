@@ -202,6 +202,24 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" learn stripe \
     --note "Two candidate reports from early 2026, both for new grad."
 ```
 
+**A process is usually more than one sitting, so record it as more than one.**
+If they run an assessment and then a live round, that is two rounds with two
+shapes, and calling `learn` again with a different `--round` adds to what is
+known rather than replacing it:
+
+```
+... learn shopify --round oa --format gca --questions 2 --minutes 60 \
+    --topic "strings" --topic "hash map" --source https://...
+... learn shopify --round pairing --format gca --mode interview --minutes 45 \
+    --topic "graphs" --source https://...
+```
+
+`start --preset shopify` will then refuse and list them, because picking which
+round someone should sit is the same guess as picking a format. Ask which they
+are preparing for, or offer to work through them in order over separate
+sittings, and pass `--round oa` or `--round pairing`. The live one runs as an
+interview, so you are the interviewer for it.
+
 `learn` refuses without a source, refuses to overwrite a reviewed entry, and
 marks everything it stores as researched-not-reviewed. Every session started
 from one repeats that, with the links, before the clock starts. A company that
