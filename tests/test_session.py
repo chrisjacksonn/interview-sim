@@ -99,11 +99,31 @@ class BankAwareTestCase(SessionTestCase):
             str(workspace / question["dir"] / "solution.py"),
         )
 
+    def start_with_mutants(self, now=T0):
+        """Start a one-question session on a question that ships mutants.
+
+        Basic-tier questions have no mutants/ directory, and which question a
+        slot deals is random, so a test needing a known-wrong answer has to ask
+        for one rather than assume. Seeds are walked in order so this is
+        deterministic.
+        """
+        for seed in range(40):
+            code, out, err = self.run_session(
+                "start", "--format", "gca", "--questions", "1",
+                "--seed", str(seed), "--now", now, "--force",
+            )
+            self.assertEqual(code, EXIT_OK, "%s%s" % (out, err))
+            if (self.bank_dir(0) / "mutants").is_dir():
+                return self.workspace()
+        self.fail("no question with mutants was dealt in 40 seeds")
+
     def install_partial_mutant(self, workspace, index=0):
         """Install a wrong answer that scores some but not all of the suite."""
         question = self.state()["questions"][index]
         target = workspace / question["dir"] / "solution.py"
-        for mutant in sorted((self.bank_dir(index) / "mutants").glob("*.py")):
+        mutants = sorted((self.bank_dir(index) / "mutants").glob("*.py"))
+        self.assertTrue(mutants, "%s ships no mutants" % (question["id"],))
+        for mutant in mutants:
             shutil.copyfile(str(mutant), str(target))
             _, out, _ = self.run_session(
                 "submit", "--question", question["dir"], "--now", T0 + 30, "--json"
@@ -1236,7 +1256,7 @@ class TestSubmit(BankAwareTestCase):
         self.assertEqual(json.loads(out)["passed"], 0)
 
     def test_partial_credit_is_between(self):
-        workspace = self.start()
+        workspace = self.start_with_mutants()
         report = self.install_partial_mutant(workspace)
         self.assertGreater(report["passed"], 0)
         self.assertLess(report["passed"], report["total"])
