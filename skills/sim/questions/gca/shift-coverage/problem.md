@@ -42,7 +42,7 @@ solve([], 0)
 
 ## Constraints
 
-- `0 <= len(shifts) <= 100_000`
+- `0 <= len(shifts) <= 200_000`
 - `0 <= horizon <= 1_000_000_000`
 - Shift bounds are integers and may exceed `horizon`.
 

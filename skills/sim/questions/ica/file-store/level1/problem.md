@@ -32,5 +32,5 @@ store.add("notes.txt", 5)      # True, the name is free again
 
 ## Notes
 
-- Names are non-empty, case-sensitive strings.
-- Sizes are non-negative integers.
+- Names are case-sensitive. An empty name is possible and must be refused.
+- A negative size is possible and must be refused. Zero is a real size.

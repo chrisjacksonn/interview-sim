@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.4.0
+
+Fixes from a six-lens audit of the project. Four of these produced a wrong
+result, which for a grading tool is the only category that really matters.
+
+**A `print()` in a correct solution scored zero.** Results came back on the
+child process's stdout, so anything the candidate printed landed in the middle
+of the JSON and the whole run was reported as "0 of 0 hidden tests passed (0%)".
+A stray debug print is the most likely thing to be left in a file under time
+pressure. Results now come back through a file the candidate's code never sees.
+The same change closed a leak: the old crashed-path echoed the child's last
+output line, which after a partial write was the grader's own JSON, hidden test
+names included.
+
+**An ICA level that timed out was reported as a 100% pass** and unlocked the next
+level. A level whose tests never ran reports 0 of 0, which cannot move
+`passed == total`, so the earlier levels' counts declared a pass on their own.
+Exit 8 was unreachable for every ICA session. Outcomes where nothing ran now
+propagate instead of being averaged away, and such a level scores zero.
+
+**`report` scored ICA levels from stale results**, so a level broken by level 4
+still counted as passed: `submit` said regression and `report` said "reached and
+passed 3 of 4 levels". Every re-graded level now writes its fresh figures back.
+
+**Concurrent commands silently discarded graded results.** Two overlapping
+submits both graded, both printed a real score, and the second clobbered the
+first. Mutating commands now take an exclusive lock and re-read state inside it.
+
+Also: a new exit code 9 for "nothing could be graded", distinct from 2; the
+grader kills the whole process group so a leaked grandchild cannot outlive the
+timeout; SKILL.md rule 3 now covers the entire question bank rather than only
+`tests_hidden.py` (reference solutions, mutants and locked levels were one Read
+away); rule 6 forbids passing `--now`, which defeated the late-submission
+lockout; and SKILL.md's commands now work under all three install methods
+instead of only the plugin loader.
+
+Question fixes: file-store level 1's notes contradicted its own spec, and
+shift-coverage stated a bound of 100k while grading at 200k.
+
 ## 0.3.0
 
 **Company presets, eighteen of them.** Each records two separate claims: that the

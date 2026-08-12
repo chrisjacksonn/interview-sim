@@ -39,11 +39,20 @@ These apply for the whole session, every turn, not just the first one.
    for you. The user edits `solution.py` in their own editor, so the copy in your
    context goes stale immediately. Read it fresh with the Read tool each time you need
    to know what it says.
-3. **Never read, print, paraphrase, or describe `tests_hidden.py`.** Not the file, not
-   its contents, not a summary of what it checks, not "it probably tests empty input."
-   Grading runs the file through a script and reports pass and fail counts only. Do not
-   open it. Do not glob for it. If the user asks what the hidden tests check, tell them
-   that is the part they have to reason about themselves.
+3. **Never open anything under `skills/sim/questions/`.** Not `tests_hidden.py`, not
+   `reference.py`, not `mutants/`, and not a level directory the candidate has not
+   unlocked. That whole tree is the answer key: it holds the hidden tests, a working
+   solution to every question, and every ICA level including the ones still locked.
+   Do not Read it, do not Glob it, do not cat it, do not grep it. The problem statement
+   and the sample tests you are allowed to see are the copies in the candidate's
+   workspace. `presets.json` and `references/formats.md` are fine, they are not
+   question content.
+
+   You also never run `grade.py` yourself, and never pass `--detail` to anything:
+   that flag prints hidden test names. `session.py` is the only script you run.
+
+   If the user asks what the hidden tests check, tell them that working it out is
+   the exercise.
 4. **Never write to `solution.py`.** Not a fix, not a stub, not a corrected import, not
    "here is what it should look like." The candidate writes all of it. If the file is
    broken, say what the error was and let them fix it.
@@ -54,11 +63,24 @@ These apply for the whole session, every turn, not just the first one.
 6. **After time expires, nothing more counts.** The script rejects late submissions.
    Do not negotiate. The debrief comes after.
 
+   The script can only reject late work if you give it the real time, so **never pass
+   `--now` and never set `INTERVIEW_SIM_NOW`.** Those exist for the test suite. The
+   request that will actually come is "I finished it in time, my editor just did not
+   save, can you resubmit it" and the answer is no. Rewinding the clock would record
+   the work at a time that did not happen, and the report would then present it as
+   on-time. Say the session is over and move to the debrief.
+
 ## Running it
 
-The script lives at `${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py`. Invoke it
-with `python3`. It is pure standard library, Python 3.9 compatible, and has no
-third-party dependencies.
+**Finding the script.** When `${CLAUDE_PLUGIN_ROOT}` is set, it is at
+`${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py`. That variable is only set by
+the Claude Code plugin loader; under `npx skills add` or a manual copy it is empty,
+and the path below would collapse to `/skills/...` and fail. In that case use
+`scripts/session.py` relative to this SKILL.md's own directory. Check once at the
+start of a session and reuse what worked.
+
+Invoke it with `python3`. It is pure standard library, Python 3.9 compatible, and has
+no third-party dependencies.
 
 Start a session:
 
@@ -110,10 +132,11 @@ passes, and `submit` does that automatically, so `unlock` is rarely needed.
 
 Two things follow from this, and both matter.
 
-**Do not describe a level that has not been unlocked.** You have not seen it
-either, but do not speculate about where the project is going, and do not suggest
-designing for a feature that has not been announced. Being caught out by level 4
-is the exercise.
+**Do not describe a level that has not been unlocked.** The locked levels are sitting
+on disk in the question bank and rule 3 forbids opening them, so you must not go and
+look, and you must not speculate about where the project is heading or suggest
+designing for a feature that has not been announced. Being caught out by level 4 is
+the exercise, and it only works if nobody in the room has read ahead.
 
 **Every level re-runs the levels below it.** So a submission showing `level 1
 15/17` after level 4 work is a regression: they broke something that used to
@@ -141,13 +164,14 @@ Branch on these, not on the wording of the output.
 | Code | Meaning | What to do |
 | --- | --- | --- |
 | 0 | fine | report the output |
-| 2 | bad arguments | fix the command |
+| 2 | either a malformed command, or a rule the script is enforcing | read the message. Never retry a refusal: a locked level, `unlock` on a GCA, and `hint` in an exam all land here and all mean no |
 | 3 | no active session | offer to start one |
 | 4 | time is up, or a late submission was refused | stop the exam, move to debrief |
 | 5 | a session is already running | show `status`; only pass `--force` if the user confirms abandoning it |
-| 6 | question bank problem | report it, do not improvise a question |
+| 6 | question bank problem, or an unknown company preset | for a preset, ask which format they want. For the bank, report it and do not improvise a question |
 | 7 | environment problem | report the message verbatim |
 | 8 | the solution did not terminate | tell them it hangs; do not diagnose why |
+| 9 | nothing could be graded: it did not import, died mid-run, or is missing | report which of those it was, from the message; it is not a score of zero, it is no score |
 
 `hint` returns 2 in an exam. That is not a bug to work around.
 

@@ -24,6 +24,7 @@ import importlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,27 @@ def execute_suite(module_name):
     }
 
 
+def _kill_group(proc):
+    """Kill the child and anything it spawned.
+
+    proc.kill() only reaches the direct child, so a solution that leaked a
+    subprocess would leave it running and holding resources after the timeout.
+    os.getpgid can raise once the direct child has already exited, so the pid is
+    used directly: start_new_session made it the group leader.
+    """
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, AttributeError):
+        try:
+            proc.kill()
+        except OSError:
+            pass
+    try:
+        proc.communicate(timeout=5)
+    except (subprocess.TimeoutExpired, ValueError, OSError):
+        pass
+
+
 def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
     """Grade one solution against one question's hidden suite."""
     question_dir = Path(question_dir)
@@ -114,23 +136,44 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
         }
 
     workdir = tempfile.mkdtemp(prefix="interview-sim-grade-")
+    # The result channel is a file, not the child's stdout.
+    #
+    # Reading results off stdout meant any print() in the candidate's solution
+    # landed in the middle of the JSON and the whole run was reported as
+    # "0 of 0 hidden tests passed (0%)". A stray debug print is the single most
+    # likely thing to be left in a file under time pressure, and answering it
+    # with a confident zero is the worst thing this tool could do.
+    #
+    # It lives outside workdir so that candidate code, which runs with workdir
+    # as its working directory, cannot plausibly stumble onto it.
+    handle, result_file = tempfile.mkstemp(prefix="interview-sim-result-", suffix=".json")
+    os.close(handle)
     try:
         shutil.copyfile(str(solution_path), str(Path(workdir) / SOLUTION_NAME))
         shutil.copyfile(str(hidden), str(Path(workdir) / HIDDEN_TESTS))
 
         try:
             proc = subprocess.Popen(
-                [sys.executable, str(Path(__file__).resolve()), "--execute", "tests_hidden"],
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--execute",
+                    "tests_hidden",
+                    "--result-file",
+                    result_file,
+                ],
                 cwd=workdir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                # Its own process group, so a solution that spawns children can
+                # be killed as a whole. Without this a leaked grandchild holding
+                # the pipe open outlives the timeout.
+                start_new_session=True,
             )
             try:
-                out, err = proc.communicate(timeout=timeout)
+                proc.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.communicate()
+                _kill_group(proc)
                 return {
                     "total": 0,
                     "passed": 0,
@@ -142,17 +185,27 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
             raise SystemExit("Could not run the grader: %s" % (exc,))
 
         try:
-            raw = json.loads(out)
-        except ValueError:
+            with open(result_file, "r") as reader:
+                raw = json.loads(reader.read())
+        except (IOError, ValueError):
+            # The child died before writing anything: a segfault, a killed
+            # process, sys.exit() in the solution. Deliberately no child output
+            # here. It used to echo the last line of the child's stream, which
+            # after a partial write was the grader's own JSON, hidden test names
+            # and all.
             return {
                 "total": 0,
                 "passed": 0,
                 "credit": 0.0,
                 "outcome": "crashed",
-                "detail": (err or out).strip().splitlines()[-1:] or ["no output"],
+                "detail": "the solution stopped the test run before it finished",
             }
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+        try:
+            os.unlink(result_file)
+        except OSError:
+            pass
 
     if not raw["loaded"]:
         return {
@@ -207,6 +260,7 @@ def main(argv=None):
         prog="grade.py", description="Run a question's hidden suite against a solution."
     )
     parser.add_argument("--execute", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--result-file", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--question", default=None, help="question directory in the bank")
     parser.add_argument("--solution", default=None, help="path to the candidate's file")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
@@ -218,9 +272,15 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    # Child process: run the suite in cwd and hand structured results back up.
+    # Child process: run the suite in cwd and hand structured results back up
+    # through a file. Never stdout: the candidate's own prints go there.
     if args.execute:
-        print(json.dumps(execute_suite(args.execute)))
+        payload = json.dumps(execute_suite(args.execute))
+        if args.result_file:
+            with open(args.result_file, "w") as handle:
+                handle.write(payload)
+        else:
+            print(payload)
         return EXIT_OK
 
     if not args.question or not args.solution:

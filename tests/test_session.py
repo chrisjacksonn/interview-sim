@@ -824,6 +824,133 @@ class TestWorkspaceReadme(SessionTestCase):
         self.assertNotIn("each `solution.py`", readme)
 
 
+class TestAuditRegressions(BankAwareTestCase):
+    """Bugs found by the six-lens audit. Each one produced a wrong result."""
+
+    PROJECT = REPO / "skills" / "sim" / "questions" / "ica" / "parcel-locker"
+
+    def start_ica(self, now=T0):
+        code, _, err = self.run_session(
+            "start", "--format", "ica", "--project", "parcel-locker", "--now", now
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        return self.workspace()
+
+    def solve(self, workspace, source=None):
+        shutil.copyfile(
+            str(source or (self.PROJECT / "reference.py")),
+            str(workspace / "parcel-locker" / "solution.py"),
+        )
+
+    def test_a_printing_solution_still_scores_correctly(self):
+        """Results used to come back on the child's stdout.
+
+        A stray debug print landed in the middle of the JSON and a fully correct
+        solution was reported as "0 of 0 hidden tests passed (0%)". A print left
+        in the file is the single most likely thing under time pressure.
+        """
+        workspace = self.start()
+        question = self.state()["questions"][0]
+        reference = (QUESTIONS / question["source"] / "reference.py").read_text()
+        (workspace / question["dir"] / "solution.py").write_text(
+            "import sys\nprint('debugging')\nprint('noise', file=sys.stderr)\n" + reference
+        )
+        code, out, err = self.run_session("submit", "--now", T0 + 60, "--json")
+        self.assertEqual(code, EXIT_OK, err)
+        report = json.loads(out)
+        self.assertEqual(report["outcome"], "pass")
+        self.assertEqual(report["passed"], report["total"])
+        self.assertGreater(report["total"], 0)
+
+    def test_a_solution_printing_fake_results_cannot_forge_a_score(self):
+        workspace = self.start()
+        question = self.state()["questions"][0]
+        forged = json.dumps(
+            {"loaded": True, "load_error": None, "total": 999, "passed": 999,
+             "failed": 0, "errored": 0, "skipped": 0, "failing": []}
+        )
+        (workspace / question["dir"] / "solution.py").write_text(
+            "print(%r)\ndef solve(*a, **k):\n    return None\n" % (forged,)
+        )
+        _, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
+        report = json.loads(out)
+        self.assertNotEqual(report["total"], 999)
+        self.assertNotEqual(report["outcome"], "pass")
+
+    def test_an_ica_level_that_times_out_is_not_a_pass(self):
+        """It used to be reported as 100%, marked passed, and unlock the next.
+
+        A level whose tests never ran reports 0 of 0, which cannot move
+        `passed == total`, so the earlier levels' counts declared a pass on
+        their own.
+        """
+        workspace = self.start_ica()
+        self.solve(workspace)
+        self.run_session("submit", "--now", T0 + 60)
+
+        source = (self.PROJECT / "reference.py").read_text().replace(
+            "    def parcel_count(self):",
+            "    def parcel_count(self):\n        while True:\n            pass",
+        )
+        (workspace / "parcel-locker" / "solution.py").write_text(source)
+
+        code, out, _ = self.run_session(
+            "submit", "--question", "2", "--timeout", "5", "--now", T0 + 120, "--json"
+        )
+        self.assertEqual(code, 8, "a level that hung must exit as a timeout")
+        report = json.loads(out)
+        self.assertEqual(report["outcome"], "timeout")
+        self.assertEqual(report["credit"], 0.0, "a level that never ran is a zero")
+
+        states = [q["state"] for q in self.state()["questions"]]
+        self.assertNotEqual(states[1], "passed", "a hung level was marked passed")
+        self.assertEqual(states[2], "locked", "a hung level unlocked the next one")
+
+    def test_report_reflects_a_regression_rather_than_stale_results(self):
+        """submit said regression and report said "passed 3 of 4"."""
+        workspace = self.start_ica()
+        self.solve(workspace)
+        for step in range(3):
+            self.run_session("submit", "--now", T0 + 60 * (step + 1))
+
+        self.solve(workspace, self.PROJECT / "mutants" / "l4_breaks_l1.py")
+        self.run_session("submit", "--now", T0 + 600)
+
+        _, out, _ = self.run_session("report", "--now", T0 + 700, "--json")
+        payload = json.loads(out)
+        self.assertLess(payload["solved"], 3, "report still credits broken levels")
+
+        _, text, _ = self.run_session("report", "--now", T0 + 700)
+        self.assertIn("regression", text.lower())
+
+    def test_two_overlapping_submits_do_not_lose_a_result(self):
+        """Both used to grade, both printed a score, one was discarded."""
+        workspace = self.start()
+        question = self.state()["questions"][0]
+        self.install_reference(workspace)
+
+        env = dict(os.environ)
+        env["INTERVIEW_SIM_HOME"] = str(self.root)
+        procs = [
+            subprocess.Popen(
+                [sys.executable, str(SCRIPT), "submit", "--question",
+                 question["dir"], "--now", str(T0 + 60 + index)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=env, cwd=str(REPO), universal_newlines=True,
+            )
+            for index in range(3)
+        ]
+        for proc in procs:
+            proc.communicate()
+
+        recorded = self.state()["questions"][0]
+        self.assertEqual(
+            recorded["attempts"], 3,
+            "concurrent submits were graded but not all recorded",
+        )
+        self.assertIsNotNone(recorded["result"])
+
+
 class TestStateFile(SessionTestCase):
     def test_schema_version_is_recorded(self):
         self.start()
@@ -874,7 +1001,7 @@ class TestSubmit(BankAwareTestCase):
         workspace = self.start()
         (workspace / "q1" / "solution.py").write_text("def solve(entries)\n    return {}\n")
         code, out, _ = self.run_session("submit", "--now", T0 + 60, "--json")
-        self.assertEqual(code, EXIT_OK)
+        self.assertEqual(code, 9, "a file that does not import must not exit 0")
         self.assertEqual(json.loads(out)["outcome"], "import_error")
 
     def test_non_terminating_solution_times_out(self):

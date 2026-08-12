@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -42,6 +42,9 @@ EXIT_ACTIVE_SESSION = 5
 EXIT_BANK = 6
 EXIT_ENVIRONMENT = 7
 EXIT_TIMEOUT = 8
+# Nothing could be graded: the file did not import, died mid-run, or is absent.
+# Distinct from 2, which means the command itself was wrong or refused.
+EXIT_NOT_GRADED = 9
 
 # Session states. EXPIRED is deliberately never written to disk: it exists only
 # in the window between the deadline passing and the next command noticing,
@@ -49,6 +52,10 @@ EXIT_TIMEOUT = 8
 STATE_ACTIVE = "active"
 STATE_EXPIRED = "expired"
 STATE_ENDED = "ended"
+
+# Grader outcomes meaning the hidden tests never executed. These cannot be
+# summed with real counts, because 0 of 0 is not "everything passed".
+NO_TESTS_RAN = ("timeout", "crashed", "import_error", "missing")
 
 END_REASON_TIME = "time"
 END_REASON_SUBMITTED = "submitted"
@@ -192,6 +199,54 @@ def write_state(workspace: Path, state: Dict[str, Any]) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(str(tmp), str(target))
+
+
+class session_lock(object):
+    """Serialise the read-modify-write that every mutating command performs.
+
+    write_state is atomic against a torn file but does nothing about lost
+    updates, and the window here is the whole grading run: seconds for GCA and
+    up to four timeouts for ICA. Two overlapping submits both graded, both
+    printed a real score to the candidate, and the second silently discarded the
+    first, after which report said the question had never been attempted.
+
+    Not hypothetical. The tool is driven by an agent that batches independent
+    shell calls, so two submits starting together is ordinary use.
+
+    flock is advisory and Unix-only. On a platform without it the lock quietly
+    does nothing, which is the same behaviour as before rather than a crash.
+    """
+
+    def __init__(self, workspace: Path):
+        self._path = workspace / STATE_DIR_NAME / "lock"
+        self._handle = None
+
+    def __enter__(self) -> "session_lock":
+        try:
+            import fcntl
+        except ImportError:
+            return self
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._handle = open(str(self._path), "w")
+            fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX)
+        except (IOError, OSError):
+            if self._handle is not None:
+                self._handle.close()
+                self._handle = None
+        return self
+
+    def __exit__(self, *exc_info: Any) -> bool:
+        if self._handle is not None:
+            try:
+                import fcntl
+
+                fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+            except (ImportError, IOError, OSError):
+                pass
+            self._handle.close()
+            self._handle = None
+        return False
 
 
 def add_event(state: Dict[str, Any], epoch: float, kind: str, **fields: Any) -> None:
@@ -1060,35 +1115,64 @@ def run_gated_grader(
     passed = 0
     total = 0
     broke_earlier = False
+    blocking = None
 
     for entry in state["questions"]:
         if entry["slot"] > question["slot"]:
             break
         report = run_grader(entry, solution, timeout)
+        here = report.get("outcome", "unknown")
         per_level.append(
             {
                 "slot": entry["slot"],
                 "passed": report.get("passed", 0),
                 "total": report.get("total", 0),
-                "outcome": report.get("outcome", "unknown"),
+                "outcome": here,
             }
         )
         passed += report.get("passed", 0)
         total += report.get("total", 0)
-        if entry["slot"] < question["slot"] and report.get("outcome") != "pass":
+        if here in NO_TESTS_RAN:
+            # Nothing ran at this level, so there is nothing to add up. Stop
+            # here rather than paying the timeout again at every remaining
+            # level, and remember why.
+            blocking = here
+            break
+        if entry["slot"] < question["slot"] and here != "pass":
             broke_earlier = True
 
-    if total and passed == total:
+    # The combined verdict must not be derived from the sums alone. A level that
+    # timed out, crashed, failed to import, or had no solution file reports
+    # 0 of 0, which cannot move `passed == total`, so the earlier levels' counts
+    # were enough on their own to declare a pass. That marked the level passed,
+    # unlocked the next one, and told the candidate 100% for code that never ran.
+    if blocking is not None:
+        outcome = blocking
+    elif broke_earlier:
+        # Breaking a level below is never a pass, whatever the totals say.
+        outcome = "partial" if passed else "fail"
+    elif total and passed == total:
         outcome = "pass"
     elif passed:
         outcome = "partial"
     else:
         outcome = "fail"
 
+    if blocking is not None:
+        # The counts are real, and they are the levels that did run, so they are
+        # kept. The credit is not: METHODOLOGY says a level that never ran is a
+        # zero, and report averages this figure. Leaving it at 1.0 would let a
+        # level that hung be worth full marks.
+        credit = 0.0
+    elif total:
+        credit = round(float(passed) / total, 4)
+    else:
+        credit = 0.0
+
     combined = {
         "passed": passed,
         "total": total,
-        "credit": round(float(passed) / total, 4) if total else 0.0,
+        "credit": credit,
         "outcome": outcome,
         "regression": broke_earlier,
     }
@@ -1198,6 +1282,40 @@ def command_submit(args: argparse.Namespace) -> int:
         report = run_grader(question, solution, args.timeout)
         per_level = None
 
+    # Grading is slow and holds no lock. Everything after it is the
+    # read-modify-write, so the state is taken fresh under an exclusive lock and
+    # only this submission's delta is applied. Locking just the write would not
+    # help: the stale copy read before grading is what does the clobbering.
+    with session_lock(workspace):
+        state = read_state(workspace)
+
+        phase = classify(state, now)
+        if phase == STATE_EXPIRED:
+            state = finalize(workspace, state, now, END_REASON_TIME)
+            phase = STATE_ENDED
+        if phase == STATE_ENDED:
+            # The clock ran out while this was being graded, or another command
+            # ended the session. Either way it is late now.
+            sys.stderr.write("Time is up. This submission was not accepted.\n")
+            return EXIT_EXPIRED
+
+        question = find_question(state, args.question)
+        return _record_submission(
+            args, workspace, state, question, report, per_level, now, gated
+        )
+
+
+def _record_submission(
+    args: argparse.Namespace,
+    workspace: Path,
+    state: Dict[str, Any],
+    question: Dict[str, Any],
+    report: Dict[str, Any],
+    per_level: Optional[List[Dict[str, Any]]],
+    now: float,
+    gated: bool,
+) -> int:
+    """Apply a graded submission to fresh state. Caller holds the lock."""
     question["attempts"] = question.get("attempts", 0) + 1
     question["last_submit_epoch"] = now
     question["result"] = {
@@ -1210,6 +1328,45 @@ def command_submit(args: argparse.Namespace) -> int:
     if per_level is not None:
         question["result"]["per_level"] = per_level
         question["result"]["regression"] = report.get("regression", False)
+
+        # Write the fresh figures back onto the earlier levels too.
+        #
+        # Every level was just re-graded against the current solution, but only
+        # the submitted level's entry was being updated, so a level 1 that this
+        # submission broke kept the passing result it recorded twenty minutes
+        # ago. `submit` said "regression" and `report` then said "reached and
+        # passed 3 of 4 levels", which is the exact thing the README claims this
+        # format catches.
+        #
+        # Levels store cumulative counts, so the prefix sums are rebuilt rather
+        # than the per-level counts written straight in, or report would
+        # contradict its own "earlier levels included" line. States are left
+        # alone deliberately: demoting a regressed level would leave more than
+        # one entry unlocked and break bare `submit`.
+        running_passed = 0
+        running_total = 0
+        by_slot = dict((line["slot"], line) for line in per_level)
+        for entry in state["questions"]:
+            line = by_slot.get(entry["slot"])
+            if line is None:
+                continue
+            running_passed += line["passed"]
+            running_total += line["total"]
+            if entry["slot"] == question["slot"]:
+                break
+            existing = entry.get("result") or {}
+            entry["result"] = {
+                "passed": running_passed,
+                "total": running_total,
+                "credit": (
+                    round(float(running_passed) / running_total, 4)
+                    if running_total
+                    else 0.0
+                ),
+                "outcome": line["outcome"],
+                "at_epoch": now,
+                "attempts_note": existing.get("attempts_note"),
+            }
 
     add_event(
         state,
@@ -1251,6 +1408,11 @@ def command_submit(args: argparse.Namespace) -> int:
             )
         elif outcome == "timeout":
             print("%s/solution.py did not finish. Something is not terminating." % (question["dir"],))
+        elif outcome == "crashed":
+            print(
+                "%s/solution.py stopped the test run before it finished. Nothing "
+                "could be graded." % (question["dir"],)
+            )
         else:
             label = question["title"] if gated else question["dir"]
             print(
@@ -1276,6 +1438,8 @@ def command_submit(args: argparse.Namespace) -> int:
 
     if report.get("outcome") == "timeout":
         return EXIT_TIMEOUT
+    if report.get("outcome") in ("crashed", "import_error", "missing"):
+        return EXIT_NOT_GRADED
     return EXIT_OK
 
 
@@ -1438,6 +1602,15 @@ def command_report(args: argparse.Namespace) -> int:
             payload["band"],
         )
     )
+    if gated and any((q.get("result") or {}).get("regression") for q in questions):
+        # The percentage can look healthy while an earlier level is broken,
+        # because most of the suite still passes. Saying "strong" over a
+        # regression is the flattering reading, and this format exists to
+        # punish exactly that.
+        print(
+            "An earlier level is failing. Whatever the percentage says, this is "
+            "a regression: the work broke something that used to pass."
+        )
     if state["mode"] == "interview":
         if hints_given:
             print(
@@ -1566,10 +1739,12 @@ def command_hint(args: argparse.Namespace) -> int:
         sys.stderr.write("Time is up. Nothing more to record.\n")
         return EXIT_EXPIRED
 
-    question = find_question(state, args.question)
-    question["hints"] = question.get("hints", 0) + 1
-    add_event(state, now, "hint", question=question["dir"], note=args.note or "")
-    write_state(workspace, state)
+    with session_lock(workspace):
+        state = read_state(workspace)
+        question = find_question(state, args.question)
+        question["hints"] = question.get("hints", 0) + 1
+        add_event(state, now, "hint", question=question["dir"], note=args.note or "")
+        write_state(workspace, state)
 
     payload = {
         "question": question["dir"],
