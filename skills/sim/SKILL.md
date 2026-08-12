@@ -156,8 +156,11 @@ So the flow is: read the posting if there is one, look the company up, and then
 - **known, format unconfirmed**: say so and ask whether they want GCA or ICA.
   Do not pick. Seventeen of the eighteen entries are in this state and the
   honest answer is a question.
-- **not known at all**: say that plainly. Then ask which format they want, or
-  suggest GCA as the more common screen. Do not infer a format from the job
+- **not known at all**: say that plainly, then ask which format they want. GCA is
+  the more common screen if they have no idea. Once they choose, pass both:
+  `start --preset stripe --format gca` runs it and records the company, and the
+  session says out loud that it ran that format because it was asked to, not
+  because anything was researched. Do not infer a format from the job
   description, the seniority, or the company's size.
 
 **What you must not do with a posting**: write a question from it. Every question

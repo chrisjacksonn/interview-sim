@@ -217,6 +217,16 @@ ramp is a confirmed CodeSignal customer, but which assessment they use is not
 confirmed. Pick one: --preset ramp --format gca, or --format ica.
 ```
 
+A company that is not in the table at all is not a dead end either. Name a format
+and it runs, and says what it is doing:
+
+```
+$ ... start --preset stripe --format gca
+stripe is not in the preset table, so nothing here knows what they actually use.
+Running GCA because you asked for it. Your invite email names the platform and
+the format.
+```
+
 Every entry carries source URLs, a confidence tier, and the date it was last
 confirmed, and `tools/qa.py` rejects entries missing any of them. Formats change
 every hiring cycle and your actual invite email beats this table.

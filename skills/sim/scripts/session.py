@@ -953,7 +953,19 @@ def print_status(payload: Dict[str, Any], as_json: bool) -> None:
 def command_start(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
 
-    preset = resolve_preset(args.preset) if args.preset else None
+    preset = None
+    unknown_company = None
+    if args.preset:
+        try:
+            preset = resolve_preset(args.preset)
+        except SessionError:
+            # Not in the table. That is only a dead end if we also do not know
+            # what to run. If they named a format, run it: the missing entry
+            # means we cannot tell them what that company uses, not that they
+            # cannot practise for it.
+            if not args.format_given:
+                raise
+            unknown_company = args.preset
     if preset is not None and preset.get("format") is None:
         # The company is a confirmed CodeSignal customer but which assessment
         # they give is not known. Say so and let the caller choose, rather than
@@ -1097,6 +1109,8 @@ def command_start(args: argparse.Namespace) -> int:
         "session_id": session_id,
         "mode": args.mode,
         "format": fmt,
+        "company": (preset or {}).get("_name") or unknown_company,
+        "company_known": preset is not None,
         "workspace": str(workspace),
         "seed": args.seed,
         "clock": {
@@ -1129,6 +1143,16 @@ def command_start(args: argparse.Namespace) -> int:
     else:
         print("Session started: %s" % (session_id,))
         print("")
+        if unknown_company is not None:
+            print(
+                "%s is not in the preset table, so nothing here knows what they "
+                "actually use." % (unknown_company,)
+            )
+            print(
+                "Running %s because you asked for it. Your invite email names the "
+                "platform and the format." % (fmt.upper(),)
+            )
+            print("")
         if preset is not None:
             # Two separate claims. That they use CodeSignal is often first-party
             # and solid; which assessment they give usually is not, and printing

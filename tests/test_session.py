@@ -787,6 +787,50 @@ class TestPresets(SessionTestCase):
             )
             self.assertEqual(code, EXIT_OK, "%s: %s" % (spelling, err))
 
+    def test_an_unknown_company_runs_once_you_name_a_format(self):
+        """Not being in the table means we cannot tell you what they use.
+
+        It does not mean you cannot practise for them, and refusing outright was
+        a dead end: seventeen of eighteen entries already have no format, so a
+        company simply being absent is barely a different situation.
+        """
+        code, out, err = self.run_session(
+            "start", "--preset", "stripe", "--format", "gca", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("not in the preset table", out)
+        self.assertIn("because you asked for it", out)
+        state = self.state()
+        self.assertEqual(state["format"], "gca")
+        self.assertEqual(state["company"], "stripe")
+        self.assertFalse(state["company_known"])
+
+    def test_a_known_company_is_recorded_as_known(self):
+        self.run_session("start", "--preset", "capital-one", "--now", T0)
+        state = self.state()
+        self.assertEqual(state["company"], "capital-one")
+        self.assertTrue(state["company_known"])
+
+    def test_an_unknown_company_without_a_format_still_refuses(self):
+        code, _, err = self.run_session("start", "--preset", "stripe", "--now", T0)
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("capital-one", err)
+
+    def test_presets_lookup_of_an_unknown_company(self):
+        code, out, _ = self.run_session("presets", "stripe", "--json")
+        self.assertEqual(code, EXIT_OK)
+        payload = json.loads(out)
+        self.assertFalse(payload["known"])
+        self.assertEqual(payload["query"], "stripe")
+
+    def test_presets_lookup_of_a_known_company(self):
+        code, out, _ = self.run_session("presets", "capital-one", "--json")
+        self.assertEqual(code, EXIT_OK)
+        payload = json.loads(out)
+        self.assertTrue(payload["known"])
+        self.assertEqual(payload["format"], "gca")
+        self.assertTrue(payload["sources"])
+
     def test_unknown_company_lists_the_known_ones(self):
         code, _, err = self.run_session("start", "--preset", "nintendo", "--now", T0)
         self.assertEqual(code, EXIT_BANK)
