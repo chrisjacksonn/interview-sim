@@ -1,0 +1,13 @@
+{
+  "id": "payment-intents",
+  "format": "ica",
+  "levels": 4,
+  "difficulty": "progressive",
+  "title": "Payment Intents",
+  "time_hint_minutes": 90,
+  "entrypoint": "PaymentSystem",
+  "topics": ["design", "idempotency", "state machines", "refactoring"],
+  "original": true,
+  "authored": "2026-08-12",
+  "theme_note": "Payments with idempotency is a common industry subject. The problems, the API, and every test here are written from scratch; nothing is taken from any real assessment or from any other practice site."
+}
