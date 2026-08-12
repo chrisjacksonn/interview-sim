@@ -185,8 +185,27 @@ is theirs, and the grading stays offline against questions in this repository.
 Do it properly or not at all:
 
 1. **Search for candidate reports**, not for marketing pages. What you want is
-   people describing a screen they actually sat, with a date attached. Company
-   careers pages describe the process they wish they ran.
+   somebody describing a screen they actually sat, with a date attached.
+
+   Where those live, roughly in order of how much they are worth: Blind and the
+   company-specific subreddits, then r/csMajors, r/cscareerquestions and
+   r/leetcode, then LeetCode Discuss, then Glassdoor's interview section, then
+   the community-maintained OA repositories on GitHub. Search terms that work
+   are the plain ones a person would type: "<company> online assessment intern
+   2026", "<company> OA reddit", "<company> codesignal".
+
+   What to discount: the company's own careers page, which describes the process
+   they wish they ran, and the prep-site pages that rank for "<company>
+   interview questions", which are written for search engines and recycle the
+   same paragraph across two hundred companies. If the only thing you can find
+   is that kind of page, you have found nothing.
+
+   What you are looking for is narrow and worth being clear about: **the shape
+   of the round and the subjects**. How long, how many problems, unlocked at
+   once or gated, live or asynchronous, and what people say the problems were
+   about. "Two problems, an hour, one was a string parsing thing and one was a
+   graph" is a complete result. Anything more specific than that is question
+   text, and question text is not what you are collecting.
 2. **Report what you found before acting on it.** Say what the sources are, how
    old they are, and how much they agree. Two posts from the same month
    describing the same round is a finding. One comment from 2021 is a rumour
