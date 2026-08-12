@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -612,18 +612,32 @@ def resolve_preset(name: str) -> Dict[str, Any]:
     )
 
 
-def open_in_editor(workspace: Path) -> None:
+def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
     """Open the workspace in the user's editor, best effort.
 
     $EDITOR is not used: it is usually a terminal editor and launching one from
     here would fight the shell for the terminal the candidate is working in.
     A GUI editor if there is one, otherwise the platform file manager.
+
+    Opening the folder alone left someone looking at a file tree with a clock
+    already running, which is a strange way to start a timed assessment. Where
+    the editor can be told, the file they are about to write in is opened and
+    focused, so the session begins on the first line of their own solution.
     """
     candidates = []
     for name in ("code", "cursor", "subl", "zed"):
         found = shutil.which(name)
         if found:
-            candidates.append([found, str(workspace)])
+            command = [found, str(workspace)]
+            if focus is not None and focus.exists():
+                # -g is the VS Code family's go-to-file flag, and Sublime and
+                # Zed both take a path after the folder. A wrong flag would
+                # otherwise open a file literally named "-g".
+                if name in ("code", "cursor"):
+                    command += ["-g", str(focus)]
+                else:
+                    command.append(str(focus))
+            candidates.append(command)
             break
     if sys.platform == "darwin":
         candidates.append(["open", str(workspace)])
@@ -1512,7 +1526,8 @@ def command_start(args: argparse.Namespace) -> int:
     write_readme(workspace, state)
     write_pointer(workspace)
     if args.open:
-        open_in_editor(workspace)
+        first = state["questions"][0]
+        open_in_editor(workspace, workspace / first["dir"] / "solution.py")
     remember_questions([question["id"] for question in state["questions"]])
 
     payload = status_payload(state, now, STATE_ACTIVE)

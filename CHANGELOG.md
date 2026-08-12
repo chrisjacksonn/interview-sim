@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+**`--open` puts you in the file, not in a file tree.** It opened the workspace
+folder, which meant starting a timed assessment by looking at a directory
+listing and going to find the file yourself, clock already running. It now opens
+the workspace and focuses the first `solution.py`. SKILL.md tells the proctor to
+pass it every time there is a person at the keyboard.
+
 ## 0.8.0
 
 **Sessions land where you are working.** The workspace used to be built under

@@ -90,8 +90,13 @@ no third-party dependencies.
 Start a session:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca --open
 ```
+
+**Always pass `--open`** when there is a person at the keyboard. It builds the
+workspace in their working directory, opens it in their editor, and puts them on
+the first line of their own solution file. Without it you hand them a path and
+make them go and find it, with the clock already running.
 
 Check the clock:
 
@@ -318,9 +323,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
     --format gca --questions 1 --generated <dir> --open
 ```
 
-`--open` opens the workspace in their editor once it is ready, which saves them
-copying a path. Use it whenever you are starting a session for someone at a
-keyboard.
+`--open` puts them in the file, which saves them copying a path with the clock
+already running. Use it every time.
 
 **It checks two things before the clock starts and refuses if either fails**: the
 reference must pass the hidden suite, or the question is unanswerable and the
