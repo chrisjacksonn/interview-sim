@@ -798,9 +798,12 @@ class TestWorkspaceReadme(SessionTestCase):
             universal_newlines=True,
         )
         _, err = proc.communicate()
-        # The starter is unfilled so the tests fail, but they must RUN.
+        # The starter is unfilled so the tests fail, but they must RUN. The
+        # count is not asserted: questions carry different numbers of public
+        # tests and the slot draws at random, so a fixed number here is a test
+        # that passes or fails on the roll of a die.
         self.assertNotIn("is not importable", err)
-        self.assertIn("Ran 5 tests", err)
+        self.assertRegex(err, r"Ran [1-9]\d* tests?")
 
     def test_the_readme_says_how_to_submit(self):
         workspace = self.start()
