@@ -134,15 +134,49 @@ def check_starter_fails(question):
         raise Failure("the untouched starter passes the hidden suite")
 
 
-def check_mutants(question):
-    """Every plausible wrong answer must be caught by at least one hidden test."""
+def check_mutants(question, tier):
+    """Every plausible wrong answer must be caught by at least one hidden test.
+
+    Two tiers, because the checks cost very different amounts.
+
+    "full" is the real gate: the question ships deliberately-wrong solutions and
+    every one is caught. This is what proves the hidden suite discriminates, and
+    it has caught three suites in this repository that looked thorough and were
+    not.
+
+    "basic" skips it. The question is still answerable and still non-trivial,
+    because the reference must pass and the starter must fail, but nothing has
+    proved the suite can tell a wrong answer from a right one. A basic question
+    can therefore grade something as correct that is not.
+
+    Basic exists so the bank can grow faster than mutants can be written. It is
+    a deliberate trade and both the README and the question itself say which
+    tier it is.
+    """
     directory = question / "mutants"
+    mutants = (
+        sorted(p for p in directory.glob("*.py") if not p.name.startswith("_"))
+        if directory.is_dir()
+        else []
+    )
+
+    if tier == "basic":
+        if len(mutants) >= MIN_MUTANTS:
+            raise Failure(
+                "marked basic but ships %d mutants: mark it full" % (len(mutants),)
+            )
+        return [("(not validated)", "no mutants, basic tier")]
+
     if not directory.is_dir():
-        raise Failure("no mutants/ directory")
-    mutants = sorted(p for p in directory.glob("*.py") if not p.name.startswith("_"))
+        raise Failure(
+            "no mutants/ directory. Add at least %d wrong answers, or set "
+            '"validated": "basic" in meta.json and accept that nothing has '
+            "proved this suite discriminates." % (MIN_MUTANTS,)
+        )
     if len(mutants) < MIN_MUTANTS:
         raise Failure(
-            "only %d mutants, need at least %d" % (len(mutants), MIN_MUTANTS)
+            "only %d mutants, need at least %d (or mark the question basic)"
+            % (len(mutants), MIN_MUTANTS)
         )
 
     survivors = []
@@ -273,12 +307,18 @@ def check_question(question):
 
     check_files(question)
     meta = check_meta(question)
+    tier = meta.get("validated", "full")
+    if tier not in ("full", "basic"):
+        raise Failure('validated must be "full" or "basic", got %r' % (tier,))
     total = check_reference(question)
     check_public_suite(question, total)
     check_starter_fails(question)
-    caught = check_mutants(question)
+    caught = check_mutants(question, tier)
 
-    lines = ["    %d hidden tests, reference passes all" % (total,)]
+    lines = [
+        "    %d hidden tests, reference passes all%s"
+        % (total, "" if tier == "full" else "   [BASIC: suite not proved to discriminate]")
+    ]
     for name, score in caught:
         lines.append("    caught %-26s %s" % (name, score))
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}

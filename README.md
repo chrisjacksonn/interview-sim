@@ -244,10 +244,16 @@ what to practise.
 
 ## How questions are validated
 
-Every question in the bank has to pass `tools/qa.py`, which CI runs on every
-commit. The reference solution must pass the hidden suite, the untouched starter
-must not, and every deliberately-wrong solution in the question's `mutants/`
-directory must be caught by at least one hidden test.
+Every question has to pass `tools/qa.py`, which CI runs on every commit. The
+reference solution must pass the hidden suite, the untouched starter must not,
+and every deliberately-wrong solution in the question's `mutants/` directory must
+be caught by at least one hidden test.
+
+All eighteen questions in the bank today clear all three. A question may also be
+marked `"validated": "basic"`, which skips the third check: it is still
+answerable and non-trivial, but nothing has proved its hidden suite can tell a
+wrong answer from a right one, so it can mark something correct that is not. Any
+such question says so.
 
 That last check is the one that matters. A test suite that passes everything
 discriminates nothing, and grading against one is worse than not grading at all,

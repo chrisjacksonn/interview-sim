@@ -85,7 +85,13 @@ or crashed is also a zero, whatever the levels below it scored.
 ## How questions are validated
 
 Every question in the bank has passed `tools/qa.py`, which CI runs on every
-commit. Three checks:
+commit, at one of two levels. A **fully validated** question passes all three
+checks below. A question marked `"validated": "basic"` passes only the first two,
+which means nothing has proved its hidden suite can distinguish a wrong answer
+from a right one, and it may therefore mark something correct that is not. The
+tool reports which a question is.
+
+The three checks:
 
 1. **The reference solution passes the hidden suite.** Otherwise the question is
    unanswerable.

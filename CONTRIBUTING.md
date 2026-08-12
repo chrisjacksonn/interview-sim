@@ -90,6 +90,24 @@ wrong answers: the off-by-one, the unsorted assumption, the missed edge case, th
 approach that is correct but too slow. If a mutant survives, your hidden suite is
 not discriminating and the fix is a better test, not a different mutant.
 
+### Two tiers
+
+Writing mutants is the expensive part, so a question may ship without them:
+
+```json
+"validated": "basic"
+```
+
+A basic question still has to be answerable and non-trivial, because the
+reference must pass and the untouched starter must fail. What it does not have
+is any proof that its hidden suite can tell a wrong answer from a right one, so
+it can mark something correct that is not. The gate says so, the README says so,
+and `--json` reports it.
+
+Full is the default and what every question in this bank is today. Prefer it.
+Basic exists so the bank can grow faster than mutants can be written, and
+upgrading later is just adding the `mutants/` directory.
+
 Expect to fail this on the first attempt. Two of the questions in this repository
 had suites that looked thorough and let a wrong answer through, and both were
 caught here rather than by review.
