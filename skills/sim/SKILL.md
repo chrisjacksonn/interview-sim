@@ -136,7 +136,8 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | --- | --- |
 | `/sim`, `/sim gca`, "start a GCA mock" | `start --format gca` |
 | `/sim status`, "how long do I have" | `status` |
-| "how much time on question 2" | `status` (the clock is per session, not per question) |
+| "how much time do I have left" | `status`. The remaining clock is per session, never per question |
+| "where did my time go", "what did I spend the hour on" | `report`, which breaks the clock down per question once the sitting is over |
 | `/sim ica`, "start an ICA mock" | `start --format ica` |
 | "submit", "grade this", "check question 1" | `submit --question q1` |
 | "submit" during an ICA run | `submit` with no argument, which means the open level |
@@ -519,6 +520,15 @@ Give a real debrief: what they got through, where the time went, which parts of 
 approach were sound, what to drill next. Now you may look at their solutions and
 talk about them properly, because the exam is over. You still do not read the hidden
 tests.
+
+**Lead with the "Where the time went" block, not with the score.** It is the only
+part of the report that measures the thing the format is testing, and it is
+usually where the sitting was actually lost: two thirds of the clock on one
+question, or a question never opened at all. Talk about that as a decision they
+made rather than a fact that befell them, because it is one they can practise.
+A question they never opened may well have been one they could have solved, and
+that is worth saying plainly. Do not read the timings out as a list; say what
+the shape of them means.
 
 Two things not to do. Do not soften the numbers, and do not inflate them either: a
 question that timed out or never ran is a zero, and `report` already counts it that

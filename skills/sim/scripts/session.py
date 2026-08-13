@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.13.0"
+VERSION = "0.14.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1483,6 +1483,11 @@ def command_start(args: argparse.Namespace) -> int:
             note=args.note,
         )
 
+    # Record what the freshly copied starters look like, without emitting edit
+    # events for them. Copying a starter is not work, and counting it as the
+    # first edit would put every session's opening minutes on question one.
+    observe_edits(workspace, state, baseline=True)
+
     write_state(workspace, state)
     write_readme(workspace, state)
     write_pointer(workspace)
@@ -1868,6 +1873,11 @@ def command_submit(args: argparse.Namespace) -> int:
             sys.stderr.write("Time is up. This submission was not accepted.\n")
             return EXIT_EXPIRED
 
+        # Already holding the lock, so this is observe_edits rather than
+        # sample_edits. _record_submission writes the state on the way out and
+        # carries the reading with it.
+        observe_edits(workspace, state)
+
         question = find_question(state, args.question)
         return _record_submission(
             args, workspace, state, question, report, per_level, now, gated
@@ -2012,6 +2022,184 @@ def _record_submission(
     return EXIT_OK
 
 
+# --------------------------------------------------------------------------
+# where the time went
+#
+# The pitch this tool makes is that four questions in seventy minutes is a
+# different problem from four questions. Nothing in it measured that: every
+# figure it reported was about whether the code was right, which is the part
+# any untimed judge already tells you. Almost nobody fails a screen because
+# they cannot do binary search. They fail because they spent half the clock on
+# question two and never opened question four.
+#
+# There is no watcher process, so the engine only sees the filesystem when
+# somebody runs a command. What survives that gap is the modification time on
+# each solution file, so every invocation samples it and records any value it
+# has not recorded before. That yields real timestamps, never invented ones,
+# just sparser than a watcher would give: the resolution is however often the
+# candidate checked the clock or submitted something.
+# --------------------------------------------------------------------------
+
+# Filesystem timestamps are not infinitely precise and a copy is not an edit.
+# Anything inside this of the value already recorded is the same write.
+EDIT_EPSILON = 0.5
+
+
+def solution_file(workspace: Path, directory: str) -> Path:
+    return workspace / directory / "solution.py"
+
+
+def question_dirs(state: Dict[str, Any]) -> List[str]:
+    """Each distinct working directory, in slot order.
+
+    An ICA project is four entries sharing one solution file, so the directory
+    is what to sample, not the question.
+    """
+    seen = []
+    for question in state.get("questions", []):
+        directory = question.get("dir")
+        if directory and directory not in seen:
+            seen.append(directory)
+    return seen
+
+
+def observe_edits(workspace: Path, state: Dict[str, Any], baseline: bool = False) -> bool:
+    """Fold the current mtime of every solution file into the event log.
+
+    With `baseline`, the current values are recorded without emitting events:
+    that is the copy `start` just made, and copying a starter is not work.
+
+    Returns whether anything was added, so the caller can decide to persist.
+    """
+    seen = state.setdefault("edits_seen", {})
+    changed = False
+    for directory in question_dirs(state):
+        try:
+            mtime = os.stat(str(solution_file(workspace, directory))).st_mtime
+        except OSError:
+            continue
+        previous = seen.get(directory)
+        if previous is None or baseline:
+            seen[directory] = mtime
+            changed = True
+            continue
+        # Different, not later. An editor writing through a temp file, a restore
+        # from a backup, or a checkout can all move an mtime backwards, and a
+        # file that is not what it was is an edit whichever way the clock went.
+        if abs(mtime - previous) > EDIT_EPSILON:
+            seen[directory] = mtime
+            add_event(state, mtime, "edited", question=directory)
+            changed = True
+    return changed
+
+
+def sample_edits(workspace: Path, state: Dict[str, Any]) -> None:
+    """Take a reading, and write it down if there was anything new.
+
+    Best effort deliberately. A read-only workspace, or a lock somebody else is
+    holding, should cost the timeline some resolution and nothing more: no
+    command fails because a measurement could not be taken.
+
+    Never call this while already holding the session lock. flock associates
+    with the open file description, so a second open in the same process waits
+    on the first and the command hangs. The paths that already hold the lock
+    call observe_edits directly and let their own write carry it.
+    """
+    try:
+        if not observe_edits(workspace, state):
+            return
+        with session_lock(workspace):
+            write_state(workspace, state)
+    except (SessionError, IOError, OSError):
+        pass
+
+
+def session_end_point(state: Dict[str, Any], now: float) -> float:
+    """The last moment that counts, whether or not the session is over."""
+    clock = state["clock"]
+    end_point = clock.get("ended_epoch")
+    if end_point is None:
+        end_point = now
+    return min(end_point, clock["deadline_epoch"])
+
+
+def time_attribution(state: Dict[str, Any], now: float) -> Dict[str, Any]:
+    """Split the clock between the questions, from what was actually observed.
+
+    Non-gated formats are attributed forwards: touching a question at time T
+    means it holds the clock from T until something else is touched. The other
+    direction, giving a question the stretch that ends at its first save, reads
+    plausibly and is wrong. It hands the opening minutes of real work on
+    question one to whatever got saved next, and leaves question one owning
+    only the time before anybody had written anything.
+
+    The stretch before the first edit belongs to no question, because nothing
+    had been written yet. That is reading, and it is worth seeing on its own.
+
+    Gated formats put every level in one file, so mtimes cannot separate them.
+    They partition on the level boundaries instead, which are exact: a level
+    runs from the moment it unlocked to the moment the next one did.
+    """
+    clock = state["clock"]
+    start = clock["started_epoch"]
+    end_point = session_end_point(state, now)
+    spent = dict((directory, 0.0) for directory in question_dirs(state))
+    events = sorted(state.get("events", []), key=lambda item: item.get("epoch", 0.0))
+
+    if FORMATS[state["format"]]["gated"]:
+        # Level 1 begins when the session does; each later level begins when it
+        # was unlocked. Boundaries partition the clock, so nothing is lost.
+        by_slot = {}
+        for question in state.get("questions", []):
+            by_slot[question["slot"]] = question
+        opened = {1: start}
+        for event in events:
+            if event.get("type") == "level_unlocked":
+                opened[event.get("level")] = event.get("epoch", start)
+        levels = sorted(opened)
+        per_level = {}
+        for index, slot in enumerate(levels):
+            began = opened[slot]
+            finished = opened[levels[index + 1]] if index + 1 < len(levels) else end_point
+            question = by_slot.get(slot)
+            if question is not None:
+                per_level[question["id"]] = max(0.0, finished - began)
+        return {
+            "by_level": per_level,
+            "by_question": spent,
+            "touched": set(),
+            "reading": 0.0,
+            "observed": True,
+        }
+
+    moments = []
+    touched = set()
+    for event in events:
+        kind = event.get("type")
+        if kind not in ("edited", "submitted"):
+            continue
+        directory = event.get("question")
+        if directory not in spent:
+            continue
+        epoch = event.get("epoch")
+        if epoch is None:
+            continue
+        touched.add(directory)
+        moments.append((min(max(epoch, start), end_point), directory))
+    moments.sort()
+
+    for index, (epoch, directory) in enumerate(moments):
+        following = moments[index + 1][0] if index + 1 < len(moments) else end_point
+        spent[directory] += max(0.0, following - epoch)
+    return {
+        "by_level": {},
+        "by_question": spent,
+        "touched": touched,
+        "reading": max(0.0, moments[0][0] - start) if moments else 0.0,
+        "observed": bool(moments),
+    }
+
+
 def band_for(credit: float, solved: int, count: int) -> str:
     """A qualitative band, deliberately not a number.
 
@@ -2037,6 +2225,9 @@ def command_report(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
     state = read_state(workspace)
+    # The last look, so work done after the final submission still lands on the
+    # timeline rather than vanishing into the unaccounted bucket.
+    sample_edits(workspace, state)
 
     phase = classify(state, now)
     if phase == STATE_EXPIRED:
@@ -2084,6 +2275,8 @@ def command_report(args: argparse.Namespace) -> int:
                 "summary": summary,
                 "credit": (result or {}).get("credit", 0.0),
                 "last_submit_epoch": question.get("last_submit_epoch"),
+                "id": question["id"],
+                "state": question.get("state"),
             }
         )
 
@@ -2098,10 +2291,30 @@ def command_report(args: argparse.Namespace) -> int:
     # Time used can never exceed the time the session had. A session abandoned
     # hours after its deadline records that later moment as its ending, which
     # otherwise reported "used 3:03:20 of 1:10:00".
-    end_point = clock.get("ended_epoch")
-    if end_point is None:
-        end_point = now
-    used = min(end_point, clock["deadline_epoch"]) - clock["started_epoch"]
+    used = session_end_point(state, now) - clock["started_epoch"]
+
+    # Where the time went, folded onto the lines the report already prints.
+    timing = time_attribution(state, now)
+    for line in lines:
+        if gated:
+            seconds = timing["by_level"].get(line["id"], 0.0)
+            # A level still locked was never reached, which is not the same as
+            # reached and left unsubmitted.
+            opened = line["state"] != STATE_LOCKED
+        else:
+            seconds = timing["by_question"].get(line["dir"], 0.0)
+            # Never edited and never submitted. Worth separating from a question
+            # that was opened and got nowhere, because they are different
+            # mistakes with different fixes. Judged on whether it was ever
+            # touched, not on the seconds: a question opened in the last minute
+            # of the session is still a question that was opened.
+            opened = line["dir"] in timing["touched"]
+        line["seconds"] = round(max(0.0, seconds), 1)
+        line["time_display"] = format_duration(seconds) if opened else None
+        line["share"] = round(seconds / used, 4) if used > 0 else 0.0
+        line["opened"] = opened
+    unopened = [line for line in lines if not line["opened"]]
+    heaviest = max(lines, key=lambda item: item["seconds"]) if lines else None
 
     payload = {
         "session_id": state["session_id"],
@@ -2119,6 +2332,11 @@ def command_report(args: argparse.Namespace) -> int:
         "hints": hints_given,
         "time_used_display": format_duration(used),
         "duration_display": format_duration(clock["duration_seconds"]),
+        "timing": {
+            "reading_seconds": round(timing["reading"], 1),
+            "observed": timing["observed"],
+            "never_opened": [line["dir"] for line in unopened],
+        },
         "detail": lines,
         "score_note": (
             "Unofficial. This is what these hidden tests measured, and not the "
@@ -2142,10 +2360,59 @@ def command_report(args: argparse.Namespace) -> int:
             print("  %-10s %s" % (line["title"], line["summary"]))
         else:
             print(
-                "  %-4s %-12s %-10s %s"
+                "  %-4s %-13s %-10s %s"
                 % (line["dir"], line["summary"], line["difficulty"], line["title"])
             )
     print("")
+
+    if timing["observed"]:
+        print("Where the time went")
+        print("")
+        # "Level 1" needs more room than "q1", and a ragged first column makes
+        # the times impossible to compare down the page.
+        width = max([len(line["title"] if gated else line["dir"]) for line in lines] or [4])
+        for line in lines:
+            label = line["title"] if gated else line["dir"]
+            if not line["opened"]:
+                print("  %-*s %s" % (width, label, "never reached" if gated else "not opened"))
+                continue
+            marker = ""
+            # Only worth pointing at when it is genuinely lopsided. An even
+            # split across four questions has no story in it and drawing an
+            # arrow at 26% would invent one.
+            if line is heaviest and line["share"] >= 0.30 and len(lines) > 1:
+                marker = "   %.0f%% of the clock" % (line["share"] * 100,)
+            # "not attempted" is the right word in the results above and the
+            # wrong one here, where the line exists to say a quarter of an hour
+            # went into it. It was attempted. It was never submitted.
+            summary = "not submitted" if not line["attempts"] else line["summary"]
+            print(
+                "  %-*s %-13s %8s   %d submit%s%s"
+                % (
+                    width,
+                    label,
+                    summary,
+                    line["time_display"],
+                    line["attempts"],
+                    "" if line["attempts"] == 1 else "s",
+                    marker,
+                )
+            )
+        if timing["reading"] >= 60:
+            print("")
+            print(
+                "  %s before the first edit, reading."
+                % (format_duration(timing["reading"]),)
+            )
+        if unopened and not gated:
+            print("")
+            paragraph(
+                "%d question%s never opened. Running out of time is a result, "
+                "but never seeing a question is a triage result: the one you "
+                "skipped may have been the one you could do."
+                % (len(unopened), "" if len(unopened) == 1 else "s")
+            )
+        print("")
     if gated:
         print("Reached and passed %d of %d levels." % (solved, count))
         if total_tests:
@@ -2408,217 +2675,6 @@ def command_learn(args: argparse.Namespace) -> int:
         % (name, (" round %r" % (round_name,)) if round_name else "", research_log_path())
     )
     rounds = entry.get("rounds", [])
-    if len(rounds) > 1:
-        print("%s now has %d rounds recorded:" % (name, len(rounds)))
-        for item in rounds:
-            print("  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item)))
-    paragraph(
-        "A dated note about what a search turned up, for comparing against next "
-        "time. It is not consulted instead of looking again."
-    )
-    return EXIT_OK
-
-
-def age_phrase(entry: Dict[str, Any], now: float) -> str:
-    """", 12 days ago" or "", for printing after a date."""
-    age = entry_age_days(entry, now)
-    if age is None:
-        return ""
-    if age <= 0:
-        return ", today"
-    if age == 1:
-        return ", yesterday"
-    return ", %d days ago" % (age,)
-
-
-def record_research(
-    name: str,
-    round_name: Optional[str],
-    shape: Dict[str, Any],
-    sources: List[str],
-    now: float,
-    confidence: Optional[str] = None,
-    note: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Write down what a search turned up, or update what it turned up before.
-
-    Rounds accumulate rather than replace, because a process is learned in
-    pieces: the assessment turns up in one thread and the live round in another,
-    days apart. Re-recording a round overwrites that round and restamps the
-    date, keeping the sources from both passes.
-
-    This is a note about a date, not a fact about a company. Nothing reads it on
-    the way into a session.
-    """
-    path = research_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = {}
-    for source in legacy_research_log_paths() + [path]:
-        try:
-            with open(str(source), "r") as handle:
-                existing.update(json.load(handle).get("presets", {}))
-        except (IOError, ValueError):
-            continue
-    for stored in existing.values():
-        stored.pop("researched", None)
-
-    entry = dict(existing.get(name) or {})
-    entry.update(
-        {
-            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
-            "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(now)),
-        }
-    )
-    if confidence:
-        entry["confidence"] = confidence
-
-    this_round = {"name": round_name}
-    for key, value in shape.items():
-        if value:
-            this_round[key] = value
-    if note:
-        this_round["note"] = note
-
-    rounds = [
-        item
-        for item in entry.get("rounds", [])
-        if isinstance(item, dict) and item.get("name") != round_name
-    ]
-    rounds.append(this_round)
-    entry["rounds"] = rounds
-    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
-        entry.pop(stale, None)
-
-    existing[name] = entry
-    write_json(
-        path,
-        {
-            "schema_version": 2,
-            "_about": (
-                "What a search turned up about a company, and when. Notes for "
-                "comparing against the next search, never consulted in place of "
-                "one. Nothing here is checked by anyone."
-            ),
-            "presets": existing,
-        },
-    )
-    return entry
-
-
-def command_learn(args: argparse.Namespace) -> int:
-    """Record what was found out about a company, on this machine only.
-
-    The shipped table has nineteen rows because every one of them was checked
-    and cited, which is slow. This is the other half: when the agent researches
-    a company on request, what it found is written down here rather than
-    evaporating, so the second session for that company does not start from
-    nothing.
-
-    A source, a date and a confidence, or it does not get written down. A claim
-    about what a company does to candidates, with nothing behind it, is a rumour,
-    and a rumour with a timestamp on it is worse rather than better.
-    """
-    name = args.name.strip().lower()
-    if not name:
-        raise SessionError("Which company?", EXIT_USAGE)
-
-    sources = [source for source in (args.source or []) if source.strip()]
-    if not sources:
-        raise SessionError(
-            "At least one --source is required. A claim about what a company "
-            "does to candidates,\nwith nothing behind it, is a rumour.",
-            EXIT_USAGE,
-        )
-    for source in sources:
-        if not source.startswith("http"):
-            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
-
-    if args.confidence not in CONFIDENCE_LEVELS:
-        raise SessionError(
-            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
-            EXIT_USAGE,
-        )
-    if args.format and args.format.lower() not in FORMATS:
-        raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
-
-    path = research_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Everything already known, including anything written to an older location,
-    # so re-recording one company does not drop the rest on the way past.
-    existing = {}
-    for source in legacy_research_log_paths() + [path]:
-        try:
-            with open(str(source), "r") as handle:
-                existing.update(json.load(handle).get("presets", {}))
-        except (IOError, ValueError):
-            continue
-    for entry in existing.values():
-        entry.pop("researched", None)
-
-    # A second call for the same company adds a round rather than replacing what
-    # is there. A process is learned in pieces: the assessment turns up in one
-    # thread and the live round in another, and the second finding should not
-    # erase the first.
-    entry = dict(existing.get(name) or {})
-    entry.update(
-        {
-            "confidence": args.confidence,
-            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
-            "last_confirmed": time.strftime(
-                "%Y-%m-%d", time.gmtime(resolve_now(args.now))
-            ),
-            "researched": True,
-        }
-    )
-
-    this_round = {"name": args.round.strip().lower() if args.round else None}
-    if args.format:
-        this_round["format"] = args.format.lower()
-        this_round["format_confidence"] = args.format_confidence
-    if args.mode:
-        this_round["mode"] = args.mode
-    if args.questions:
-        this_round["questions"] = args.questions
-    if args.minutes:
-        this_round["minutes"] = args.minutes
-    topics = [item.strip() for item in (args.topic or []) if item.strip()]
-    if topics:
-        this_round["topics"] = topics
-    if args.note:
-        this_round["note"] = args.note
-
-    rounds = [
-        item
-        for item in entry.get("rounds", [])
-        if isinstance(item, dict) and item.get("name") != this_round["name"]
-    ]
-    rounds.append(this_round)
-    entry["rounds"] = rounds
-    # The old single-shape keys would otherwise sit alongside the rounds list and
-    # disagree with it.
-    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
-        entry.pop(stale, None)
-    existing[name] = entry
-    write_json(
-        path,
-        {
-            "schema_version": 1,
-            "_about": (
-                "Companies researched on this machine. Not reviewed, not part of "
-                "the repository, and always labelled as such when used. The "
-                "shipped presets.json wins over anything here."
-            ),
-            "presets": existing,
-        },
-    )
-
-    if args.json:
-        print(json.dumps(dict(entry, name=name), indent=2))
-        return EXIT_OK
-    print(
-        "Recorded %s%s in %s"
-        % (name, (" round %r" % (this_round["name"],)) if this_round["name"] else "", path)
-    )
     if len(rounds) > 1:
         print("%s now has %d rounds recorded:" % (name, len(rounds)))
         for item in rounds:
@@ -3156,6 +3212,9 @@ def command_status(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
     state = read_state(workspace)
+    # Checking the clock is the commonest thing anybody does mid-session, which
+    # makes it the best chance to see the files as they are right now.
+    sample_edits(workspace, state)
 
     phase = classify(state, now)
     if phase == STATE_EXPIRED:

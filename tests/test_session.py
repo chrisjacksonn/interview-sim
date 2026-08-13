@@ -1740,5 +1740,142 @@ class TestSubmit(BankAwareTestCase):
                 self.assertNotIn(name, stream, "leaked %s" % name)
 
 
+class TimeAttributionTests(SessionTestCase):
+    """Where the clock went, which is the thing the format actually tests.
+
+    Edits are observed through file mtimes, so these set mtimes explicitly with
+    os.utime rather than sleeping. That is the same code path a real edit takes:
+    the engine has no watcher and only ever reads st_mtime.
+    """
+
+    def start_exam(self, questions=4, now=T0):
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", questions, "--now", now
+        )
+        self.assertEqual(code, EXIT_OK, "start failed: %s%s" % (out, err))
+        return self.workspace()
+
+    def touch(self, workspace, directory, at, body="# work\n"):
+        path = workspace / directory / "solution.py"
+        path.write_text(path.read_text() + body)
+        os.utime(str(path), (at, at))
+
+    def report_json(self, now):
+        code, out, err = self.run_session("report", "--now", now, "--json")
+        self.assertIn(code, (EXIT_OK, EXIT_EXPIRED), err)
+        return json.loads(out)
+
+    def line(self, payload, directory):
+        for line in payload["detail"]:
+            if line["dir"] == directory:
+                return line
+        raise AssertionError("no line for %s" % (directory,))
+
+    def test_copying_the_starters_is_not_an_edit(self):
+        """Otherwise every session opens with its first question already ahead."""
+        self.start_exam()
+        events = [e for e in self.state()["events"] if e["type"] == "edited"]
+        self.assertEqual(events, [])
+
+    def test_an_untouched_question_is_never_opened(self):
+        workspace = self.start_exam()
+        self.touch(workspace, "q1", T0 + 600)
+        payload = self.report_json(T0 + 1200)
+        self.assertTrue(self.line(payload, "q1")["opened"])
+        self.assertFalse(self.line(payload, "q4")["opened"])
+        self.assertIn("q4", payload["timing"]["never_opened"])
+
+    def test_time_lands_on_the_question_that_was_edited(self):
+        workspace = self.start_exam()
+        self.touch(workspace, "q1", T0 + 300)
+        self.run_session("status", "--now", T0 + 310)
+        self.touch(workspace, "q2", T0 + 900)
+        payload = self.report_json(T0 + 1000)
+        # q1 ran from its first edit to q2's: ten minutes.
+        self.assertAlmostEqual(self.line(payload, "q1")["seconds"], 600.0, delta=1.0)
+        self.assertAlmostEqual(payload["timing"]["reading_seconds"], 300.0, delta=1.0)
+
+    def test_the_opening_stretch_is_reading_not_the_first_question(self):
+        """Nothing had been written yet, so it cannot be work on anything."""
+        workspace = self.start_exam()
+        self.touch(workspace, "q2", T0 + 480)
+        payload = self.report_json(T0 + 600)
+        self.assertAlmostEqual(payload["timing"]["reading_seconds"], 480.0, delta=1.0)
+        # q2 owns only what came after it was touched, not the eight minutes
+        # spent reading before anything was written.
+        self.assertAlmostEqual(self.line(payload, "q2")["seconds"], 120.0, delta=1.0)
+
+    def test_the_pieces_add_up_to_the_time_used(self):
+        workspace = self.start_exam()
+        for directory, at in (("q1", 300), ("q2", 1500), ("q1", 2000), ("q3", 3000)):
+            self.touch(workspace, directory, T0 + at)
+            self.run_session("status", "--now", T0 + at + 5)
+        payload = self.report_json(T0 + 70 * 60 + 500)
+        total = (
+            sum(line["seconds"] for line in payload["detail"])
+            + payload["timing"]["reading_seconds"]
+        )
+        self.assertAlmostEqual(total, 70 * 60, delta=2.0)
+
+    def test_going_back_to_an_earlier_question_adds_to_it(self):
+        workspace = self.start_exam()
+        self.touch(workspace, "q1", T0 + 300)
+        self.run_session("status", "--now", T0 + 310)
+        self.touch(workspace, "q2", T0 + 600)
+        self.run_session("status", "--now", T0 + 610)
+        self.touch(workspace, "q1", T0 + 900)
+        payload = self.report_json(T0 + 1000)
+        # q1 owns 300->600 and again 900->1000; q2 owns 600->900 in between.
+        self.assertAlmostEqual(self.line(payload, "q1")["seconds"], 400.0, delta=1.0)
+        self.assertAlmostEqual(self.line(payload, "q2")["seconds"], 300.0, delta=1.0)
+
+    def test_an_edit_with_an_older_mtime_still_counts(self):
+        """Editors write through temp files and restores move mtimes backwards.
+
+        A file that is not what it was is an edit whichever way its clock went.
+        """
+        workspace = self.start_exam()
+        self.touch(workspace, "q1", T0 + 900)
+        self.run_session("status", "--now", T0 + 910)
+        self.touch(workspace, "q1", T0 + 400)
+        self.run_session("status", "--now", T0 + 920)
+        edits = [e for e in self.state()["events"] if e["type"] == "edited"]
+        self.assertEqual(len(edits), 2)
+
+    def test_report_prints_the_section(self):
+        workspace = self.start_exam()
+        self.touch(workspace, "q1", T0 + 600)
+        code, out, _ = self.run_session("report", "--now", T0 + 1200)
+        self.assertIn("Where the time went", out)
+        self.assertIn("not opened", out)
+
+    def test_never_reading_the_files_says_nothing_rather_than_guessing(self):
+        """A sitting where no command ever saw an edit has no timeline, and an
+        empty one is better than an invented one."""
+        self.start_exam()
+        payload = self.report_json(T0 + 1200)
+        self.assertFalse(payload["timing"]["observed"])
+        code, out, _ = self.run_session("report", "--now", T0 + 1200)
+        self.assertNotIn("Where the time went", out)
+
+    def test_gated_levels_are_timed_from_their_unlock(self):
+        code, out, err = self.run_session(
+            "start", "--format", "ica", "--project", "parcel-locker", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        workspace = self.workspace()
+        project = workspace / "parcel-locker"
+        reference = QUESTIONS / "ica" / "parcel-locker" / "reference.py"
+        (project / "solution.py").write_text(reference.read_text())
+        self.run_session("submit", "--now", T0 + 600)
+        payload = self.report_json(T0 + 90 * 60 + 100)
+        levels = payload["detail"]
+        # Level 1 ran from the start to the moment level 2 unlocked.
+        self.assertAlmostEqual(levels[0]["seconds"], 600.0, delta=2.0)
+        self.assertTrue(levels[0]["opened"])
+        # Level 3 never unlocked, so it was never reached.
+        self.assertFalse(levels[2]["opened"])
+
+
 if __name__ == "__main__":
     unittest.main()

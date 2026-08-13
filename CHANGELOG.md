@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.14.0
+
+**The report now says where the time went.**
+
+The claim this tool makes is that four questions in seventy minutes is a
+different problem from four questions. Nothing in it measured that. Every figure
+it printed was about whether the code was right, which is the part any untimed
+judge already tells you. Almost nobody fails a screen because they cannot do
+binary search. They fail because two thirds of the clock went on question two
+and question four was never opened, and the tool watched that happen and said
+nothing about it.
+
+```
+Where the time went
+
+  q1 28/28              9:00   2 submits
+  q2 19/25             46:40   7 submits   67% of the clock
+  q3 not submitted      8:20   0 submits
+  q4 not opened
+
+  6:00 before the first edit, reading.
+```
+
+The timings are measured, not estimated. There is no watcher process, so the
+engine only sees the filesystem when a command runs: every invocation samples
+the modification time on each solution file and records any value it has not
+seen before. That gives real timestamps and never invented ones, at whatever
+resolution the candidate happened to check the clock at. A sitting where nothing
+was ever observed prints no timeline at all rather than a guessed one.
+
+Time is attributed forwards: touching a question means it holds the clock until
+something else is touched. Attributing backwards instead, giving a question the
+stretch that ends at its first save, reads just as plausibly and is wrong. It
+hands the opening minutes of real work on question one to whatever got saved
+next, and leaves question one owning only the time before anyone had written
+anything.
+
+Gated sessions cannot use file times, because all four levels share one solution
+file. They partition on the level boundaries instead, which are exact: a level
+runs from the moment it unlocked to the moment the next one did.
+
+A question never opened is reported separately from one that was opened and got
+nowhere. They are different mistakes and they have different fixes.
+
+Also fixed on the way past: `session.py` carried three functions defined twice.
+`age_phrase` and `record_research` were identical copies, but the live
+`command_learn` was the stale one, still describing a shipped table of companies
+that was deleted two versions ago, while the refactored version that shares
+`record_research` with `start --source` sat shadowed and unreachable. 211 lines
+removed.
+
 ## 0.13.0
 
 **Every question in the bank now passes the mutation gate, and closing that gap

@@ -25,6 +25,7 @@ If your invite email uses the platform's own names for the first two, they are
 - `start`, `status`, `submit`, `hint`, `unlock`, `report`, and `list`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
+- a per-question time breakdown, so a sitting lost to bad triage says so
 
 The bank is **twenty-two questions and four projects**, four or five in
 every difficulty slot. A session takes one question per slot, and it remembers
@@ -229,7 +230,35 @@ of its tests passed, and nothing else: which ones failed is the part you are
 meant to work out. Resubmit as often as you like, it only costs time.
 
 Once the deadline passes the session is over, and a submission after that is
-refused even if it is correct. `report` then summarises the sitting.
+refused even if it is correct. `report` then summarises the sitting, including
+where the time actually went:
+
+```console
+$ sim report
+gca-20260812T013654Z  GCA
+Finished (time). Used 1:10:00 of 1:10:00.
+
+  q1   28/28         warmup     Bracket Check
+  q2   19/25         medium     Build Order
+  q3   not attempted medium     Merge Feeds
+  q4   not attempted hard       Route Fuel
+
+Where the time went
+
+  q1 28/28              9:00   2 submits
+  q2 19/25             46:40   7 submits   67% of the clock
+  q3 not submitted      8:20   0 submits
+  q4 not opened
+
+  6:00 before the first edit, reading.
+```
+
+That last block is the one worth reading. Almost nobody fails a screen because
+they cannot do binary search; they fail because two thirds of the clock went on
+one question and the last one was never opened. The timings come from the
+modification times on your own files, sampled whenever you run a command, so
+they are measured rather than estimated. Nothing watches you in the background,
+which means the resolution is however often you checked the clock.
 
 ### ICA runs work differently
 
@@ -384,11 +413,13 @@ with no agent at all if you would rather.
 There isn't one. The scales real assessment platforms report are proprietary and
 calibrated against data that is not public, so no third-party tool can reproduce it, and this one does
 not pretend to. `report` tells you which questions you solved, how many hidden
-tests passed, and a qualitative band. A question that timed out or was never
-attempted counts as a zero rather than being quietly dropped from the average.
+tests passed, a qualitative band, and where your time went. A question that timed
+out or was never attempted counts as a zero rather than being quietly dropped
+from the average.
 
 That is less satisfying than a number and considerably more useful for working out
-what to practise.
+what to practise. The time breakdown in particular measures the thing the format
+is actually testing, which no amount of untimed practice can tell you.
 
 ## How questions are validated
 
