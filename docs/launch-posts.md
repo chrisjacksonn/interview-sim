@@ -136,6 +136,8 @@ Built this because the format was what kept catching me out, not the problems.
   adding level 4 costs you
 - Real files in your own editor, hidden tests, hard stop at time
 - Twenty-two questions and four projects, all original
+- The report breaks down where your time actually went, per question, so a
+  sitting lost to bad triage says so instead of just showing you a low score
 - `progress` shows what your sittings add up to: which difficulty band you lose
   tests in, and how many questions you never reached
 
@@ -168,5 +170,10 @@ Free, MIT, no signup, no account.
   and above all the levelled project, where level 4 makes you refactor code levels 1 to 3
   still have to pass. Nothing else practises that, and it is the level people
   report failing.
+
+  The concrete version of that answer is the time breakdown. A timer tells you
+  that you ran out. It does not tell you that two thirds of the hour went on
+  question two and question four was never opened, which is the actual reason
+  the sitting went the way it did and the thing you would change next time.
 - Difficulty calibration is one person's judgement and there is no candidate data
   behind it. Say so if asked. It is the weakest part.

@@ -36,6 +36,45 @@ the deadline**, not at the moment it noticed. So checking twice after the buzzer
 gives the same answer twice, and a session you abandoned for an hour does not
 report an hour of overtime.
 
+## What the time breakdown measures
+
+`report` splits the clock between the questions. This is measured rather than
+estimated, but it is measured indirectly, and the difference matters.
+
+There is no watcher process and nothing observes the filesystem in the
+background. Every command invocation reads the modification time of each
+solution file and records any value it has not already recorded. Those are real
+timestamps written by your editor, so no moment in the timeline is invented.
+What is limited is **resolution**: the engine only learns about an edit the next
+time you run a command. Someone who works for forty minutes in silence and then
+submits gives it two observations to work from, and the breakdown will be
+correspondingly coarse. Someone who checks the clock every few minutes gets a
+fine-grained one. A sitting that produced no observations at all prints no
+breakdown rather than a fabricated one.
+
+Time is attributed **forwards**: touching a question means it holds the clock
+from that moment until something else is touched. This is a modelling choice,
+not a measurement, and the alternative is defensible enough to be worth naming.
+Attributing backwards, so that a save claims the stretch ending at it, credits
+the work leading up to each save. It was rejected because it gives the opening
+minutes of genuine work on the first question to whichever question was saved
+second, and leaves the first owning only the time before anything had been
+written. Neither model can see a switch you made between two saves.
+
+The stretch before the first edit is reported on its own as reading, because
+nothing had been written yet and it cannot honestly be charged to any question.
+
+Gated sessions do not use file times at all, because every level shares one
+solution file. They partition on level boundaries instead, which are exact: a
+level runs from the moment it unlocked to the moment the next one did. The cost
+is the reverse limitation, that time spent going back to revise an earlier level
+is charged to whichever level was open at the time.
+
+A question that was never edited and never submitted is reported as never opened,
+separately from one that was opened and produced nothing. They are different
+results and the distinction is not inferred, it is the presence or absence of any
+observation at all.
+
 ## What grading measures
 
 Each question ships a hidden test suite. `submit` runs your solution against it
@@ -117,7 +156,7 @@ solution squeaked under the timeout.
 - **Difficulty calibration is a judgement call.** Slots are assigned by the
   author against the public difficulty descriptions. There is no candidate data
   behind them.
-- **The bank is small.** Fifteen questions and three projects is three or four
+- **The bank is small.** Twenty-two questions and four projects is five or six
   sittings of each format. Recently served questions are tracked and avoided, but
   once the bank is exhausted it starts over, and a remembered question measures
   memory rather than ability.
