@@ -324,10 +324,6 @@ def check_question(question):
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}
 
 
-PRESET_REQUIRED = ("format", "confidence", "sources", "last_confirmed")
-PRESET_CONFIDENCE = ("high", "medium")
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="qa.py", description="Validate every question in the bank."
@@ -370,16 +366,9 @@ def main(argv=None):
                         print(line)
                 print("  ok    %s" % (label,))
 
-    preset_problems = []
-    for problem in preset_problems:
-        print("  FAIL  %s" % (problem,))
-
     print("")
-    if failures or preset_problems:
-        if failures:
-            print("%d of %d questions failed the gate." % (len(failures), len(targets)))
-        if preset_problems:
-            print("%d preset problem(s)." % (len(preset_problems),))
+    if failures:
+        print("%d of %d questions failed the gate." % (len(failures), len(targets)))
         return 1
     print("%d question(s) passed the gate." % (len(targets),))
     return 0

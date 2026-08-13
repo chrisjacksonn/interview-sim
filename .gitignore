@@ -7,9 +7,13 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Session artifacts. Sessions are created outside the repo by default
-# (~/interview-sim-sessions), but never commit one if a --workspace override
-# puts it here.
+# Session artifacts. Sessions are created under the directory you run from, so
+# running one inside a checkout puts them here. Each workspace also writes its
+# own self-ignoring .gitignore, but the root holds `current` and `history.json`
+# and those must not be committed either: `current` is an absolute path on one
+# machine, and a committed `history.json` would tell every fresh clone that
+# questions it has never served were already used.
+interview-sim-sessions/
 sessions/
 sim-sessions/
 .sim/
