@@ -69,7 +69,8 @@ These describe the format only. No question content comes from any of them.
 
 - CodeSignal's knowledge base on GCA structure:
   https://support.codesignal.com/hc/en-us/articles/360040370853-What-should-I-expect-when-I-take-the-General-Coding-Assessment-GCA-and-how-is-it-structured
-- CodeSignal's published customer list, used for `presets.json`:
+- The platform's published customer list, kept as a citation only, since the
+  company table it once fed has been removed:
   https://codesignal.com/customers/
 - A community-maintained record of online assessment formats:
   https://github.com/Leader-board/OA-and-Interviews

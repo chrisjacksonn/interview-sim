@@ -5,7 +5,7 @@ does.
 
 ## There is no score
 
-CodeSignal's General Coding Assessment reports on a 200 to 600 scale. That scale
+Real assessment platforms report a score on their own scale. That scale
 is proprietary. The calibration behind it is not published, and no third party
 has the data to reproduce it.
 

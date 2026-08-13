@@ -1,6 +1,6 @@
 ---
 name: sim
-description: Run a timed, proctored coding-assessment simulation in the terminal. Use when the user asks to start or check an OA practice run, an online assessment mock, a GCA mock (4 questions / 70 minutes), an ICA mock (1 project / 4 levels / 90 minutes), CodeSignal-style or LeetCode-style timed practice, a mock interview, or any timed coding assessment they want started, timed, checked, or graded, or when they paste a job posting and want to practise for that company's assessment.
+description: Run a timed, proctored coding-assessment simulation in the terminal. Use when the user asks to start or check an OA practice run, an online assessment mock, a GCA mock (4 questions / 70 minutes), an ICA mock (1 project / 4 levels / 90 minutes), a mock interview, a pairing round, a take-home, or any timed coding assessment they want started, timed, checked, or graded, or when they paste a job posting and want to practise for that company's assessment.
 argument-hint: "[gca|ica|interview|status|<job posting URL>]"
 allowed-tools: Read, Glob, Bash(python3:*), WebFetch, WebSearch
 license: MIT
@@ -10,8 +10,6 @@ license: MIT
 
 Runs a real timed assessment. `scripts/session.py` owns the clock and the grades.
 Whichever mode you are in, you never grade and you never keep time yourself.
-
-Not affiliated with or endorsed by CodeSignal or LeetCode.
 
 ## Two modes
 
@@ -502,7 +500,7 @@ and every extra repetition buys nothing that the first one did not.
 Compare. This is wrong:
 
 > The bank had nothing on the topics I recorded for Shopify, so it drew a
-> classic scheduling problem instead. That's a more LeetCode-shaped question
+> classic scheduling problem instead. That's a more algorithm-puzzle-shaped
 > than the real pairing round reportedly is. Still good practice though.
 
 This is right:
@@ -524,9 +522,9 @@ tests.
 
 Two things not to do. Do not soften the numbers, and do not inflate them either: a
 question that timed out or never ran is a zero, and `report` already counts it that
-way. And do not present the percentage as a CodeSignal score. It is what these
-particular hidden tests measured. The real 200-600 scale is proprietary and this
-tool does not estimate it, which `report` says out loud.
+way. And do not present the percentage as the score a real platform would give
+them. It is what these particular hidden tests measured, and the scales the real
+platforms report are proprietary, which `report` says out loud.
 
 If they have sat more than one session, run `progress` as well. One sitting is a
 data point and several are a shape, and the shape is usually the more useful

@@ -1,7 +1,7 @@
 {
   "name": "interview-sim",
-  "version": "0.11.0",
-  "description": "Timed online-assessment simulations: GCA-style (4 questions / 70 minutes), ICA-style (1 project / 4 levels / 90 minutes), and a live interview mode, with a deterministic timer and hidden-test grading.",
+  "version": "0.12.0",
+  "description": "Practice the technical screen a company actually runs: paste a posting, it researches the format, then sits you down with real files, hidden tests and a clock that does not negotiate.",
   "author": {
     "name": "Chris Jackson",
     "url": "https://github.com/chrisjacksonn"

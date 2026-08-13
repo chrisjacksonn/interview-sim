@@ -1,24 +1,32 @@
 # interview-sim
 
-Timed technical-assessment practice that runs in your terminal, as an Agent Skill.
+Practice the screen a company actually runs, on a real clock, in your own editor.
 
-CodeSignal-style and LeetCode-style practice, simulated in your IDE. Not
-affiliated with or endorsed by CodeSignal or LeetCode.
+Paste a job posting and it finds out what that company's technical screen is,
+then sits you down in front of one: real files, hidden tests, and a deadline that
+does not negotiate.
 
 ## Status
 
-The engine is complete. Both formats run end to end.
+The engine is complete. Three shapes of sitting, and the parameters are yours to
+set, because companies do not all run the same thing.
 
-- **GCA-style**: four questions, seventy minutes, all unlocked at once
-- **ICA-style**: one project, four levels, ninety minutes, levels gated by hidden
-  tests, with every level re-running the ones below it
-- **Interview mode**: one question, forty-five minutes, with an interviewer who
-  asks about your approach first and whose hints are counted
+- **The exam**: four questions, seventy minutes, all unlocked at once, silent
+  proctor. The shape of a standard online assessment
+- **The project**: one project, four levels, ninety minutes, levels gated by
+  hidden tests, with every level re-running the ones below it. Level 4 exists to
+  invalidate a decision you made at level 1
+- **The interview**: one question, forty-five minutes, with an interviewer who
+  asks about your approach first and whose hints are counted. The shape of a live
+  pairing round
+
+If your invite email uses the platform's own names for the first two, they are
+`--format gca` and `--format ica`.
 - `start`, `status`, `submit`, `hint`, `unlock`, `report`, and `list`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **twenty-two GCA questions and four ICA projects**, four or five in
+The bank is **twenty-two questions and four projects**, four or five in
 every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
@@ -373,8 +381,8 @@ with no agent at all if you would rather.
 
 ## On the score
 
-There isn't one. CodeSignal's 200-600 scale is proprietary and calibrated against
-data that is not public, so no third-party tool can reproduce it, and this one does
+There isn't one. The scales real assessment platforms report are proprietary and
+calibrated against data that is not public, so no third-party tool can reproduce it, and this one does
 not pretend to. `report` tells you which questions you solved, how many hidden
 tests passed, and a qualitative band. A question that timed out or was never
 attempted counts as a zero rather than being quietly dropped from the average.
@@ -389,7 +397,7 @@ reference solution must pass the hidden suite, the untouched starter must not,
 and every deliberately-wrong solution in the question's `mutants/` directory must
 be caught by at least one hidden test.
 
-Eighteen of the twenty-two GCA questions and all four ICA projects clear all
+Eighteen of the twenty-two questions and all four projects clear all
 three. A question may also be
 marked `"validated": "basic"`, which skips the third check: it is still
 answerable and non-trivial, but nothing has proved its hidden suite can tell a

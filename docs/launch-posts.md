@@ -50,8 +50,8 @@ put the target one hop from the start. And a performance test sized just small
 enough that a quadratic solution squeaked in under the timeout, so it caught
 nothing.
 
-There is no score. CodeSignal's 200-600 scale is proprietary and nobody outside
-can reproduce it, so the tool reports what it actually measured: which questions
+There is no score. The scales the real platforms report are proprietary and
+nobody outside can reproduce them, so the tool reports what it actually measured: which questions
 you solved, how many hidden tests passed, and how the time went. A question that
 timed out counts as a zero rather than being quietly dropped from the average.
 
@@ -123,15 +123,16 @@ Built this because the format was what kept catching me out, not the problems.
   previous one and earlier levels keep being tested, so breaking level 1 while
   adding level 4 costs you
 - Real files in your own editor, hidden tests, hard stop at time
-- Nineteen questions and four projects, all original
+- Twenty-two questions and four projects, all original
 - `progress` shows what your sittings add up to: which difficulty band you lose
   tests in, and how many questions you never reached
 
 Two things it deliberately does not do.
 
-**It does not give you a score.** The 200-600 scale is proprietary and no
-third-party tool can reproduce it. Anything claiming to predict it is guessing.
-This tells you which questions you solved and how many hidden tests passed.
+**It does not give you a score.** The scales the real platforms report are
+proprietary and no third-party tool can reproduce them. Anything claiming to
+predict one is guessing. This tells you which questions you solved and how many
+hidden tests passed.
 
 **It has nothing to do with cheating.** Offline, no contact with any assessment
 platform, no browser anything. It is practice equipment.
@@ -152,7 +153,7 @@ Free, MIT, no signup, no account.
   For reps on algorithms, LeetCode with a timer gets you most of the way at zero
   setup, and saying otherwise makes you look like you are selling something. What
   it does not give you is the triage of four questions at once, the not-finishing,
-  and above all the ICA shape, where level 4 makes you refactor code levels 1 to 3
+  and above all the levelled project, where level 4 makes you refactor code levels 1 to 3
   still have to pass. Nothing else practises that, and it is the level people
   report failing.
 - Difficulty calibration is one person's judgement and there is no candidate data

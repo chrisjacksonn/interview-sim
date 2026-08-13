@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.11.0"
+VERSION = "0.12.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -2015,7 +2015,7 @@ def _record_submission(
 def band_for(credit: float, solved: int, count: int) -> str:
     """A qualitative band, deliberately not a number.
 
-    CodeSignal's 200-600 scale is proprietary and calibrated against data that
+    The scales real platforms report are proprietary and calibrated against data
     is not public. Inventing a point estimate would be dressing a guess up as a
     measurement, so this reports what was actually observed instead. See
     non-negotiable 3.
@@ -2121,9 +2121,9 @@ def command_report(args: argparse.Namespace) -> int:
         "duration_display": format_duration(clock["duration_seconds"]),
         "detail": lines,
         "score_note": (
-            "Unofficial. This is what these hidden tests measured, not a "
-            "CodeSignal score. No 200-600 estimate is produced because that "
-            "scale is proprietary and cannot be reproduced honestly."
+            "Unofficial. This is what these hidden tests measured, and not the "
+            "score any real platform would give you: those scales are "
+            "proprietary and cannot be reproduced honestly."
         ),
     }
 

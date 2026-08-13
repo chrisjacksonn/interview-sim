@@ -62,14 +62,15 @@ anyway only costs you the practice you came for.
 
 ## On the scoring
 
-The score is not the real score. CodeSignal's 200-600 scale is proprietary and
-calibrated against data that is not public, so this tool does not attempt to
-reproduce it. What it reports is what it actually measured: which tests passed,
+The score is not the real score. The scales assessment platforms report are
+proprietary and calibrated against data that is not public, so this tool does
+not attempt to reproduce one. What it reports is what it actually measured: which tests passed,
 which did not, and how the time went. That is the honest version, and it is more
 useful for deciding what to practise next.
 
 ## Trademarks
 
-CodeSignal and LeetCode are trademarks of their respective owners. They are
-referenced here only to describe the format this tool imitates. interview-sim is
-not affiliated with, endorsed by, or connected to either company.
+This tool is not affiliated with, endorsed by, or connected to any assessment
+platform or employer. Where a company or platform is named in research output,
+it is named because you asked what they run, and never to suggest a connection.
+Any trademarks belong to their owners.

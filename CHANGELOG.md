@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.0
+
+**It stopped introducing itself as somebody else's product.** The tagline, the
+repository description, the plugin description and the first lines of the README
+all led with being a simulation of one vendor's two formats. That was accurate
+when the tool shipped nineteen of that vendor's customers in a table and could
+run nothing else. It is not accurate now: the company table is gone, sessions
+are built from whatever a company is actually researched to run, and three of
+the questions added this week are pairing-round shaped rather than assessment
+shaped.
+
+So it leads with what it does. The three shapes are named for what they are, an
+exam, a project and an interview, with a line noting which two your invite email
+might call something else. The score note no longer names a platform to say it
+is not reproducing that platform's scale, since the point holds for all of them.
+
+Trademarked names are gone from the branding entirely. They survive in two
+places on purpose: the words a candidate actually types, so the skill still fires
+when somebody says they have a GCA next week, and citations in the internal
+format reference, which is where naming a source is the honest thing to do.
+
 ## 0.11.0
 
 **Recording and running are one command.** `start --source https://...` writes
