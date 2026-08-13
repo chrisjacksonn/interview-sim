@@ -50,13 +50,12 @@ Aim for about 40 seconds. Roughly:
 
 ### One thing to get right
 
-Use a posting from a company the preset table has a **format** for. Only
-`capital-one` currently does. For every other entry the honest next beat is the
-agent asking whether you want GCA or ICA, because the table records that the
-format is not confirmed and the skill is told not to guess.
+There is no company table any more, so the agent has to research the company on
+camera before it can start anything. Either let that happen and keep the take
+long enough to show it, which is the honest version and the more interesting
+one, or pick a company you have already looked up in that session so the search
+does not repeat.
 
-That question is not a flaw and it should not be edited out if it happens. It is
-the difference between this and the sites that will confidently tell you a format
-they do not know. But it does mean that a demo built around an unknown company
-ends on a question rather than on a running clock, so pick the shot deliberately
-rather than discovering it mid-take.
+Do not edit out the moment where it says what it could not establish. That is
+the difference between this and the sites that will confidently name a format
+they have never verified.

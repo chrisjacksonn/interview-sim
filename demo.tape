@@ -46,12 +46,12 @@ Type "rm -rf /tmp/checkout-service && mkdir -p /tmp/checkout-service && cd /tmp/
 Type "clear" Enter
 Show
 
-Type "# you are in your own project. name the company you are interviewing with"
+Type "# you are in your own project. name the company, and what they run"
 Sleep 1500ms
 Enter
 Sleep 300ms
 
-Type "sim start --preset capital-one"
+Type "sim start --company capital-one --format gca"
 Sleep 600ms
 Enter
 Sleep 4200ms
