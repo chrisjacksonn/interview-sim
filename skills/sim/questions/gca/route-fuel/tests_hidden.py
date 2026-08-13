@@ -68,7 +68,9 @@ class TestRouteFuel(unittest.TestCase):
         self.assertNotIsInstance(result, bool)
 
     def test_input_is_not_mutated(self):
-        depots = [(10, 60), (20, 30)]
+        """Given out of order, because a list that is already sorted cannot show
+        whether the solution sorted it in place."""
+        depots = [(60, 40), (10, 60), (30, 30), (20, 30)]
         original = list(depots)
         solve(100, 10, depots)
         self.assertEqual(depots, original)

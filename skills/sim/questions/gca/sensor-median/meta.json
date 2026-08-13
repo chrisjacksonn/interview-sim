@@ -6,8 +6,12 @@
   "title": "Rolling Median",
   "time_hint_minutes": 20,
   "entrypoint": "solve",
-  "topics": ["heaps", "sorting", "sliding window"],
+  "topics": [
+    "heaps",
+    "sorting",
+    "sliding window"
+  ],
   "original": true,
   "authored": "2026-08-12",
-  "validated": "basic"
+  "validated": "full"
 }

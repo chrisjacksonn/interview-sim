@@ -44,11 +44,23 @@ caught by at least one hidden test**. That last check is the point. A suite that
 passes everything discriminates nothing, and grading against one is worse than
 not grading at all, because it tells you that you got it right when you did not.
 
-It has already caught two of my own suites being weak. A shortest-path question
-where a depth-first traversal passed everything, because every test happened to
-put the target one hop from the start. And a performance test sized just small
-enough that a quadratic solution squeaked in under the timeout, so it caught
-nothing.
+It keeps catching my own suites being weak, which is the only reason I trust it.
+A shortest-path question where a depth-first traversal passed everything,
+because every test happened to put the target one hop from the start. A
+performance test sized just small enough that a quadratic solution squeaked in
+under the timeout, so it caught nothing.
+
+The best one was a rolling-median question. The usual way to get that wrong is
+to keep the window sorted and then drop its front, which removes the smallest
+value rather than the one that actually slid out of the window. Twenty hidden
+tests, and not one of them caught it: in every case I had written, the departing
+reading happened to also be the smallest, so the bug was invisible. The question
+had been sitting in the bank looking tested. `solve([9, 0, 9], 2)` separates
+them, and now it is in the suite.
+
+Two of my "the input must not be modified" tests had the same problem from the
+other direction: the fixture was already in sorted order, so a solution that
+sorted the caller's list in place looked like it had left it alone.
 
 There is no score. The scales the real platforms report are proprietary and
 nobody outside can reproduce them, so the tool reports what it actually measured: which questions

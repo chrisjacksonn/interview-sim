@@ -6,8 +6,11 @@
   "title": "Repeat Alerts",
   "time_hint_minutes": 15,
   "entrypoint": "solve",
-  "topics": ["hash map", "sliding window"],
+  "topics": [
+    "hash map",
+    "sliding window"
+  ],
   "original": true,
   "authored": "2026-08-12",
-  "validated": "basic"
+  "validated": "full"
 }

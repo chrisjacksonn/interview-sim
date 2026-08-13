@@ -40,6 +40,18 @@ class TestRollingMedian(unittest.TestCase):
         # The value leaving the window also appears elsewhere in it.
         self.assertEqual(solve([1, 1, 2, 1], 3), [1.0, 1.0])
 
+    def test_removes_the_reading_that_left_not_the_smallest(self):
+        """The reading sliding out is the largest in its window.
+
+        Anything that keeps the window sorted and then drops its front is
+        removing the smallest instead of the one that actually left. That is the
+        usual way to get this wrong, and it needs a window whose departing
+        reading is not already the minimum to show up at all.
+        """
+        self.assertEqual(solve([9, 0, 9], 2), [4.5, 4.5])
+        self.assertEqual(solve([6, 0, 1, 8, 1], 3), [1.0, 1.0, 1.0])
+        self.assertEqual(solve([8, 3, 0, 1, 6], 2), [5.5, 1.5, 0.5, 3.5])
+
     def test_negative_readings(self):
         self.assertEqual(solve([-5, -1, -3], 3), [-3.0])
 

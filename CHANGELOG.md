@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.13.0
+
+**Every question in the bank now passes the mutation gate, and closing that gap
+found two questions grading people wrongly.**
+
+Four questions had been merged with `"validated": "basic"`, the marker for a
+question whose hidden suite has never been shown to catch a wrong answer. There
+was one of them in every difficulty slot, which is the worst possible place for
+them to be: a four-question exam draws one from each slot, so 58% of sittings
+included a question that could mark a wrong solution correct.
+
+Writing the missing wrong-solutions turned up real holes in two suites that were
+already considered finished.
+
+Rolling Median could not detect the standard way of getting a sliding window
+wrong: keeping the window sorted and then popping its front, which discards the
+smallest value instead of the reading that actually left. Twenty tests, none of
+which caught it, because in every case the departing reading was also the
+smallest one in the window. `solve([9, 0, 9], 2)` tells them apart.
+
+Repeat Alerts could not detect a solution that compared timestamps in arrival
+order instead of sorting them first. A pair arriving out of order produces a
+negative gap, and a negative gap is inside any window, so the wrong answer came
+out right. It needed a case that is out of order and genuinely not noisy.
+
+Two "the input must not be modified" tests were checking with fixtures that were
+already sorted, so sorting the caller's list in place passed as leaving it
+untouched.
+
+**Two session files were being shipped in the repository.** `current` and
+`history.json` were committed by accident when session workspaces moved into the
+working directory. `current` held an absolute path from one machine. The more
+damaging one was `history.json`, which told every fresh clone that four
+questions had already been served, so a new user's first sitting quietly drew
+around them. The whole session directory is ignored now.
+
+Also: dropped the preset validation branch `tools/qa.py` had kept as dead code
+since the company table was removed.
+
 ## 0.12.0
 
 **It stopped introducing itself as somebody else's product.** The tagline, the

@@ -29,6 +29,16 @@ class TestRepeatAlerts(unittest.TestCase):
     def test_unsorted_input(self):
         self.assertEqual(solve([("a", 40), ("a", 1), ("a", 3)], 5), ["a"])
 
+    def test_out_of_order_and_far_apart(self):
+        """Descending arrivals that are not noisy.
+
+        Comparing timestamps in arrival order gives a negative gap here, and a
+        negative gap is always within a non-negative window, so anything that
+        skips the sort calls this noisy.
+        """
+        self.assertEqual(solve([("a", 100), ("a", 1)], 5), [])
+        self.assertEqual(solve([("a", 30), ("a", 20), ("a", 10)], 5), [])
+
     def test_only_the_close_pair_counts(self):
         self.assertEqual(solve([("a", 0), ("a", 100), ("a", 103)], 5), ["a"])
 
@@ -59,7 +69,9 @@ class TestRepeatAlerts(unittest.TestCase):
         self.assertIsInstance(result, list)
 
     def test_input_is_not_mutated(self):
-        alerts = [("a", 1), ("a", 2)]
+        """The order has to be one sorting would disturb, or an in-place sort
+        looks like it left the list alone."""
+        alerts = [("zed", 9), ("amy", 4), ("zed", 1), ("amy", 40)]
         original = list(alerts)
         solve(alerts, 5)
         self.assertEqual(alerts, original)

@@ -6,8 +6,12 @@
   "title": "Route Fuel",
   "time_hint_minutes": 25,
   "entrypoint": "solve",
-  "topics": ["greedy", "heaps", "optimization"],
+  "topics": [
+    "greedy",
+    "heaps",
+    "optimization"
+  ],
   "original": true,
   "authored": "2026-08-12",
-  "validated": "basic"
+  "validated": "full"
 }

@@ -397,12 +397,12 @@ reference solution must pass the hidden suite, the untouched starter must not,
 and every deliberately-wrong solution in the question's `mutants/` directory must
 be caught by at least one hidden test.
 
-Eighteen of the twenty-two questions and all four projects clear all
-three. A question may also be
-marked `"validated": "basic"`, which skips the third check: it is still
-answerable and non-trivial, but nothing has proved its hidden suite can tell a
-wrong answer from a right one, so it can mark something correct that is not. Any
-such question says so.
+Every question in the bank clears all three, and CI will not let one in that
+does not. A question may be marked `"validated": "basic"` to skip the third
+check while it is being written: it is still answerable and non-trivial, but
+nothing has proved its hidden suite can tell a wrong answer from a right one, so
+it can mark something correct that is not. Any such question says so at the top
+of the session. Nothing in the bank carries that marker today.
 
 That last check is the one that matters. A test suite that passes everything
 discriminates nothing, and grading against one is worse than not grading at all,
