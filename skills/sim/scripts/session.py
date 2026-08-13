@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1283,6 +1283,22 @@ def command_start(args: argparse.Namespace) -> int:
             EXIT_USAGE,
         )
 
+    sources_given = [item for item in (getattr(args, "source", None) or []) if item.strip()]
+    if sources_given and not company:
+        raise SessionError(
+            "--source records what was found out about a company, so it needs "
+            "--company to attach it to.",
+            EXIT_USAGE,
+        )
+    for source in sources_given:
+        if not source.startswith("http"):
+            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
+    if args.confidence and args.confidence not in CONFIDENCE_LEVELS:
+        raise SessionError(
+            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
+            EXIT_USAGE,
+        )
+
     fmt = args.format
     if fmt not in FORMATS:
         raise SessionError(
@@ -1444,6 +1460,28 @@ def command_start(args: argparse.Namespace) -> int:
         "events": [],
     }
     add_event(state, now, "session_started", format=fmt, mode=args.mode, questions=count)
+
+    # The note is a byproduct of sitting the thing, not a separate ritual. The
+    # shape written down is the shape that actually ran, so the log cannot
+    # describe a session nobody had, and whoever just did the research types it
+    # once rather than twice.
+    sources = [item for item in (getattr(args, "source", None) or []) if item.strip()]
+    if sources:
+        record_research(
+            company,
+            round_name,
+            {
+                "format": fmt,
+                "mode": args.mode,
+                "questions": count,
+                "minutes": minutes,
+                "topics": topics,
+            },
+            sources,
+            now,
+            confidence=args.confidence,
+            note=args.note,
+        )
 
     write_state(workspace, state)
     write_readme(workspace, state)
@@ -2242,6 +2280,231 @@ def age_phrase(entry: Dict[str, Any], now: float) -> str:
     return ", %d days ago" % (age,)
 
 
+def record_research(
+    name: str,
+    round_name: Optional[str],
+    shape: Dict[str, Any],
+    sources: List[str],
+    now: float,
+    confidence: Optional[str] = None,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Write down what a search turned up, or update what it turned up before.
+
+    Rounds accumulate rather than replace, because a process is learned in
+    pieces: the assessment turns up in one thread and the live round in another,
+    days apart. Re-recording a round overwrites that round and restamps the
+    date, keeping the sources from both passes.
+
+    This is a note about a date, not a fact about a company. Nothing reads it on
+    the way into a session.
+    """
+    path = research_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    for source in legacy_research_log_paths() + [path]:
+        try:
+            with open(str(source), "r") as handle:
+                existing.update(json.load(handle).get("presets", {}))
+        except (IOError, ValueError):
+            continue
+    for stored in existing.values():
+        stored.pop("researched", None)
+
+    entry = dict(existing.get(name) or {})
+    entry.update(
+        {
+            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
+            "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(now)),
+        }
+    )
+    if confidence:
+        entry["confidence"] = confidence
+
+    this_round = {"name": round_name}
+    for key, value in shape.items():
+        if value:
+            this_round[key] = value
+    if note:
+        this_round["note"] = note
+
+    rounds = [
+        item
+        for item in entry.get("rounds", [])
+        if isinstance(item, dict) and item.get("name") != round_name
+    ]
+    rounds.append(this_round)
+    entry["rounds"] = rounds
+    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
+        entry.pop(stale, None)
+
+    existing[name] = entry
+    write_json(
+        path,
+        {
+            "schema_version": 2,
+            "_about": (
+                "What a search turned up about a company, and when. Notes for "
+                "comparing against the next search, never consulted in place of "
+                "one. Nothing here is checked by anyone."
+            ),
+            "presets": existing,
+        },
+    )
+    return entry
+
+
+def command_learn(args: argparse.Namespace) -> int:
+    """Write down what a search turned up, without sitting a session on it.
+
+    `start --source ...` records the same note as a byproduct of running the
+    thing, which is the usual path. This is for research you did not act on: a
+    round they are not sitting today, or a company they were only asking about.
+
+    A source or it does not get written down. A claim about what a company does
+    to candidates, with nothing behind it, is a rumour, and a rumour with a
+    timestamp on it is worse rather than better.
+    """
+    name = args.name.strip().lower()
+    if not name:
+        raise SessionError("Which company?", EXIT_USAGE)
+
+    sources = [source for source in (args.source or []) if source.strip()]
+    if not sources:
+        raise SessionError(
+            "At least one --source is required. A claim about what a company "
+            "does to candidates,\nwith nothing behind it, is a rumour.",
+            EXIT_USAGE,
+        )
+    for source in sources:
+        if not source.startswith("http"):
+            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
+    if args.confidence and args.confidence not in CONFIDENCE_LEVELS:
+        raise SessionError(
+            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
+            EXIT_USAGE,
+        )
+    if args.format and args.format.lower() not in FORMATS:
+        raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
+
+    round_name = args.round.strip().lower() if args.round else None
+    shape = {
+        "format": args.format.lower() if args.format else None,
+        "mode": args.mode,
+        "questions": args.questions,
+        "minutes": args.minutes,
+        "topics": [item.strip() for item in (args.topic or []) if item.strip()],
+    }
+    entry = record_research(
+        name, round_name, shape, sources, resolve_now(args.now),
+        confidence=args.confidence, note=args.note,
+    )
+
+    if args.json:
+        print(json.dumps(dict(entry, name=name), indent=2))
+        return EXIT_OK
+    print(
+        "Recorded %s%s in %s"
+        % (name, (" round %r" % (round_name,)) if round_name else "", research_log_path())
+    )
+    rounds = entry.get("rounds", [])
+    if len(rounds) > 1:
+        print("%s now has %d rounds recorded:" % (name, len(rounds)))
+        for item in rounds:
+            print("  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item)))
+    paragraph(
+        "A dated note about what a search turned up, for comparing against next "
+        "time. It is not consulted instead of looking again."
+    )
+    return EXIT_OK
+
+
+def age_phrase(entry: Dict[str, Any], now: float) -> str:
+    """", 12 days ago" or "", for printing after a date."""
+    age = entry_age_days(entry, now)
+    if age is None:
+        return ""
+    if age <= 0:
+        return ", today"
+    if age == 1:
+        return ", yesterday"
+    return ", %d days ago" % (age,)
+
+
+def record_research(
+    name: str,
+    round_name: Optional[str],
+    shape: Dict[str, Any],
+    sources: List[str],
+    now: float,
+    confidence: Optional[str] = None,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Write down what a search turned up, or update what it turned up before.
+
+    Rounds accumulate rather than replace, because a process is learned in
+    pieces: the assessment turns up in one thread and the live round in another,
+    days apart. Re-recording a round overwrites that round and restamps the
+    date, keeping the sources from both passes.
+
+    This is a note about a date, not a fact about a company. Nothing reads it on
+    the way into a session.
+    """
+    path = research_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    for source in legacy_research_log_paths() + [path]:
+        try:
+            with open(str(source), "r") as handle:
+                existing.update(json.load(handle).get("presets", {}))
+        except (IOError, ValueError):
+            continue
+    for stored in existing.values():
+        stored.pop("researched", None)
+
+    entry = dict(existing.get(name) or {})
+    entry.update(
+        {
+            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
+            "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(now)),
+        }
+    )
+    if confidence:
+        entry["confidence"] = confidence
+
+    this_round = {"name": round_name}
+    for key, value in shape.items():
+        if value:
+            this_round[key] = value
+    if note:
+        this_round["note"] = note
+
+    rounds = [
+        item
+        for item in entry.get("rounds", [])
+        if isinstance(item, dict) and item.get("name") != round_name
+    ]
+    rounds.append(this_round)
+    entry["rounds"] = rounds
+    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
+        entry.pop(stale, None)
+
+    existing[name] = entry
+    write_json(
+        path,
+        {
+            "schema_version": 2,
+            "_about": (
+                "What a search turned up about a company, and when. Notes for "
+                "comparing against the next search, never consulted in place of "
+                "one. Nothing here is checked by anyone."
+            ),
+            "presets": existing,
+        },
+    )
+    return entry
+
+
 def command_learn(args: argparse.Namespace) -> int:
     """Record what was found out about a company, on this machine only.
 
@@ -2941,6 +3204,19 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument(
         "--round", default=None,
         help="which round of their process, e.g. --round pairing. A label too",
+    )
+    start.add_argument(
+        "--source", action="append", default=None,
+        help="a link behind what you found out about them. Repeatable. Given "
+             "these, the session writes down what it ran and where that came "
+             "from, so it can be compared with the next search",
+    )
+    start.add_argument(
+        "--confidence", default=None,
+        help="how well sourced the shape is: high, medium or low",
+    )
+    start.add_argument(
+        "--note", default=None, help="a sentence about what was found"
     )
     start.add_argument(
         "--open", action="store_true",

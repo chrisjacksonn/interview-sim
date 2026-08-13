@@ -1,0 +1,13 @@
+{
+  "id": "checkout-rules",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Checkout Rules",
+  "time_hint_minutes": 20,
+  "entrypoint": "Checkout",
+  "topics": ["object oriented design", "pricing rules", "hash map", "api design", "state"],
+  "original": true,
+  "authored": "2026-08-12",
+  "shape_note": "Build a class to a given API. The supermarket till is a classic pairing-round subject and the rules are small enough to hold in your head while the interviewer changes them."
+}

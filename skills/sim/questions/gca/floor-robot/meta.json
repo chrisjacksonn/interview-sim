@@ -1,0 +1,13 @@
+{
+  "id": "floor-robot",
+  "format": "gca",
+  "slot": 3,
+  "difficulty": "medium",
+  "title": "Floor Robot",
+  "time_hint_minutes": 20,
+  "entrypoint": "Robot",
+  "topics": ["object oriented design", "simulation", "state machines", "grids", "api design"],
+  "original": true,
+  "authored": "2026-08-12",
+  "shape_note": "Build a class to a given API, and a simulation rather than an algorithm. Grid robots are a standard pairing subject because the rules can be extended live, which is what the round is really testing."
+}

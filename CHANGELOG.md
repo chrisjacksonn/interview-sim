@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.11.0
+
+**Recording and running are one command.** `start --source https://...` writes
+down what the session ran and where that came from, so the note is a byproduct
+of sitting the thing rather than a second command typed with the same
+information. It cannot then describe a sitting nobody had. `learn` survives for
+research nobody acted on: a round they are not sitting today, or a company they
+were only asking about.
+
+**Two more questions shaped like a live round.** `request-budget` was the only
+one, so a second interview-mode session handed you the same problem.
+
+`checkout-rules` is a till: unit prices, multibuy deals, and a basket, where the
+leftover after the deals is where a working-looking answer goes wrong and a
+price change has to reach items already scanned. `floor-robot` is a warehouse
+robot on a blocked grid, taking a command string, counting what it could not
+do, where a refused move stops that command and not the rest of the string.
+
+Sixteen mutants between them, all caught, and the checkout totals were
+cross-checked against a deliberately slow second implementation over eighteen
+thousand random operations rather than worked out by hand. Slot 3 now holds
+eight questions, three of which are build-a-class, which is what topic steering
+draws on when research reports a pairing round.
+
 ## 0.10.0
 
 **The company table is gone, and nothing replaces it.** `presets.json`, its

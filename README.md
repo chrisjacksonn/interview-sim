@@ -18,7 +18,7 @@ The engine is complete. Both formats run end to end.
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 
-The bank is **twenty GCA questions and four ICA projects**, four or five in
+The bank is **twenty-two GCA questions and four ICA projects**, four or five in
 every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
@@ -139,7 +139,7 @@ python3 skills/sim/scripts/session.py check
 
 ```
 ok    python    3.9.6 at /usr/bin/python3
-ok    bank      24 questions under .../skills/sim/questions
+ok    bank      26 questions under .../skills/sim/questions
 ok    sessions  ./interview-sim-sessions
 ok    editor    /Applications/Visual Studio Code.app/..., so --open will open your solution file in it
 ```
@@ -309,15 +309,17 @@ the sitting out of it:
 ```
 sim start --company shopify --round pairing \
     --format gca --mode interview --minutes 45 \
-    --topic "rate limiting" --topic "object oriented design" --open
+    --topic "rate limiting" --topic "object oriented design" \
+    --source https://... --confidence medium --open
 ```
 
 Nothing is looked up by the engine. It does not know who any company is, and
 naming one without a format is refused rather than guessed at, because naming a
 company is a claim about what they run.
 
-What the search found is written down with `learn`, dated and sourced. `recall`
-reads it back:
+`--source` makes the session write down what it ran and where that came from, so
+the note is a byproduct of sitting the thing rather than a second command that
+can drift out of step with it. `recall` reads it back:
 
 ```
 $ sim recall shopify
@@ -387,7 +389,7 @@ reference solution must pass the hidden suite, the untouched starter must not,
 and every deliberately-wrong solution in the question's `mutants/` directory must
 be caught by at least one hidden test.
 
-Sixteen of the twenty GCA questions and all four ICA projects clear all
+Eighteen of the twenty-two GCA questions and all four ICA projects clear all
 three. A question may also be
 marked `"validated": "basic"`, which skips the third check: it is still
 answerable and non-trivial, but nothing has proved its hidden suite can tell a

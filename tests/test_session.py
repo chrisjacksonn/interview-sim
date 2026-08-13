@@ -804,6 +804,39 @@ class TestResearchLog(BankAwareTestCase):
         self.assertEqual(entry["sources"], ["https://example.com/thread"])
         self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
 
+    def test_a_session_records_what_it_actually_ran(self):
+        """One command, and the note cannot describe a sitting nobody had."""
+        code, _, err = self.run_session(
+            "start", "--company", "shopify", "--round", "pairing",
+            "--format", "gca", "--mode", "interview", "--minutes", "45",
+            "--topic", "rate limiting", "--confidence", "medium",
+            "--source", "https://example.com/blind", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        _, out, _ = self.run_session("recall", "shopify", "--json")
+        entry = json.loads(out)
+        self.assertEqual(entry["sources"], ["https://example.com/blind"])
+        self.assertEqual(entry["confidence"], "medium")
+        recorded = entry["rounds"][0]
+        self.assertEqual(recorded["name"], "pairing")
+        self.assertEqual(recorded["mode"], "interview")
+        self.assertEqual(recorded["minutes"], 45)
+        self.assertEqual(recorded["topics"], ["rate limiting"])
+
+    def test_a_session_without_sources_records_nothing(self):
+        self.run_session(
+            "start", "--company", "shopify", "--format", "gca", "--now", T0
+        )
+        _, out, _ = self.run_session("recall", "shopify", "--json")
+        self.assertFalse(json.loads(out)["found"])
+
+    def test_a_source_with_nobody_to_attach_it_to_is_refused(self):
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--source", "https://example.com/x", "--now", T0
+        )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("--company", err)
+
     def test_starting_a_session_does_not_consult_it(self):
         """The whole point of the design. A note is not a source of truth.
 

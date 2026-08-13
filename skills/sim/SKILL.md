@@ -184,8 +184,16 @@ company is; you pass the shape as flags:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
     --company shopify --round pairing \
     --format gca --mode interview --minutes 45 \
-    --topic "rate limiting" --topic "object oriented design" --open
+    --topic "rate limiting" --topic "object oriented design" \
+    --source https://... --source https://... \
+    --confidence medium --note "Live, candidate drives, 75-90 min reported." \
+    --open
 ```
+
+Pass `--source` and the session writes down what it ran and where that came
+from, in one command. Do not call `learn` as well: the note is a byproduct of
+sitting the thing, which is what keeps it honest, because it cannot then
+describe a session nobody had.
 
 `--company` and `--round` are labels for the record. `--format`, `--mode`,
 `--questions`, `--minutes` and `--topic` are the shape, and they come from the
@@ -195,10 +203,11 @@ guess one. If the search establishes nothing usable, that refusal is your cue to
 ask them which format they would rather practise, and to say plainly that nobody
 established it.
 
-**Then write down what you found**, with `learn`. That is a dated note for
-comparison next time, not a cache: `recall <company>` reads it back and says out
-loud that it is not current. Never start a session from what `recall` says
-without looking again. If today's search disagrees with the note, that is worth
+**The note is written by `start` itself**, from `--source`. `learn` exists only
+for research you did not act on: a round they are not sitting today, or a
+company they were only asking about. Either way `recall <company>` reads it back
+and says out loud that it is not current, and you never start a session from
+what it says without looking again. If today's search disagrees with the note, that is worth
 a sentence to them, because a process that changed is exactly the thing they
 need to know.
 
