@@ -18,44 +18,102 @@ whichever question came up.
 
 ## The posting demo (a screen recording)
 
-The flow that starts on a job site and ends with files in your editor cannot be
-recorded by vhs. vhs types into a shell; a browser and an editor window are not
-in a shell. This one is a real screen recording of a real session.
+**This is the one that should lead the README.** It is the only recording that
+shows what the tool actually is: you are in your own project, you name a company,
+and a real timed sitting appears in the editor you already have open. A terminal
+GIF of `sim start` shows the engine, not the product.
 
-Record with Cmd+Shift+5 on macOS (or QuickTime, File > New Screen Recording).
-Before you start: turn on Do Not Disturb, close the tabs you do not want in the
-frame, hide the bookmarks bar, and record a region rather than the whole screen
-so the result is not 5120 pixels wide.
+It cannot be recorded by vhs. vhs types into a shell, and the agent loop, the
+live research and an editor window filling up are not a shell. This one is a real
+screen recording of a real session, which also means the research on screen is
+real and takes as long as it takes.
+
+### Setting up
+
+```
+tools/demo-project.sh
+```
+
+That builds `/tmp/checkout-service`: a small plausible project, a git repo, and
+a `.claude/settings.json` turning on auto mode for that directory only. Auto mode
+matters more than it sounds. Without it the take is interrupted by permission
+prompts every time the proctor reads a file, and a timed sitting that pauses to
+ask permission is not a timed sitting.
+
+Open that directory in your editor, open its integrated terminal, and run
+`claude` there. Turn on Do Not Disturb. Record a region rather than the whole
+screen, or the result is 5120 pixels wide.
+
+### Shot list
+
+Aim for 50 to 70 seconds. The research is the slowest part and it is also the
+most interesting, so give it room rather than cutting to the result.
+
+| Seconds | Shot |
+| --- | --- |
+| 0 to 4 | The editor, showing the project. Your own files, a terminal at the bottom. It should be obvious this is somebody's actual work. |
+| 4 to 9 | Type `/interview-sim:sim` and paste a job posting URL after it. Send it. |
+| 9 to 35 | **The research, live.** It fetches the posting, works out the company and the role, and searches. Let the tool-use lines run. This is the part people find convincing, because they can see what it is reading. |
+| 35 to 45 | It says what that company runs, with sources and a confidence, then starts the sitting. The clock and the questions appear. |
+| 45 to 60 | The editor. The workspace has appeared next to `src/`, and `q1/problem.md` is open, because `--open` navigates to the problem rather than the empty starter. |
+| 60 to 70 | Optional: type a few lines into `solution.py` so the last frame is somebody working, not somebody reading. |
 
 Then convert:
 
 ```
-tools/screencast-to-gif.sh recording.mov demo-posting.gif 2 40
+tools/screencast-to-gif.sh recording.mov demo-posting.gif 2 60
 ```
 
-The last two numbers trim it: start at 2 seconds, keep 40. `WIDTH` and `FPS` are
-environment overrides if the file comes out too big.
+The last two numbers trim it: start at 2 seconds, keep 60. `WIDTH` and `FPS` are
+environment overrides if the file comes out too big. GitHub will not display a
+GIF over 10MB in a README, so check the size before committing it.
 
-### Shot list
+### Picking a posting
 
-Aim for about 40 seconds. Roughly:
+Use a real posting for a company whose process is genuinely reported somewhere,
+or the recording ends on the honest-but-dull outcome where the agent says it
+could not establish the format and asks you to pick one. That behaviour is
+correct and worth having, but it is not the thirty seconds you want representing
+the project.
 
-| Seconds | Shot |
-| --- | --- |
-| 0 to 5 | The posting open in a browser. Copy the URL. |
-| 5 to 10 | Paste it into Claude Code after the skill command. |
-| 10 to 20 | The agent reads it, names the company, and says what the table knows, confidence included. |
-| 20 to 28 | It starts the session. The clock and the four questions appear. |
-| 28 to 40 | The editor, with the workspace open and `q1/problem.md` on screen. |
+Do a dry run first without recording, for two reasons: to see whether that
+company researches well, and because the second attempt is always tighter. There
+is no cache, so the take itself still does the full search.
 
-### One thing to get right
+### Two things not to edit out
 
-There is no company table any more, so the agent has to research the company on
-camera before it can start anything. Either let that happen and keep the take
-long enough to show it, which is the honest version and the more interesting
-one, or pick a company you have already looked up in that session so the search
-does not repeat.
+**The moment it says what it could not establish.** If it hedges the format
+confidence, leave it in. That is the difference between this and the sites that
+confidently name a format nobody verified, and it is the most credible ten
+seconds in the recording.
 
-Do not edit out the moment where it says what it could not establish. That is
-the difference between this and the sites that will confidently name a format
-they have never verified.
+**The wait.** Speeding the research up to a blur makes it look like a canned
+animation. It is genuinely doing the work, and it should look like it.
+
+### Where it goes
+
+Once `demo-posting.gif` exists, it replaces the terminal GIF at the top of the
+README and the terminal one moves down. The posting demo shows what the tool is;
+the terminal demo shows the engine underneath, which is worth keeping but is not
+the opening argument.
+
+```markdown
+## What it looks like
+
+![Pasting a job posting into an editor terminal: the agent researches what that
+company runs, then a timed session appears in the project with the first problem
+open](demo-posting.gif)
+
+You are in your own project. You name a company, it finds out what their screen
+actually is, and a real sitting appears beside the work you already had open.
+
+<details>
+<summary>The engine underneath, without an agent driving it</summary>
+
+![A GCA session: naming a company starts the clock, real files appear, ...](demo.gif)
+
+</details>
+```
+
+Keep both under 10MB. GitHub silently refuses to render a README image above
+that, and a broken hero image is worse than a plain heading.
