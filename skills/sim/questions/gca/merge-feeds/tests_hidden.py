@@ -97,8 +97,11 @@ class TestMergeFeeds(unittest.TestCase):
         self.assertIsInstance(solve([[1]], 1), list)
 
     def test_input_feeds_are_not_mutated(self):
-        # Catches solutions that pop from the caller's lists.
-        feeds = [[1, 4], [2, 3]]
+        # Catches solutions that pop from the caller's lists, and solutions that
+        # sort the outer list in place. The feeds are given out of order on
+        # purpose: a list that is already sorted cannot show whether an in-place
+        # sort disturbed it, which makes the check pass for the wrong reason.
+        feeds = [[2, 3], [1, 4]]
         snapshot = [list(feed) for feed in feeds]
         solve(feeds, 3)
         self.assertEqual(feeds, snapshot)

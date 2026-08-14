@@ -88,7 +88,11 @@ class TestTokenBudget(unittest.TestCase):
         self.assertNotIsInstance(result, bool)
 
     def test_input_is_not_mutated(self):
-        tasks = [(3, 4), (4, 5)]
+        # Given out of order, because a list that is already sorted cannot show
+        # whether a solution sorted it in place. Sorting the tasks is a natural
+        # thing to reach for here and it does not change the answer, so the only
+        # thing that catches it is the order of this fixture.
+        tasks = [(4, 5), (3, 4)]
         original = list(tasks)
         solve(tasks, 6)
         self.assertEqual(tasks, original)

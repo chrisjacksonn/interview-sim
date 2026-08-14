@@ -20,7 +20,9 @@ Python 3.9, standard library only.
 """
 
 import argparse
+import ast
 import json
+import re
 import os
 import sys
 from concurrent import futures
@@ -296,6 +298,65 @@ def check_ica(project):
     return {"id": meta["id"], "hidden_tests": total, "mutants": len(caught), "lines": lines}
 
 
+# Test names that promise the caller's input came back untouched.
+PRESERVATION_TEST = re.compile(r"not_mutated|not_modified|unchanged|is_preserved|left_alone")
+
+
+def check_preservation_fixtures(question):
+    """An input-preservation test needs a fixture that sorting would disturb.
+
+    This has now been the same bug four times, in four different questions, and
+    it is invisible by inspection: the test looks right, it asserts the right
+    thing, and it passes for a solution that sorts the caller's list in place,
+    because the fixture was already in sorted order. The assertion never fires
+    and the suite reports a clean pass.
+
+    A literal that is already sorted is not proof of a bug, but in a test whose
+    whole purpose is to detect reordering it is never what you meant to write.
+    """
+    suite = question / "tests_hidden.py"
+    if not suite.exists():
+        return
+    source = suite.read_text()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        raise Failure("tests_hidden.py does not parse: %s" % (exc,))
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if not PRESERVATION_TEST.search(node.name):
+            continue
+        # Only the outermost literal is the fixture. The rows inside it are
+        # records, and a record whose own fields happen to ascend says nothing
+        # about whether the collection could be reordered.
+        nested = set()
+        for outer in ast.walk(node):
+            if isinstance(outer, (ast.List, ast.Tuple)):
+                for element in outer.elts:
+                    nested.add(id(element))
+        for literal in ast.walk(node):
+            if not isinstance(literal, (ast.List, ast.Tuple)) or len(literal.elts) < 2:
+                continue
+            if id(literal) in nested:
+                continue
+            try:
+                values = [ast.literal_eval(element) for element in literal.elts]
+            except (ValueError, SyntaxError):
+                continue
+            try:
+                ordered = sorted(values)
+            except TypeError:
+                continue
+            if values == ordered:
+                raise Failure(
+                    "%s uses a fixture that is already sorted (%r), so a solution "
+                    "that sorts the input in place would pass it. Give it an order "
+                    "that sorting would disturb." % (node.name, values)
+                )
+
+
 def check_question(question):
     if (question / "meta.json").exists():
         try:
@@ -306,6 +367,7 @@ def check_question(question):
             raise Failure("meta.json is not valid JSON: %s" % (exc,))
 
     check_files(question)
+    check_preservation_fixtures(question)
     meta = check_meta(question)
     tier = meta.get("validated", "full")
     if tier not in ("full", "basic"):
