@@ -109,8 +109,17 @@ jobs:
       - name: Clone into a clean directory and run as somebody who just arrived
         run: |
           set -euo pipefail
+          # Pin the exact commit rather than whatever the clone decides its
+          # default branch is, since a pull request builds from a detached HEAD.
+          # The file check after it is the one that matters: an empty working
+          # tree would sail through every assertion below by having nothing in
+          # it to fail, and a check that cannot fail is worse than no check.
+          head=$(git rev-parse HEAD)
           git clone --quiet . "$RUNNER_TEMP/stranger"
+          git -C "$RUNNER_TEMP/stranger" checkout --quiet --detach "$head"
           cd "$RUNNER_TEMP/stranger"
+          test -f skills/sim/scripts/session.py || {
+            echo "the clone has no working tree"; exit 1; }
 
           for leftover in interview-sim-sessions sessions .sim; do
             if [ -e "$leftover" ]; then

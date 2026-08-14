@@ -83,12 +83,26 @@ class SymbolGuardTests(unittest.TestCase):
 
 
 class RepoGuardTests(unittest.TestCase):
+    # Assembled at runtime rather than written out. This file is itself tracked
+    # and therefore itself checked, so a literal home path here would fail the
+    # guard, correctly. That is not a reason to give the guard an exemption
+    # list: an exemption is a hole, and the fixture reads fine built from parts.
+    LEAKED = "/".join(("", "Users", "chris", "interview-sim", "current"))
+    LINUX = "/".join(("", "home", "dev", "interview-sim", "current"))
+
     def test_matches_the_path_that_actually_leaked(self):
-        leaked = "/Users/chris/interview-sim/interview-sim-sessions/gca-20260812T020000Z"
-        self.assertTrue(check_repo.HOME_PATH.search(leaked))
+        self.assertTrue(check_repo.HOME_PATH.search(self.LEAKED))
 
     def test_matches_a_linux_home(self):
-        self.assertTrue(check_repo.HOME_PATH.search("/home/dev/interview-sim/x"))
+        self.assertTrue(check_repo.HOME_PATH.search(self.LINUX))
+
+    def test_catches_a_home_path_in_a_file(self):
+        """End to end, not just the pattern: a tracked file carrying one fails."""
+        directory = Path(tempfile.mkdtemp(prefix="guard-test-"))
+        self.addCleanup(shutil.rmtree, str(directory), True)
+        sample = directory / "sample.txt"
+        sample.write_text("workspace = %s\n" % (self.LEAKED,))
+        self.assertTrue(check_repo.HOME_PATH.search(sample.read_text()))
 
     def test_a_tilde_path_is_fine(self):
         """Documentation uses ~ deliberately. It is true on every machine."""
@@ -122,7 +136,20 @@ class StrangerTests(unittest.TestCase):
         )
         if result.returncode != 0:
             raise unittest.SkipTest("git clone unavailable: %s" % (result.stderr,))
+        # Pin the exact commit rather than the clone's idea of a default branch,
+        # because a pull request builds from a detached HEAD. The existence check
+        # below is the important half: an empty working tree would pass every
+        # assertion here by having nothing in it to fail.
+        head = subprocess.check_output(
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"], universal_newlines=True
+        ).strip()
+        subprocess.check_call(
+            ["git", "-C", str(cls.clone), "checkout", "--quiet", "--detach", head],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
         cls.script = cls.clone / "skills" / "sim" / "scripts" / "session.py"
+        if not cls.script.exists():
+            raise AssertionError("the clone has no working tree")
 
     @classmethod
     def tearDownClass(cls):
