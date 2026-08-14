@@ -84,6 +84,10 @@ CI runs this on every commit and a PR does not merge until it passes. It checks:
 1. The reference solution passes the hidden suite. For ICA, every level.
 2. The untouched starter does not.
 3. Every file in `mutants/` fails at least one hidden test.
+4. Any test promising the input came back untouched uses a fixture that sorting
+   would disturb. This has been the same bug in four different questions: the
+   test looks right, asserts the right thing, and passes for a solution that
+   sorts the caller's list in place, because the fixture was already in order.
 
 **Check three is the point of the whole exercise.** Your mutants are plausible
 wrong answers: the off-by-one, the unsorted assumption, the missed edge case, the
@@ -145,7 +149,17 @@ So there is nothing to contribute here any more, which is the point.
 ```
 python3 -m unittest discover -s tests
 python3 tools/qa.py
+python3 tools/check_repo.py      # nothing tracked belongs to one machine
+python3 tools/check_symbols.py   # no top-level name defined twice
 ```
+
+The last two are cheap and exist because of bugs that shipped rather than as
+matters of taste. `check_repo.py` catches session state and absolute home paths
+getting committed, which happened and gave every fresh clone a history that made
+its first sitting draw around four questions. `check_symbols.py` catches a
+function defined twice, which happened and left the engine running a stale copy
+while the corrected one sat shadowed above it. Neither could fail a test, because
+both files parse and import perfectly.
 
 ## Style
 

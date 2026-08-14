@@ -88,6 +88,70 @@ jobs:
           sys.exit(1 if fail else 0)
           PY
 
+  stranger:
+    runs-on: ubuntu-latest
+    name: a fresh clone is not this machine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Nothing tracked belongs to one machine
+        # Two session files shipped in the repository for two days, and one of
+        # them told every fresh clone that four questions had already been
+        # served. No job could have caught it: they all run from a checkout that
+        # already had the files.
+        run: python tools/check_repo.py
+      - name: No shadowed top-level definitions
+        # session.py once carried three functions defined twice, and the live
+        # copy of one was the stale one. Both parse, both import, nothing fails.
+        run: python tools/check_symbols.py
+      - name: Clone into a clean directory and run as somebody who just arrived
+        run: |
+          set -euo pipefail
+          git clone --quiet . "$RUNNER_TEMP/stranger"
+          cd "$RUNNER_TEMP/stranger"
+
+          for leftover in interview-sim-sessions sessions .sim; do
+            if [ -e "$leftover" ]; then
+              echo "a fresh clone carries $leftover"
+              exit 1
+            fi
+          done
+
+          export INTERVIEW_SIM_HOME="$RUNNER_TEMP/stranger-sessions"
+          python skills/sim/scripts/session.py check
+
+          # A virgin install has no history, and the commands that read it must
+          # say so rather than fall over.
+          python skills/sim/scripts/session.py list
+          python skills/sim/scripts/session.py progress
+          for command in status report; do
+            set +e
+            output=$(python skills/sim/scripts/session.py "$command" 2>&1)
+            code=$?
+            set -e
+            if [ "$code" -ne 3 ]; then
+              echo "$command on a virgin install exited $code, expected 3"
+              echo "$output"
+              exit 1
+            fi
+            case "$output" in
+              *Traceback*) echo "$command traced back:"; echo "$output"; exit 1 ;;
+            esac
+          done
+
+          # And a stranger can actually sit one, drawn from the whole bank.
+          python skills/sim/scripts/session.py start --format gca
+          workspace=$(cat "$INTERVIEW_SIM_HOME/current")
+          for slot in q1 q2 q3 q4; do
+            if [ ! -f "$workspace/$slot/solution.py" ]; then
+              echo "a fresh clone could not build $slot"
+              exit 1
+            fi
+          done
+          echo "a stranger can sit a session"
+
   leak:
     runs-on: ubuntu-latest
     name: no hidden material in a workspace

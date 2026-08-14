@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.15.0
+
+**Two guards for the two bug classes that shipped, because both were invisible
+to every test in the repository and neither was found by one.**
+
+`tools/check_repo.py` fails if anything tracked belongs to one machine: session
+state, or an absolute path into somebody's home directory. This is the leak that
+put `current` and `history.json` in the repository for two days, where the second
+of them told every fresh clone that four questions had already been served. No
+job could have caught it, and that is the whole point: every job runs from a
+checkout that already contains the offending files, so the environment doing the
+validating was never the environment a user gets. Run against the commit that
+shipped the leak, it names all three problems.
+
+`tools/check_symbols.py` fails on a top-level name defined more than once. That
+was `age_phrase`, `record_research` and `command_learn` in `session.py`, where
+the copy Python kept for the third was the stale one still describing a company
+table deleted two versions earlier. Nothing failed and no test could have failed:
+both definitions parse, both import, and the module runs exactly as though the
+dead one were absent. Run against the revision before the fix, it names all three
+with their line numbers. Methods sharing a name across classes are fine, and so
+is a definition inside `try` or `if`, which is how conditional fallbacks are
+written.
+
+A new CI job clones the repository into a clean directory and uses it as somebody
+who has just arrived: no leftovers present, `check` passes, the commands that
+read history say so rather than falling over, and a stranger can sit a full
+session with all four questions built.
+
+Both guards are tested on inputs known to be bad, not only against a repository
+that is currently clean. A guard that quietly stops detecting is worse than no
+guard, because everything goes green and looks like an improvement.
+
 ## 0.14.0
 
 **The report now says where the time went.**
