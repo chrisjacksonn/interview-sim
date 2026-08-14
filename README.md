@@ -51,7 +51,7 @@ sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 <summary>The same thing as text</summary>
 
 ```console
-$ sim start --company capital-one --format gca
+checkout-service $ sim start --company capital-one --format gca
 Session started: gca-20260812T013654Z
 
 capital-one. GCA-style exam.

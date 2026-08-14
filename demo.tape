@@ -26,6 +26,14 @@
 # and says what it is, rather than being hidden: vhs keeps hidden commands in the
 # terminal buffer anyway, so they reappear the moment recording resumes, and a
 # visible line the viewer can read beats a half-hidden one they cannot.
+#
+# There is exactly one typed comment in the recording, and it is that one. The
+# demo used to open with a caption explaining that you are in your own project,
+# which put a sentence of narration in front of the thing people came to see and
+# delayed the first command by several seconds. The prompt says which directory
+# this is and the output says the rest, so the captions were doing work the
+# screen already did. The surviving one is not narration, it is a disclosure:
+# without it the recording looks like the tool solved the question itself.
 
 Output demo.gif
 
@@ -43,23 +51,14 @@ Type "export BANK=$REPO/skills/sim/questions" Enter
 Type "SIMPATH=$REPO/skills/sim/scripts/session.py" Enter
 Type 'sim() { if [ "$1" = start ]; then shift; python3 $SIMPATH start --seed 2 "$@"; else python3 $SIMPATH "$@"; fi; }' Enter
 Type "rm -rf /tmp/checkout-service && mkdir -p /tmp/checkout-service && cd /tmp/checkout-service" Enter
+Type 'export PS1="checkout-service $ "' Enter
 Type "clear" Enter
 Show
-
-Type "# you are in your own project. name the company, and what they run"
-Sleep 1500ms
-Enter
-Sleep 300ms
 
 Type "sim start --company capital-one --format gca"
 Sleep 600ms
 Enter
 Sleep 4200ms
-
-Type "# real files, next to your work, and the hidden tests are not among them"
-Sleep 2200ms
-Enter
-Sleep 300ms
 
 Type "ls interview-sim-sessions/*/q1"
 Sleep 400ms
@@ -80,11 +79,6 @@ Type "sim submit --question q1"
 Sleep 500ms
 Enter
 Sleep 4200ms
-
-Type "# one edge case short. which one is the exercise, and the clock is still running:"
-Sleep 2400ms
-Enter
-Sleep 300ms
 
 Type "sim status"
 Sleep 400ms
