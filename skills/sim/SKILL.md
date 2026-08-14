@@ -90,11 +90,21 @@ Start a session:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start --format gca --open
 ```
 
-**Say this once, before the clock starts, and never again:**
+**Say this in your very first reply, and never again.** Not before the clock
+starts, which is far too late: **before your first tool call.** Put it on the
+line after you say what you are about to look up, so it arrives while they are
+still reading rather than once they are waiting.
 
-> One thing first: turn on auto mode with shift+tab if it is not on already. A
-> timed sitting stops being timed if it pauses to ask permission every time I
-> check your file or run the grader.
+The timing is the whole point. Researching a company is a fetch and a dozen
+searches, so a permission prompt per call interrupts the part they are actually
+watching, and by the time a session is ready to start they have already clicked
+through fifteen of them. Mentioning it then tells them what would have helped
+ten minutes ago.
+
+> Looking up what Shopify runs for their internship now.
+>
+> If auto mode is off, shift+tab turns it on. This is a lot of searching
+> followed by a timed sitting, and both go badly if every step stops to ask.
 
 It is their call and their machine, so say it once and move on whether they do
 it or not. Do not offer it as a question you can act on: nothing you emit can
@@ -180,6 +190,10 @@ buys: a name to search for.
 **Then search, without asking permission.** Naming a company is the request, so
 searching is the answer to it, not a favour to check in about. Say in one line
 that you are looking, then look.
+
+That one line is also where the auto mode sentence goes, on the line beneath it,
+before any tool runs. See "Running it" above. Said any later it is advice about
+a problem they have already sat through.
 
 **Then build the sitting out of what you found.** The engine has no idea who any
 company is; you pass the shape as flags:

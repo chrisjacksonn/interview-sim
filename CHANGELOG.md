@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.1
+
+**The auto mode line was arriving after it could do any good.** It was pinned to
+"before the clock starts", which sounds early and is not: researching a company
+is a fetch and a dozen searches, so by the time a session is ready to begin the
+candidate has already clicked through fifteen permission prompts during the part
+they were actually watching. Being told at that point what would have helped ten
+minutes earlier is worse than not being told.
+
+It now belongs in the first reply, on the line under "looking up what they run",
+before any tool call at all.
+
 ## 0.16.0
 
 **A session now opens on the problem, and the research memory is gone.** Both
