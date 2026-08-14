@@ -32,11 +32,10 @@ every difficulty slot. A session takes one question per slot, and it remembers
 what it has already served you, so consecutive sittings do not repeat a question
 until the bank runs out.
 
-There is no table of companies. Paste a job posting and the agent running the
-skill goes and finds out what that company currently runs, every time, rather
-than reading you something that was true last season. What it finds is written
-down with its sources and the date, for comparing against next time, and never
-used in place of looking again.
+There is no table of companies and nothing is cached. Paste a job posting and the
+agent running the skill goes and finds out what that company currently runs,
+every time, rather than reading you something that was true last season. The
+second session for a company searches again exactly like the first.
 
 ## What it looks like
 
@@ -62,10 +61,13 @@ Deadline 2026-08-12T02:46:54Z UTC.
 
 Work here:
   ./interview-sim-sessions/gca-20260812T013654Z
-    q1/solution.py   Bracket Check
-    q2/solution.py   Build Order
-    q3/solution.py   Merge Feeds
-    q4/solution.py   Route Fuel
+    q1/problem.md   Bracket Check
+    q2/problem.md   Build Order
+    q3/problem.md   Merge Feeds
+    q4/problem.md   Route Fuel
+
+Read a problem.md first, then write your answer in the solution.py beside it.
+The clock is running.
 
 $ ls ./interview-sim-sessions/gca-20260812T013654Z/q1
 problem.md   solution.py   tests_public.py
@@ -150,7 +152,7 @@ python3 skills/sim/scripts/session.py check
 ok    python    3.9.6 at /usr/bin/python3
 ok    bank      26 questions under .../skills/sim/questions
 ok    sessions  ./interview-sim-sessions
-ok    editor    /Applications/Visual Studio Code.app/..., so --open will open your solution file in it
+ok    editor    /Applications/Visual Studio Code.app/..., so --open will open the problem in it
 ```
 
 If `python3` is missing, run `xcode-select --install` on macOS or install it from
@@ -209,8 +211,9 @@ python3 skills/sim/scripts/session.py submit --question q1
 python3 skills/sim/scripts/session.py report
 ```
 
-Add `--open` to any `start` and it opens the workspace in your editor as soon as
-it is ready.
+Add `--open` to any `start` and it navigates the editor you are already in to the
+first problem statement, as soon as it is ready. It opens the problem rather than
+the empty starter on purpose: the format punishes typing before reading.
 
 `start` builds a workspace under `./interview-sim-sessions/` in whatever
 directory you ran it from, so the files land beside the work rather than in a
@@ -346,38 +349,24 @@ the sitting out of it:
 ```
 sim start --company shopify --round pairing \
     --format gca --mode interview --minutes 45 \
-    --topic "rate limiting" --topic "object oriented design" \
-    --source https://... --confidence medium --open
+    --topic "rate limiting" --topic "object oriented design" --open
 ```
 
 Nothing is looked up by the engine. It does not know who any company is, and
 naming one without a format is refused rather than guessed at, because naming a
 company is a claim about what they run.
 
-`--source` makes the session write down what it ran and where that came from, so
-the note is a byproduct of sitting the thing rather than a second command that
-can drift out of step with it. `recall` reads it back:
-
-```
-$ sim recall shopify
-shopify: found on 2026-08-12, today, medium confidence.
-  pairing      GCA, live round, 45 minutes, topics: rate limiting
-source: https://...
-
-This is what a search turned up on that date and nothing more. It is not current
-and was never checked by anyone else. Look it up again before you plan an evening
-around it.
-```
-
-That is a log, not a cache. A session is never built from it without looking
-again, because a hiring process that was rebuilt between cycles has no way of
-telling this file about it.
+**Nothing is remembered, either.** There is no log and no cache, so the second
+session for a company searches again exactly like the first. That is not an
+oversight. A hiring process gets rebuilt between cycles and has no way of
+telling a saved note about it, so a stored answer would quietly get worse while
+looking more authoritative every time it was read back.
 
 What research will never come back with is the company's actual questions. What
 it does come back with is the **topics**, which is the part that transfers.
-Recorded topics steer which questions are drawn, spread across the subjects
-rather than stacked on whichever the bank has most of. `--topic graphs` works on
-its own too, for drilling something specific.
+Topics steer which questions are drawn, spread across the subjects rather than
+stacked on whichever the bank has most of. `--topic graphs` works on its own
+too, for drilling something specific.
 
 Which topics a sitting covered, and which it could not, is reported in
 `start --json` rather than on screen. That is for the agent, whose job it is to

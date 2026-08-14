@@ -741,172 +741,6 @@ class TestListing(BankAwareTestCase):
         self.assertNotEqual(self.state()["questions"][0]["difficulty"], "warmup")
 
 
-class TestResearchLog(BankAwareTestCase):
-    """The dated note a search leaves behind.
-
-    It is a log and never an answer. The guarantee that matters is the last
-    test here: starting a session does not read it, so nothing recorded months
-    ago can quietly shape a sitting today.
-    """
-
-    def learn(self, *extra):
-        args = [
-            "learn", "shopify", "--confidence", "low",
-            "--source", "https://example.com/thread",
-        ]
-        return self.run_session(*(args + list(extra)))
-
-    def test_a_claim_without_a_source_is_refused(self):
-        code, _, err = self.run_session("learn", "shopify", "--confidence", "low")
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("source", err)
-
-    def test_a_source_that_is_not_a_link_is_refused(self):
-        code, _, err = self.run_session(
-            "learn", "shopify", "--confidence", "low", "--source", "someone told me"
-        )
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("Not a link", err)
-
-    def test_what_was_found_can_be_recalled(self):
-        code, _, err = self.learn("--round", "pairing", "--minutes", "45")
-        self.assertEqual(code, EXIT_OK, err)
-        code, out, _ = self.run_session("recall", "shopify")
-        self.assertEqual(code, EXIT_OK)
-        flat = " ".join(out.split())
-        self.assertIn("pairing", flat)
-        self.assertIn("https://example.com/thread", flat)
-
-    def test_recall_says_it_is_not_current(self):
-        self.learn()
-        _, out, _ = self.run_session("recall", "shopify")
-        flat = " ".join(out.split())
-        self.assertIn("not current", flat)
-        self.assertIn("Look it up again", flat)
-
-    def test_recalling_something_never_researched(self):
-        code, out, _ = self.run_session("recall", "nintendo")
-        self.assertEqual(code, EXIT_OK)
-        self.assertIn("Nothing recorded", out)
-
-    def test_a_second_round_adds_rather_than_replaces(self):
-        self.learn("--round", "oa", "--format", "gca")
-        self.learn("--round", "pairing", "--mode", "interview")
-        _, out, _ = self.run_session("recall", "shopify", "--json")
-        rounds = json.loads(out)["rounds"]
-        self.assertEqual([item["name"] for item in rounds], ["oa", "pairing"])
-
-    def test_the_file_is_valid_json_with_its_sources(self):
-        self.learn()
-        with open(str(self.root / "researched.json")) as handle:
-            payload = json.load(handle)
-        entry = payload["presets"]["shopify"]
-        self.assertEqual(entry["sources"], ["https://example.com/thread"])
-        self.assertRegex(entry["last_confirmed"], r"^\d{4}-\d{2}-\d{2}$")
-
-    def test_a_session_records_what_it_actually_ran(self):
-        """One command, and the note cannot describe a sitting nobody had."""
-        code, _, err = self.run_session(
-            "start", "--company", "shopify", "--round", "pairing",
-            "--format", "gca", "--mode", "interview", "--minutes", "45",
-            "--topic", "rate limiting", "--confidence", "medium",
-            "--source", "https://example.com/blind", "--now", T0,
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        _, out, _ = self.run_session("recall", "shopify", "--json")
-        entry = json.loads(out)
-        self.assertEqual(entry["sources"], ["https://example.com/blind"])
-        self.assertEqual(entry["confidence"], "medium")
-        recorded = entry["rounds"][0]
-        self.assertEqual(recorded["name"], "pairing")
-        self.assertEqual(recorded["mode"], "interview")
-        self.assertEqual(recorded["minutes"], 45)
-        self.assertEqual(recorded["topics"], ["rate limiting"])
-
-    def test_a_session_without_sources_records_nothing(self):
-        self.run_session(
-            "start", "--company", "shopify", "--format", "gca", "--now", T0
-        )
-        _, out, _ = self.run_session("recall", "shopify", "--json")
-        self.assertFalse(json.loads(out)["found"])
-
-    def test_a_source_with_nobody_to_attach_it_to_is_refused(self):
-        code, _, err = self.run_session(
-            "start", "--format", "gca", "--source", "https://example.com/x", "--now", T0
-        )
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("--company", err)
-
-    def test_starting_a_session_does_not_consult_it(self):
-        """The whole point of the design. A note is not a source of truth.
-
-        Something recorded months ago must not shape a sitting today, so the
-        shape comes from the flags the caller passes after looking it up, and
-        the log is never read on the way past.
-        """
-        self.learn("--round", "pairing", "--mode", "interview", "--minutes", "45",
-                   "--format", "gca", "--topic", "graphs")
-        code, out, err = self.run_session(
-            "start", "--company", "shopify", "--format", "gca", "--now", T0, "--json"
-        )
-        self.assertEqual(code, EXIT_OK, err)
-        payload = json.loads(out)
-        state = self.state()
-        # None of the recorded shape leaked in: not the mode, not the minutes,
-        # not the topics.
-        self.assertEqual(state["mode"], "exam")
-        self.assertEqual(state["clock"]["duration_seconds"], 70 * 60)
-        self.assertEqual(len(state["questions"]), 4)
-        self.assertEqual(payload["briefing"]["topics"]["asked"], [])
-
-
-class TestStaleness(BankAwareTestCase):
-    """A note has a date on it, and the date has to mean something."""
-
-    YEAR = 400 * 24 * 3600
-
-    def learn(self, now=T0):
-        code, _, err = self.run_session(
-            "learn", "shopify", "--round", "oa", "--format", "gca",
-            "--confidence", "medium", "--source", "https://example.com/a",
-            "--now", now,
-        )
-        self.assertEqual(code, EXIT_OK, err)
-
-    def test_recall_reports_the_age(self):
-        self.learn()
-        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR, "--json")
-        self.assertGreater(json.loads(out)["age_days"], 365)
-
-    def test_a_year_old_note_says_so_in_words(self):
-        self.learn()
-        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR)
-        self.assertIn("days ago", " ".join(out.split()))
-
-    def test_learning_again_restamps_it_and_keeps_both_sources(self):
-        self.learn()
-        self.run_session(
-            "learn", "shopify", "--round", "oa", "--format", "gca",
-            "--confidence", "medium", "--source", "https://example.com/b",
-            "--now", T0 + self.YEAR,
-        )
-        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + self.YEAR + 60, "--json")
-        entry = json.loads(out)
-        self.assertEqual(entry["age_days"], 0)
-        self.assertEqual(
-            entry["sources"], ["https://example.com/a", "https://example.com/b"]
-        )
-
-    def test_an_undated_note_reports_no_age_rather_than_zero(self):
-        self.learn()
-        path = self.root / "researched.json"
-        payload = json.loads(path.read_text())
-        del payload["presets"]["shopify"]["last_confirmed"]
-        path.write_text(json.dumps(payload))
-        _, out, _ = self.run_session("recall", "shopify", "--now", T0 + 60, "--json")
-        self.assertIsNone(json.loads(out)["age_days"])
-
-
 class TestOpeningTheEditor(unittest.TestCase):
     """Getting the candidate into the file.
 
@@ -1875,6 +1709,93 @@ class TimeAttributionTests(SessionTestCase):
         self.assertTrue(levels[0]["opened"])
         # Level 3 never unlocked, so it was never reached.
         self.assertFalse(levels[2]["opened"])
+
+
+class TestStartsOnTheProblem(SessionTestCase):
+    """The first thing in front of someone is the question, not an empty file.
+
+    Landing in the starter invites typing before reading, which is the habit
+    these formats punish hardest.
+    """
+
+    def test_the_listing_names_the_problem_not_the_starter(self):
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", 2, "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("q1/problem.md", out)
+        self.assertNotIn("q1/solution.py", out)
+
+    def test_it_says_to_read_first_and_write_after(self):
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", 2, "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        collapsed = " ".join(out.split())
+        self.assertIn("Read a problem.md first", collapsed)
+        self.assertIn("solution.py beside it", collapsed)
+
+    def test_a_single_question_names_the_exact_files(self):
+        code, out, err = self.run_session(
+            "start", "--mode", "interview", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        collapsed = " ".join(out.split())
+        self.assertIn("Read q1/problem.md first", collapsed)
+        self.assertIn("q1/solution.py", collapsed)
+
+    def test_a_gated_run_opens_the_level_it_revealed(self):
+        code, out, err = self.run_session(
+            "start", "--format", "ica", "--project", "parcel-locker", "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("parcel-locker/level1.md", out)
+
+    def test_the_file_open_would_focus_is_the_problem(self):
+        self.run_session("start", "--format", "gca", "--questions", 2, "--now", T0)
+        workspace = self.workspace()
+        state = self.state()
+        sys.path.insert(0, str(SCRIPT.parent))
+        try:
+            import session
+            chosen = session.first_reading(workspace, state)
+        finally:
+            sys.path.pop(0)
+        self.assertEqual(chosen.name, "problem.md")
+        self.assertTrue(chosen.exists())
+
+
+class TestNothingIsRemembered(SessionTestCase):
+    """Research is not cached, so the commands that used to cache it are gone.
+
+    They were removed because the second sitting for a company began by saying
+    the search agreed with the last one, which is a claim about a hiring process
+    nobody had checked, dressed up as continuity.
+    """
+
+    def test_recall_is_gone(self):
+        code, _, err = self.run_session("recall", "shopify")
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("invalid choice", err)
+
+    def test_learn_is_gone(self):
+        code, _, err = self.run_session("learn", "shopify", "--source", "https://x")
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("invalid choice", err)
+
+    def test_start_no_longer_takes_a_source(self):
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", 1,
+            "--company", "shopify", "--source", "https://x", "--now", T0,
+        )
+        self.assertEqual(code, EXIT_USAGE)
+
+    def test_a_session_writes_no_research_log(self):
+        self.run_session(
+            "start", "--format", "gca", "--questions", 1,
+            "--company", "shopify", "--now", T0,
+        )
+        self.assertEqual(list(self.root.rglob("researched.json")), [])
 
 
 if __name__ == "__main__":

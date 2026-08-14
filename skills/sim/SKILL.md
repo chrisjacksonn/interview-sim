@@ -110,8 +110,14 @@ changes. Offer it once; do not write it for them without being asked.
 **Always pass `--open`** when there is a person at the keyboard. The workspace
 is built in their working directory, so the files appear inside the project they
 already have open, and `--open` navigates the editor they are already in to the
-first line of their solution file. It does not open a new window and it does not
-take them anywhere.
+problem statement. It does not open a new window and it does not take them
+anywhere.
+
+It opens the problem, not the starter, and your first instruction should match:
+tell them to read it, and to start writing in the `solution.py` beside it when
+they are ready. Somebody sitting in an empty starter file is being invited to
+type before they know what is being asked, which is the habit these formats
+punish hardest.
 
 Having done that, do not then print the path at them. They are looking at the
 file.
@@ -150,9 +156,8 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "interview me on a hard one" | `start --mode interview --slot 4` |
 | `/sim ramp`, "prep me for Capital One" | search for what they run, then start it with the flags you found |
 | a pasted job posting URL | read it, get the company, then search |
-| "what did you find last time" | `recall <company>`, and look again anyway |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
-| "what companies do you know" | none of them by heart. `recall` lists what has been looked up before |
+| "what companies do you know" | none of them by heart. Every one is looked up when it is named |
 
 When research does not establish a format, do not pick one for them and do not
 treat a widely-repeated claim as fact. Ask which they want. Guessing would be
@@ -184,15 +189,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
     --company shopify --round pairing \
     --format gca --mode interview --minutes 45 \
     --topic "rate limiting" --topic "object oriented design" \
-    --source https://... --source https://... \
-    --confidence medium --note "Live, candidate drives, 75-90 min reported." \
     --open
 ```
-
-Pass `--source` and the session writes down what it ran and where that came
-from, in one command. Do not call `learn` as well: the note is a byproduct of
-sitting the thing, which is what keeps it honest, because it cannot then
-describe a session nobody had.
 
 `--company` and `--round` are labels for the record. `--format`, `--mode`,
 `--questions`, `--minutes` and `--topic` are the shape, and they come from the
@@ -201,14 +199,6 @@ because naming a company is a claim about what they run, and the tool will not
 guess one. If the search establishes nothing usable, that refusal is your cue to
 ask them which format they would rather practise, and to say plainly that nobody
 established it.
-
-**The note is written by `start` itself**, from `--source`. `learn` exists only
-for research you did not act on: a round they are not sitting today, or a
-company they were only asking about. Either way `recall <company>` reads it back
-and says out loud that it is not current, and you never start a session from
-what it says without looking again. If today's search disagrees with the note, that is worth
-a sentence to them, because a process that changed is exactly the thing they
-need to know.
 
 ### How to research it
 
@@ -240,6 +230,13 @@ Do it properly or not at all:
    old they are, and how much they agree. Two posts from the same month
    describing the same round is a finding. One comment from 2021 is a rumour
    with a link on it.
+
+   **Open with the finding itself.** Not with a verdict on your own research,
+   and not with a preamble. "Enough to go on", "that was harder than expected",
+   "here is what I could piece together" all rate the search instead of
+   reporting it, and they make a solid result sound like a shrug. State what
+   they run, then where that came from and how confident it is. The confidence
+   belongs in a clause at the end, not in a throat-clear at the front.
 3. **Say which of the two claims you actually established.** Whether they run an
    asynchronous coding assessment at all, and what that assessment is, are
    separate questions and the second is usually the one you cannot answer.
@@ -247,36 +244,18 @@ Do it properly or not at all:
    honest output is "I could not establish this", followed by asking which
    format they want to practise. Thin research presented confidently is worse
    than no research, because they will plan around it.
-5. **Write it down**, so the next session for that company does not start from
-   nothing, and so the second time they paste a posting for it there is no
-   search at all:
+5. **Nothing is remembered between sessions, and that is deliberate.** There is
+   no log to write to and none to read from. Every company is looked up the day
+   it is named, because a hiring process changes between cycles and a note from
+   last month is a guess wearing a date. So never say a search agrees with
+   something you found before, never refer to a previous sitting, and never let
+   a second session for the same company skip the search.
 
-```
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" learn stripe \
-    --confidence medium --format gca --format-confidence low \
-    --round "60 minute async assessment, 2 problems" \
-    --source https://... --source https://... \
-    --note "Two candidate reports from early 2026, both for new grad."
-```
-
-**A process is usually more than one sitting, so record it as more than one.**
-If they run an assessment and then a live round, that is two rounds with two
-shapes, and calling `learn` again with a different `--round` adds to what is
-known rather than replacing it:
-
-```
-... learn shopify --round oa --format gca --questions 2 --minutes 60 \
-    --topic "strings" --topic "hash map" --source https://...
-... learn shopify --round pairing --format gca --mode interview --minutes 45 \
-    --topic "graphs" --source https://...
-```
-
-Ask which round they are preparing for, or offer to work through them in order
-over separate sittings, and pass the shape of the one they pick. A live round
-runs as `--mode interview`, so you are the interviewer for it.
-
-`learn` refuses without a source, and stamps every note with the date it was
-made. `recall` reads them back and says out loud that they are not current.
+**A process is usually more than one sitting, so say so.** If they run an
+assessment and then a live round, those are two different shapes and only one of
+them is what they are practising today. Tell them what the process looks like
+end to end, ask which round they want, and pass the shape of the one they pick.
+A live round runs as `--mode interview`, so you are the interviewer for it.
 
 **What you may never do is reproduce their questions.** Not the ones in a forum
 post, not the ones on a practice site, not a lightly reworded version. This is
@@ -285,15 +264,14 @@ and a takedown against this repository is a real outcome with precedent.
 
 **What you do instead is take the topics.** If people report being asked about
 rate limiting and graph traversal, that is the useful part and it is fair game.
-Record it:
+Pass it straight into the sitting:
 
 ```
-... learn stripe --confidence medium --format gca \
-    --topic "graphs" --topic "sliding window" --topic "rate limiting" \
-    --source https://...
+... start --company stripe --format gca \
+    --topic "graphs" --topic "sliding window" --topic "rate limiting" --open
 ```
 
-Sessions for that company then draw questions on those subjects, spread across
+The session then draws questions on those subjects, spread across
 them rather than stacked on whichever there is most of. `start --json` reports
 which topics the sitting covered and which it did not:
 

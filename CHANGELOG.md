@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.16.0
+
+**A session now opens on the problem, and the research memory is gone.** Both
+came out of sitting a real session and watching what it actually did.
+
+`--open` used to put you in `solution.py`, an empty starter file, with the
+problem statement a file away. That invites typing before reading, which is the
+habit these formats punish hardest. It now opens the problem, the listing names
+`problem.md` rather than `solution.py`, and the closing line says to read it
+first and write in the `solution.py` beside it when ready. Gated runs open
+`level1.md`, the only brief that has been revealed.
+
+**`learn`, `recall` and the research log are removed**, along with `--source`,
+`--confidence` and `--note` on `start`. The log existed so a second sitting for
+a company could be compared against the first, and what that produced in
+practice was an interviewer opening with "that lines up with what I found
+yesterday". That is a claim about a hiring process nobody rechecked, dressed up
+as continuity, and it is exactly what the rest of the design refuses to do: the
+company table was deleted for the same reason a version earlier. There is now no
+table, no cache, and no note. Every company is looked up on the day it is named.
+
+SKILL.md gained the rule that produced the rest of the fix. **Open with the
+finding, not with a verdict on the search.** "Enough to go on", "that was harder
+than expected" and "here is what I could piece together" all rate the research
+instead of reporting it, and they make a solid result sound like a shrug. The
+confidence belongs in a clause at the end, not in a throat-clear at the front.
+
+Around 400 lines of engine and two test classes deleted. The demo is re-recorded
+against the new output.
+
 ## 0.15.0
 
 **Two guards for the two bug classes that shipped, because both were invisible

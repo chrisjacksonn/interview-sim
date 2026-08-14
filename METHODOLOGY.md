@@ -170,9 +170,10 @@ solution squeaked under the timeout.
   such a question can mark something correct that is not. The session says so
   when it starts. Prefer the bank when the bank has something suitable.
 - **What a company runs is researched, never remembered.** This tool ships no
-  table of companies. When one is named, the agent searches, reports what it
-  found and how well sourced it is, and builds the sitting from that. What it
-  writes down afterwards is a dated note for comparison and is never used in
-  place of looking again, because a hiring process rebuilt between cycles has no
-  way of telling a file about it. Your actual invite email is better evidence
-  than any of it.
+  table of companies and keeps no cache. When one is named, the agent searches,
+  reports what it found and how well sourced it is, and builds the sitting from
+  that. The second session for a company searches again exactly like the first,
+  because a hiring process rebuilt between cycles has no way of telling a saved
+  note about it, and a stored answer gets quietly worse while sounding more
+  authoritative each time it is read back. Your actual invite email is better
+  evidence than any of it.

@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.15.0"
+VERSION = "0.16.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -536,51 +536,6 @@ def remember_questions(ids: List[str]) -> None:
     except OSError:
         pass
 
-
-def research_log_path() -> Path:
-    """Where a company researched on this machine is remembered.
-
-    Kept out of the repository on purpose. The shipped table is reviewed and
-    carries sources anyone can check; this file is one person's afternoon of
-    reading forum posts. Merging the two silently would launder the second into
-    the first, so they stay separate and everything printed from here says which
-    it came from.
-
-    Kept out of the sessions directory too, and for a different reason. Sessions
-    belong to the project you sat them in. What a company asks in an interview
-    does not: researching Shopify from one repository and finding it forgotten
-    from the next one is the same knowledge thrown away for no reason.
-    """
-    if os.environ.get("INTERVIEW_SIM_HOME"):
-        return sessions_root() / "researched.json"
-    return Path.home() / ".interview-sim" / "researched.json"
-
-
-def legacy_research_log_paths() -> List[Path]:
-    """Where it used to be written, before it stopped following the sessions."""
-    if os.environ.get("INTERVIEW_SIM_HOME"):
-        return []
-    return [
-        sessions_root() / "researched.json",
-        LEGACY_ROOT / "researched.json",
-    ]
-
-
-def load_research_log() -> Dict[str, Any]:
-    found = {}  # type: Dict[str, Any]
-    # Older locations first, so the current file wins where they overlap and
-    # research done before the move is still there.
-    for path in legacy_research_log_paths() + [research_log_path()]:
-        try:
-            with open(str(path), "r") as handle:
-                found.update(json.load(handle).get("presets", {}))
-        except IOError:
-            continue
-        except ValueError as exc:
-            raise SessionError("%s is not valid JSON: %s" % (path, exc), EXIT_BANK)
-    for entry in found.values():
-        entry["researched"] = True
-    return found
 
 
 def find_editor() -> Optional[Tuple[str, str]]:
@@ -1283,22 +1238,6 @@ def command_start(args: argparse.Namespace) -> int:
             EXIT_USAGE,
         )
 
-    sources_given = [item for item in (getattr(args, "source", None) or []) if item.strip()]
-    if sources_given and not company:
-        raise SessionError(
-            "--source records what was found out about a company, so it needs "
-            "--company to attach it to.",
-            EXIT_USAGE,
-        )
-    for source in sources_given:
-        if not source.startswith("http"):
-            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
-    if args.confidence and args.confidence not in CONFIDENCE_LEVELS:
-        raise SessionError(
-            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
-            EXIT_USAGE,
-        )
-
     fmt = args.format
     if fmt not in FORMATS:
         raise SessionError(
@@ -1461,27 +1400,6 @@ def command_start(args: argparse.Namespace) -> int:
     }
     add_event(state, now, "session_started", format=fmt, mode=args.mode, questions=count)
 
-    # The note is a byproduct of sitting the thing, not a separate ritual. The
-    # shape written down is the shape that actually ran, so the log cannot
-    # describe a session nobody had, and whoever just did the research types it
-    # once rather than twice.
-    sources = [item for item in (getattr(args, "source", None) or []) if item.strip()]
-    if sources:
-        record_research(
-            company,
-            round_name,
-            {
-                "format": fmt,
-                "mode": args.mode,
-                "questions": count,
-                "minutes": minutes,
-                "topics": topics,
-            },
-            sources,
-            now,
-            confidence=args.confidence,
-            note=args.note,
-        )
 
     # Record what the freshly copied starters look like, without emitting edit
     # events for them. Copying a starter is not work, and counting it as the
@@ -1492,8 +1410,11 @@ def command_start(args: argparse.Namespace) -> int:
     write_readme(workspace, state)
     write_pointer(workspace)
     if args.open:
-        first = state["questions"][0]
-        open_in_editor(workspace, workspace / first["dir"] / "solution.py")
+        # The problem, not the solution. Landing in an empty starter file puts
+        # someone at a keyboard before they have read what they are being asked
+        # for, which is the wrong instinct to rehearse and the opposite of what
+        # a real sitting rewards.
+        open_in_editor(workspace, first_reading(workspace, state))
     remember_questions([question["id"] for question in state["questions"]])
 
     payload = status_payload(state, now, STATE_ACTIVE)
@@ -1560,8 +1481,8 @@ def command_start(args: argparse.Namespace) -> int:
         print("  %s" % (workspace,))
         if config["gated"]:
             first = state["questions"][0]
-            print("    %s/solution.py" % (first["dir"],))
-            print("    %s/level1.md" % (first["dir"],))
+            print("    %s/level1.md     the brief" % (first["dir"],))
+            print("    %s/solution.py   yours to write" % (first["dir"],))
             print("")
             print(
                 "Levels 2 to %d are locked. Each one appears when the level "
@@ -1570,15 +1491,36 @@ def command_start(args: argparse.Namespace) -> int:
         else:
             for question in state["questions"]:
                 print(
-                    "    %s/solution.py   %s"
+                    "    %s/problem.md   %s"
                     % (question["dir"], question["title"] or question["id"])
                 )
         print("")
-        # The path is already two lines above. Repeating it here made the line
-        # long enough to wrap mid-word in an ordinary terminal, which is a poor
-        # last impression for the line that starts the clock.
-        print("Read README.md in there first. The clock is running.")
+        # Point at the problem, not the workspace. Someone who opens the starter
+        # first starts typing before they know what is being asked, and the
+        # first instruction should rehearse the habit the format rewards.
+        opening = first_reading(workspace, state)
+        if len(state["questions"]) == 1 or config["gated"]:
+            where = "%s/%s" % (opening.parent.name, opening.name)
+            paragraph("Read %s first, then write in %s/solution.py." % (where, opening.parent.name))
+        else:
+            paragraph(
+                "Read a problem.md first, then write your answer in the "
+                "solution.py beside it."
+            )
+        print("The clock is running.")
     return EXIT_OK
+
+
+def first_reading(workspace: Path, state: Dict[str, Any]) -> Path:
+    """The file to read before writing anything.
+
+    Gated formats reveal one level at a time, so the opening brief is level1.md
+    rather than a problem statement for the whole project.
+    """
+    first = state["questions"][0]
+    if FORMATS[state["format"]]["gated"]:
+        return workspace / first["dir"] / "level1.md"
+    return workspace / first["dir"] / "problem.md"
 
 
 def find_question(state: Dict[str, Any], wanted: Optional[str]) -> Dict[str, Any]:
@@ -2461,308 +2403,6 @@ def command_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-CONFIDENCE_LEVELS = ("high", "medium", "low")
-
-# Half a year. Hiring processes are rebuilt between cycles, so a note taken
-# while applying in one autumn says very little about the next one. This is not
-# an expiry: what was written down is still what was found, and the date it was
-# found is still true. It is the point past which it should be checked again
-# before anybody plans an evening around it.
-STALE_AFTER_DAYS = 180
-
-
-def entry_age_days(entry: Dict[str, Any], now: float) -> Optional[int]:
-    """How long ago this was last confirmed, in whole days.
-
-    None when the date is missing or unparseable, which is not the same as
-    fresh and must not be treated as fresh by anything downstream.
-    """
-    stamp = entry.get("last_confirmed")
-    if not stamp:
-        return None
-    try:
-        parsed = time.strptime(str(stamp), "%Y-%m-%d")
-    except (ValueError, TypeError):
-        return None
-    recorded = calendar.timegm(parsed)
-    return int((now - recorded) // 86400)
-
-
-def preset_rounds(preset: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """The rounds a company is recorded as running, always as a list.
-
-    A hiring process is usually more than one thing: an assessment, then a live
-    round, sometimes a take-home between them. Each has its own shape and each
-    is its own sitting, so they are stored separately and run separately.
-
-    Entries that predate this, and every reviewed entry in presets.json, carry
-    one shape at the top level. Those come back as a single unnamed round, so
-    the rest of the code only ever deals with a list.
-    """
-    rounds = preset.get("rounds")
-    if isinstance(rounds, list) and rounds:
-        return [dict(entry) for entry in rounds if isinstance(entry, dict)]
-    single = {
-        "name": None,
-        "format": preset.get("format"),
-        # Carried through with the format it qualifies. Leaving it out dropped
-        # the reviewed table's format_confidence on the floor, so Capital One
-        # went from "medium confidence" to "unstated" without anything changing
-        # in the table.
-        "format_confidence": preset.get("format_confidence"),
-        "mode": preset.get("mode"),
-        "questions": preset.get("questions"),
-        "minutes": preset.get("minutes"),
-        "topics": preset.get("topics"),
-        "note": preset.get("note"),
-    }
-    return [single]
-
-
-def describe_round(entry: Dict[str, Any]) -> str:
-    """One line for a round, saying only what is actually recorded."""
-    bits = []
-    if entry.get("format"):
-        bits.append(str(entry["format"]).upper())
-    if entry.get("mode") == "interview":
-        bits.append("live round")
-    if entry.get("questions"):
-        bits.append("%d question(s)" % (entry["questions"],))
-    if entry.get("minutes"):
-        bits.append("%g minutes" % (entry["minutes"],))
-    if entry.get("topics"):
-        bits.append("topics: %s" % (", ".join(entry["topics"]),))
-    return ", ".join(bits) if bits else "nothing recorded beyond its name"
-
-
-def age_phrase(entry: Dict[str, Any], now: float) -> str:
-    """", 12 days ago" or "", for printing after a date."""
-    age = entry_age_days(entry, now)
-    if age is None:
-        return ""
-    if age <= 0:
-        return ", today"
-    if age == 1:
-        return ", yesterday"
-    return ", %d days ago" % (age,)
-
-
-def record_research(
-    name: str,
-    round_name: Optional[str],
-    shape: Dict[str, Any],
-    sources: List[str],
-    now: float,
-    confidence: Optional[str] = None,
-    note: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Write down what a search turned up, or update what it turned up before.
-
-    Rounds accumulate rather than replace, because a process is learned in
-    pieces: the assessment turns up in one thread and the live round in another,
-    days apart. Re-recording a round overwrites that round and restamps the
-    date, keeping the sources from both passes.
-
-    This is a note about a date, not a fact about a company. Nothing reads it on
-    the way into a session.
-    """
-    path = research_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = {}
-    for source in legacy_research_log_paths() + [path]:
-        try:
-            with open(str(source), "r") as handle:
-                existing.update(json.load(handle).get("presets", {}))
-        except (IOError, ValueError):
-            continue
-    for stored in existing.values():
-        stored.pop("researched", None)
-
-    entry = dict(existing.get(name) or {})
-    entry.update(
-        {
-            "sources": sorted(set(entry.get("sources", [])) | set(sources)),
-            "last_confirmed": time.strftime("%Y-%m-%d", time.gmtime(now)),
-        }
-    )
-    if confidence:
-        entry["confidence"] = confidence
-
-    this_round = {"name": round_name}
-    for key, value in shape.items():
-        if value:
-            this_round[key] = value
-    if note:
-        this_round["note"] = note
-
-    rounds = [
-        item
-        for item in entry.get("rounds", [])
-        if isinstance(item, dict) and item.get("name") != round_name
-    ]
-    rounds.append(this_round)
-    entry["rounds"] = rounds
-    for stale in ("format", "format_confidence", "mode", "questions", "minutes", "topics", "note"):
-        entry.pop(stale, None)
-
-    existing[name] = entry
-    write_json(
-        path,
-        {
-            "schema_version": 2,
-            "_about": (
-                "What a search turned up about a company, and when. Notes for "
-                "comparing against the next search, never consulted in place of "
-                "one. Nothing here is checked by anyone."
-            ),
-            "presets": existing,
-        },
-    )
-    return entry
-
-
-def command_learn(args: argparse.Namespace) -> int:
-    """Write down what a search turned up, without sitting a session on it.
-
-    `start --source ...` records the same note as a byproduct of running the
-    thing, which is the usual path. This is for research you did not act on: a
-    round they are not sitting today, or a company they were only asking about.
-
-    A source or it does not get written down. A claim about what a company does
-    to candidates, with nothing behind it, is a rumour, and a rumour with a
-    timestamp on it is worse rather than better.
-    """
-    name = args.name.strip().lower()
-    if not name:
-        raise SessionError("Which company?", EXIT_USAGE)
-
-    sources = [source for source in (args.source or []) if source.strip()]
-    if not sources:
-        raise SessionError(
-            "At least one --source is required. A claim about what a company "
-            "does to candidates,\nwith nothing behind it, is a rumour.",
-            EXIT_USAGE,
-        )
-    for source in sources:
-        if not source.startswith("http"):
-            raise SessionError("Not a link: %s" % (source,), EXIT_USAGE)
-    if args.confidence and args.confidence not in CONFIDENCE_LEVELS:
-        raise SessionError(
-            "--confidence must be one of %s" % (", ".join(CONFIDENCE_LEVELS),),
-            EXIT_USAGE,
-        )
-    if args.format and args.format.lower() not in FORMATS:
-        raise SessionError("Unknown format: %s" % (args.format,), EXIT_USAGE)
-
-    round_name = args.round.strip().lower() if args.round else None
-    shape = {
-        "format": args.format.lower() if args.format else None,
-        "mode": args.mode,
-        "questions": args.questions,
-        "minutes": args.minutes,
-        "topics": [item.strip() for item in (args.topic or []) if item.strip()],
-    }
-    entry = record_research(
-        name, round_name, shape, sources, resolve_now(args.now),
-        confidence=args.confidence, note=args.note,
-    )
-
-    if args.json:
-        print(json.dumps(dict(entry, name=name), indent=2))
-        return EXIT_OK
-    print(
-        "Recorded %s%s in %s"
-        % (name, (" round %r" % (round_name,)) if round_name else "", research_log_path())
-    )
-    rounds = entry.get("rounds", [])
-    if len(rounds) > 1:
-        print("%s now has %d rounds recorded:" % (name, len(rounds)))
-        for item in rounds:
-            print("  %-12s %s" % (item.get("name") or "(unnamed)", describe_round(item)))
-    paragraph(
-        "A dated note about what a search turned up, for comparing against next "
-        "time. It is not consulted instead of looking again."
-    )
-    return EXIT_OK
-
-
-def command_recall(args: argparse.Namespace) -> int:
-    """What was found about a company last time somebody looked.
-
-    Not an answer, and never a substitute for looking again. Hiring processes
-    are rebuilt between cycles and this file has no way of noticing, so what it
-    holds is a dated note about the past. It is here because comparing what was
-    found last month with what is found today is useful, and because a search
-    that fails leaves you with something rather than nothing.
-    """
-    log = load_research_log()
-    now = resolve_now(args.now)
-
-    if args.name:
-        wanted = "".join(c for c in args.name.lower() if c.isalnum())
-        entry = None
-        for key, value in log.items():
-            if "".join(c for c in key.lower() if c.isalnum()) == wanted:
-                entry = dict(value)
-                entry["_name"] = key
-                break
-        if entry is None:
-            if args.json:
-                print(json.dumps({"found": False, "query": args.name}, indent=2))
-                return EXIT_OK
-            print(
-                "Nothing recorded for %r. Look it up, then write down what you "
-                "find with `learn`." % (args.name,)
-            )
-            return EXIT_OK
-        if args.json:
-            print(json.dumps(dict(entry, found=True, age_days=entry_age_days(entry, now)), indent=2))
-            return EXIT_OK
-
-        print(
-            "%s: found on %s%s, %s confidence."
-            % (
-                entry["_name"],
-                entry.get("last_confirmed", "an unknown date"),
-                age_phrase(entry, now),
-                entry.get("confidence", "unknown"),
-            )
-        )
-        for item in preset_rounds(entry):
-            if item.get("name"):
-                print("  %-12s %s" % (item["name"], describe_round(item)))
-                if item.get("note"):
-                    print("               %s" % (item["note"],))
-        for source in entry.get("sources", ()):
-            print("source: %s" % (source,))
-        print("")
-        paragraph(
-            "This is what a search turned up on that date and nothing more. It "
-            "is not current and was never checked by anyone else. Look it up "
-            "again before you plan an evening around it."
-        )
-        return EXIT_OK
-
-    if args.json:
-        print(json.dumps(log, indent=2, sort_keys=True))
-        return EXIT_OK
-    if not log:
-        print("Nothing researched yet. Paste a job posting and it will be.")
-        return EXIT_OK
-    for name in sorted(log):
-        entry = log[name]
-        print(
-            "  %-22s %s%s"
-            % (name, entry.get("last_confirmed", "undated"), age_phrase(entry, now))
-        )
-    print("")
-    paragraph(
-        "Dated notes, not a table of facts. Every one of them is worth checking "
-        "again before it is used."
-    )
-    return EXIT_OK
-
-
 def walk_sessions() -> List[Tuple[Path, Optional[Dict[str, Any]]]]:
     """Every session under the root, newest first, state or None if unreadable.
 
@@ -3048,7 +2688,7 @@ def command_check(args: argparse.Namespace) -> int:
         {
             "name": "editor",
             "ok": True,
-            "detail": "%s, so --open will open your solution file in it" % (editor[0],)
+            "detail": "%s, so --open will open the problem in it" % (editor[0],)
             if editor
             else "no GUI editor found, so --open has nothing to open. Sessions "
             "still work; the workspace path is printed when one starts",
@@ -3265,19 +2905,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="which round of their process, e.g. --round pairing. A label too",
     )
     start.add_argument(
-        "--source", action="append", default=None,
-        help="a link behind what you found out about them. Repeatable. Given "
-             "these, the session writes down what it ran and where that came "
-             "from, so it can be compared with the next search",
-    )
-    start.add_argument(
-        "--confidence", default=None,
-        help="how well sourced the shape is: high, medium or low",
-    )
-    start.add_argument(
-        "--note", default=None, help="a sentence about what was found"
-    )
-    start.add_argument(
         "--open", action="store_true",
         help="open the workspace in your editor once it is ready",
     )
@@ -3312,46 +2939,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(submit)
     submit.set_defaults(func=command_submit)
 
-    recall = subparsers.add_parser(
-        "recall", help="what a search turned up for a company last time"
-    )
-    recall.add_argument("name", nargs="?", default=None)
-    add_common(recall)
-    recall.set_defaults(func=command_recall)
-
     listing = subparsers.add_parser("list", help="show past sessions")
     listing.add_argument("--limit", type=int, default=20)
     add_common(listing)
     listing.set_defaults(func=command_list)
-
-    learn = subparsers.add_parser(
-        "learn", help="record what was researched about a company, locally"
-    )
-    learn.add_argument("name")
-    learn.add_argument("--format", default=None, help="gca or ica, if it is known")
-    learn.add_argument("--mode", default=None, choices=("exam", "interview"))
-    learn.add_argument("--questions", type=int, default=None)
-    learn.add_argument("--minutes", type=float, default=None)
-    learn.add_argument(
-        "--confidence", default="low", help="high, medium or low. Be honest"
-    )
-    learn.add_argument("--format-confidence", default=None, dest="format_confidence")
-    learn.add_argument(
-        "--source", action="append", default=None,
-        help="a link behind the claim. Required, repeatable",
-    )
-    learn.add_argument(
-        "--round", default=None,
-        help="name this round, e.g. --round oa or --round pairing. Calling learn "
-             "again with a different name adds a round rather than replacing one",
-    )
-    learn.add_argument(
-        "--topic", action="append", default=None,
-        help="a subject candidates report being asked about. Repeatable",
-    )
-    learn.add_argument("--note", default=None)
-    add_common(learn)
-    learn.set_defaults(func=command_learn)
 
     check = subparsers.add_parser(
         "check", help="whether this machine can run a session"
