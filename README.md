@@ -22,7 +22,7 @@ set, because companies do not all run the same thing.
 
 If your invite email uses the platform's own names for the first two, they are
 `--format gca` and `--format ica`.
-- `start`, `status`, `submit`, `hint`, `unlock`, `report`, and `list`
+- `start`, `status`, `submit`, `hint`, `unlock`, `report`, `watch`, and `list`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 - a per-question time breakdown, so a sitting lost to bad triage says so
@@ -231,6 +231,41 @@ Open it in your editor and work normally. `status` tells you how much time is
 left. `submit` runs your solution against the hidden suite and tells you how many
 of its tests passed, and nothing else: which ones failed is the part you are
 meant to work out. Resubmit as often as you like, it only costs time.
+
+### A clock on screen
+
+Split your terminal and run `watch` in the other pane:
+
+```
+python3 skills/sim/scripts/session.py watch
+```
+
+```
+  ┌─────────────────┐
+  │      38:14      │
+  └─────────────────┘
+  gca-20260815T091200Z
+
+  q1         28/28
+  q2         19/25
+  q3         not submitted
+  q4         not submitted
+```
+
+It redraws once a second, turns amber at ten minutes and red at two, and rings
+the bell at thirty, ten and two along with a desktop notification. It also
+writes the remaining time into the terminal's tab title, which is the surface
+that survives the pane being hidden and needs no permission from anything.
+
+A real assessment puts a countdown where you cannot avoid it, and coding with a
+clock in your peripheral vision is a different skill from coding. Expect to do
+slightly worse with it at first. That is the point.
+
+The pane owns nothing. It re-reads `state.json` and draws `deadline - now`, so
+it decides nothing and grades nothing, and late work is still refused by the
+script alone. Leaving it running also improves the time breakdown below, because
+a pane that is awake every second is a far better observer of your edits than a
+command you happen to run twice an hour.
 
 Once the deadline passes the session is over, and a submission after that is
 refused even if it is correct. `report` then summarises the sitting, including

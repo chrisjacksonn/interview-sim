@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.17.0
+
+**`watch`: a live countdown for a second terminal pane.**
+
+```
+  ┌─────────────────┐
+  │      38:14      │
+  └─────────────────┘
+  gca-20260815T091200Z
+
+  q1         28/28
+  q2         19/25
+  q3         not submitted
+  q4         not submitted
+```
+
+Redraws once a second, amber at ten minutes, red at two, then `TIME IS UP` and
+it exits. A real assessment puts a countdown in the browser chrome where you
+cannot avoid it, and coding with a clock in your peripheral vision is a
+different skill from coding.
+
+Milestones at thirty, ten and two minutes reach four surfaces at once, because
+each of them fails differently: a desktop notification, which is the only one
+that works when the pane is buried and the one most likely to have been silently
+denied permission; the terminal bell, which VS Code turns into a badge on the
+tab; the **tab title**, which carries the countdown continuously and needs no
+permission and no visible pane, and is the quiet favourite; and the pane itself.
+Opening a pane with five minutes left does not replay the thirty and ten minute
+alerts on the way in.
+
+**The pane owns nothing.** It re-reads `state.json` and draws `deadline - now`.
+It decides nothing and grades nothing, so late work is still refused by the
+script alone. A display process is fine where a timing process would not be.
+
+Leaving it running also sharpens the time breakdown, because a process awake
+every second is a far better observer of edits than a command run twice an hour.
+That required care rather than enthusiasm: the pane lives for an hour beside the
+grader, so it re-reads under the lock before recording, and never writes back a
+copy of the state it read before the last submission landed.
+
+Two things it does not do. It never returns until the clock does, so SKILL.md
+now forbids the agent from running it and tells it to ask the candidate to open
+a split instead. And a closed pane exits quietly rather than printing a
+`BrokenPipeError` into whatever is left of the terminal.
+
 ## 0.16.1
 
 **The auto mode line was arriving after it could do any good.** It was pinned to

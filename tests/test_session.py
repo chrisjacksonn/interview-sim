@@ -1765,6 +1765,129 @@ class TestStartsOnTheProblem(SessionTestCase):
         self.assertTrue(chosen.exists())
 
 
+class TestWatch(SessionTestCase):
+    """The countdown pane.
+
+    The loop itself is not driven here: it runs until the clock does, so a test
+    that entered it would hang. Everything that decides anything is a pure
+    function, and `--once` renders a frame without looping, so the parts worth
+    testing are reachable without waiting an hour.
+    """
+
+    def module(self):
+        sys.path.insert(0, str(SCRIPT.parent))
+        try:
+            import session
+
+            return session
+        finally:
+            sys.path.pop(0)
+
+    def deadline(self):
+        return self.state()["clock"]["deadline_epoch"]
+
+    def test_urgency_thresholds(self):
+        session = self.module()
+        self.assertEqual(session.urgency(3600), "calm")
+        self.assertEqual(session.urgency(601), "calm")
+        self.assertEqual(session.urgency(600), "warning")
+        self.assertEqual(session.urgency(121), "warning")
+        self.assertEqual(session.urgency(120), "critical")
+        self.assertEqual(session.urgency(1), "critical")
+        self.assertEqual(session.urgency(0), "over")
+        self.assertEqual(session.urgency(-5), "over")
+
+    def test_a_milestone_fires_once(self):
+        session = self.module()
+        fired = set()
+        first = session.due_milestones(600, fired)
+        self.assertEqual([at for at, _ in first], [1800.0, 600.0])
+        fired.update(at for at, _ in first)
+        self.assertEqual(session.due_milestones(599, fired), [])
+
+    def test_starting_late_does_not_replay_the_ones_already_passed(self):
+        """Opening a pane with five minutes left must not fire thirty and ten."""
+        session = self.module()
+        remaining = 300.0
+        fired = set(at for at, _ in session.MILESTONES if remaining <= at)
+        self.assertEqual(session.due_milestones(remaining, fired), [])
+        self.assertEqual(
+            [at for at, _ in session.due_milestones(120, fired - {120.0})], [120.0]
+        )
+
+    def test_once_renders_the_clock_and_the_questions(self):
+        self.run_session("start", "--format", "gca", "--questions", 2, "--now", T0)
+        code, out, err = self.run_session(
+            "watch", "--once", "--plain", "--now", self.deadline() - 900
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("15:00", out)
+        self.assertIn("q1", out)
+        self.assertIn("q2", out)
+
+    def test_once_says_time_is_up_and_exits_four(self):
+        self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)
+        code, out, _ = self.run_session(
+            "watch", "--once", "--plain", "--now", self.deadline() + 10
+        )
+        self.assertEqual(code, EXIT_EXPIRED)
+        self.assertIn("TIME IS UP", out)
+        self.assertIn("Nothing more can be submitted", out)
+
+    def test_plain_emits_no_escape_codes(self):
+        """Piping it somewhere, or --plain, must not paint anything."""
+        self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)
+        _, out, _ = self.run_session(
+            "watch", "--once", "--plain", "--now", self.deadline() - 60
+        )
+        self.assertNotIn("\033", out)
+
+    def test_it_shows_a_result_once_something_is_submitted(self):
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(*a, **k):\n    return None\n"
+        )
+        self.run_session("submit", "--question", "q1", "--now", T0 + 60)
+        _, out, _ = self.run_session(
+            "watch", "--once", "--plain", "--now", self.deadline() - 60
+        )
+        self.assertNotIn("not submitted", out)
+
+    def test_no_session_is_the_usual_exit_code(self):
+        code, _, _ = self.run_session("watch", "--once")
+        self.assertEqual(code, EXIT_NO_SESSION)
+
+    def test_sampling_never_writes_back_over_a_submission(self):
+        """The pane lives for an hour beside the grader.
+
+        It writes the timeline as it goes, so it has to re-read under the lock
+        rather than persist whatever it last read. Writing a copy taken before a
+        submission landed would erase the submission.
+        """
+        session = self.module()
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(*a, **k):\n    return None\n"
+        )
+        self.run_session("submit", "--question", "q1", "--now", T0 + 60)
+        before = self.state()["questions"][0]["result"]
+        self.assertIsNotNone(before)
+
+        # Stamped explicitly: a test writes both files inside the epsilon that
+        # exists so copying a starter does not count as an edit.
+        later = workspace / "q1" / "solution.py"
+        later.write_text("# edited after submitting\n")
+        os.utime(str(later), (T0 + 300, T0 + 300))
+        session.sample_edits_locked(workspace)
+
+        after = self.state()
+        self.assertEqual(after["questions"][0]["result"], before)
+        self.assertTrue(
+            [event for event in after["events"] if event["type"] == "edited"],
+            "the reading was not recorded at all",
+        )
+
+
 class TestNothingIsRemembered(SessionTestCase):
     """Research is not cached, so the commands that used to cache it are gone.
 

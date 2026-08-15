@@ -138,6 +138,18 @@ Check the clock:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" status
 ```
 
+**Never run `watch` yourself.** It is a countdown for a second terminal pane and
+it does not return until the clock does, so shelling out to it and waiting hangs
+the session until the deadline. Tell them to run it, in a split, in their own
+words:
+
+> If you want a clock on screen, split your terminal and run `sim watch` in the
+> other pane. It also puts the time in the tab title, so it is there even when
+> the pane is not.
+
+Offer that once, when the session starts, and then leave it. `status` is how
+**you** read the clock, every time.
+
 Grade a question:
 
 ```
@@ -154,6 +166,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim status`, "how long do I have" | `status` |
 | "how much time do I have left" | `status`. The remaining clock is per session, never per question |
 | "where did my time go", "what did I spend the hour on" | `report`, which breaks the clock down per question once the sitting is over |
+| "can I see a timer", "put a clock on screen" | tell them to run `watch` in a split pane. Never run it yourself |
 | `/sim ica`, "start an ICA mock" | `start --format ica` |
 | "submit", "grade this", "check question 1" | `submit --question q1` |
 | "submit" during an ICA run | `submit` with no argument, which means the open level |

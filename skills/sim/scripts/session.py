@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.16.1"
+VERSION = "0.17.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -2056,6 +2056,25 @@ def sample_edits(workspace: Path, state: Dict[str, Any]) -> None:
         pass
 
 
+def sample_edits_locked(workspace: Path) -> None:
+    """Take a reading under the lock, re-reading the state first.
+
+    `sample_edits` writes the state object its caller is already holding, which
+    is correct for a command that read it a moment ago and exits. A watch pane
+    lives for an hour beside a grader, so it must not write back a copy it read
+    before the last submission landed. Re-reading inside the lock closes that
+    window; the cost is a lock the grader briefly waits on, which is
+    microseconds against a run that takes seconds.
+    """
+    try:
+        with session_lock(workspace):
+            fresh = read_state(workspace)
+            if observe_edits(workspace, fresh):
+                write_state(workspace, fresh)
+    except (SessionError, IOError, OSError):
+        pass
+
+
 def session_end_point(state: Dict[str, Any], now: float) -> float:
     """The last moment that counts, whether or not the session is over."""
     clock = state["clock"]
@@ -2874,6 +2893,209 @@ def command_status(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------
+# watch
+#
+# A real assessment puts a countdown in the browser chrome where you cannot
+# avoid it, and coding with a clock in your peripheral vision is a different
+# skill from coding. Nothing here owns that clock: the pane re-reads
+# state.json and draws `deadline - now`. It decides nothing and grades
+# nothing, so late work is still refused by the script alone. A display
+# process is fine where a timing process would not be.
+# --------------------------------------------------------------------------
+
+# Amber, then red. Ten minutes is when triage stops being optional and two is
+# when the answer is to submit whatever exists.
+WARN_AT = 600.0
+CRITICAL_AT = 120.0
+MILESTONES = ((1800.0, "Thirty minutes left"),
+              (600.0, "Ten minutes left"),
+              (120.0, "Two minutes left"))
+SAMPLE_EVERY = 15.0
+
+ANSI = {
+    "reset": "\033[0m", "dim": "\033[2m", "bold": "\033[1m",
+    "green": "\033[32m", "yellow": "\033[33m", "red": "\033[31m",
+}
+
+
+def urgency(remaining: float) -> str:
+    if remaining <= 0:
+        return "over"
+    if remaining <= CRITICAL_AT:
+        return "critical"
+    if remaining <= WARN_AT:
+        return "warning"
+    return "calm"
+
+
+def due_milestones(remaining: float, fired: set) -> List[Tuple[float, str]]:
+    """Thresholds crossed since the last look.
+
+    Starting a watch with five minutes left must not fire thirty and ten on the
+    way in, so the caller seeds `fired` with everything already behind it.
+    """
+    return [(at, label) for at, label in MILESTONES
+            if remaining <= at and at not in fired]
+
+
+def notify(message: str) -> None:
+    """Best effort desktop notification. Never raises, never blocks.
+
+    Notifications are a supplement to the clock on screen, never the thing the
+    design leans on: permission may never have been granted and Do Not Disturb
+    may be on, and something you rely on to say the time is nearly gone that
+    quietly does not is worse than not having it.
+    """
+    safe = message.replace('"', "'")
+    if sys.platform == "darwin":
+        command = ["osascript", "-e",
+                   'display notification "%s" with title "interview-sim"' % (safe,)]
+    elif sys.platform.startswith("linux"):
+        command = ["notify-send", "interview-sim", safe]
+    else:
+        return
+    try:
+        with open(os.devnull, "w") as sink:
+            subprocess.Popen(command, stdout=sink, stderr=sink)
+    except (OSError, ValueError):
+        pass
+
+
+def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
+    """One rendered frame of the pane."""
+    def paint(text, name):
+        return "%s%s%s" % (ANSI[name], text, ANSI["reset"]) if colour else text
+
+    clock = state["clock"]
+    ended = clock.get("ended_epoch") is not None
+    remaining = max(0.0, clock["deadline_epoch"] - now)
+    level = "over" if ended else urgency(remaining)
+
+    if level == "over":
+        face = "TIME IS UP"
+        tint = "red"
+    else:
+        face = format_duration(remaining)
+        tint = {"calm": "bold", "warning": "yellow", "critical": "red"}[level]
+
+    width = max(len(face) + 8, 17)
+    pad = (width - len(face)) // 2
+    lines = [
+        "",
+        "  ┌" + "─" * width + "┐",
+        "  │" + " " * pad + paint(face, tint) + " " * (width - pad - len(face)) + "│",
+        "  └" + "─" * width + "┘",
+        "  " + paint(state["session_id"], "dim"),
+        "",
+    ]
+
+    gated = FORMATS[state["format"]]["gated"]
+    for question in state["questions"]:
+        label = question["title"] if gated else question["dir"]
+        result = question.get("result")
+        if result and result.get("total"):
+            body = "%d/%d" % (result["passed"], result["total"])
+            body = paint(body, "green" if result.get("outcome") == "pass" else "yellow")
+        elif question.get("state") == STATE_LOCKED:
+            body = paint("locked", "dim")
+        elif question.get("attempts"):
+            body = paint(result.get("outcome", "?") if result else "?", "yellow")
+        else:
+            body = paint("not submitted", "dim")
+        lines.append("  %-10s %s" % (label, body))
+
+    if level == "over":
+        lines.append("")
+        lines.append("  " + paint("Nothing more can be submitted.", "dim"))
+    return "\n".join(lines) + "\n"
+
+
+def command_watch(args: argparse.Namespace) -> int:
+    """A countdown in its own pane, redrawn once a second.
+
+    Never run this from an agent. It does not return until the clock does, so
+    anything that shells out to it and waits will simply hang.
+    """
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+    live = sys.stdout.isatty() and not args.plain
+
+    if args.once:
+        sys.stdout.write(watch_frame(state, resolve_now(args.now), colour=live))
+        return EXIT_EXPIRED if classify(state, resolve_now(args.now)) != STATE_ACTIVE else EXIT_OK
+
+    # Everything already behind us is not news.
+    now = resolve_now(args.now)
+    remaining = max(0.0, state["clock"]["deadline_epoch"] - now)
+    fired = set(at for at, _ in MILESTONES if remaining <= at)
+    last_sample = now
+
+    if live:
+        sys.stdout.write("\033[?25l")  # hide the cursor
+    try:
+        while True:
+            now = time.time()
+            state = read_state(workspace)
+            phase = classify(state, now)
+            if phase == STATE_EXPIRED:
+                state = finalize(workspace, state, now, END_REASON_TIME)
+                phase = STATE_ENDED
+            remaining = max(0.0, state["clock"]["deadline_epoch"] - now)
+
+            if live:
+                sys.stdout.write("\033[H\033[J")
+                # The tab title carries the clock even when this pane is buried,
+                # which is the cheapest surface here and the only one that needs
+                # no permission and no pane on screen.
+                sys.stdout.write("\033]0;%s left\007" % (format_duration(remaining),))
+            sys.stdout.write(watch_frame(state, now, colour=live))
+            sys.stdout.flush()
+
+            if phase == STATE_ENDED:
+                if live:
+                    sys.stdout.write("\a")
+                    sys.stdout.flush()
+                notify("Time is up.")
+                return EXIT_EXPIRED if state["clock"].get("end_reason") == END_REASON_TIME else EXIT_OK
+
+            for at, label in due_milestones(remaining, fired):
+                fired.add(at)
+                if live:
+                    sys.stdout.write("\a")
+                    sys.stdout.flush()
+                notify(label + ".")
+
+            # A running pane is also the best observer the timeline ever gets:
+            # without it, resolution is however often a command happened to run.
+            if now - last_sample >= SAMPLE_EVERY:
+                last_sample = now
+                sample_edits_locked(workspace)
+
+            time.sleep(max(0.05, 1.0 - (time.time() % 1.0)))
+    except KeyboardInterrupt:
+        return EXIT_OK
+    except (BrokenPipeError, IOError):
+        # The pane was closed, or the output was piped somewhere that stopped
+        # reading. A clock nobody is looking at should die quietly rather than
+        # print a stack trace into whatever is left of the terminal. stdout is
+        # pointed at the void first, because the interpreter flushes it again on
+        # the way out and would raise a second time.
+        try:
+            sink = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(sink, sys.stdout.fileno())
+        except OSError:
+            pass
+        return EXIT_OK
+    finally:
+        if live:
+            try:
+                sys.stdout.write("\033[?25h")  # give the cursor back
+                sys.stdout.flush()
+            except (BrokenPipeError, IOError, ValueError):
+                pass
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="session.py", description="Timed assessment session engine."
@@ -2983,6 +3205,22 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--session", default=None)
     add_common(status)
     status.set_defaults(func=command_status)
+
+    watch = subparsers.add_parser(
+        "watch", help="a live countdown, for a second terminal pane"
+    )
+    watch.add_argument("--workspace", default=None)
+    watch.add_argument("--session", default=None)
+    watch.add_argument(
+        "--once", action="store_true",
+        help="draw one frame and exit instead of running the clock down",
+    )
+    watch.add_argument(
+        "--plain", action="store_true",
+        help="no colour, no cursor tricks, no tab title",
+    )
+    add_common(watch)
+    watch.set_defaults(func=command_watch)
 
     return parser
 
