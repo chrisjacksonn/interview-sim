@@ -193,10 +193,10 @@ instead:
 
 Or press shift+tab at the start of a session and change nothing on disk.
 
-The skill mentions this once when a session starts and then leaves it alone. It
-cannot turn any of it on itself, and that is deliberate rather than an
-oversight: a plugin able to switch off its own permission prompts would make
-those prompts worthless. There is even a `disableAutoMode` setting so an
+The skill mentions this once in its first reply, before it starts searching, and
+then leaves it alone. It cannot turn any of it on itself, and that is deliberate
+rather than an oversight: a plugin able to switch off its own permission prompts
+would make those prompts worthless. There is even a `disableAutoMode` setting so an
 administrator can forbid auto mode outright.
 
 ## Using it
