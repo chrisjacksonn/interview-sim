@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.18.2
+
+**A floor under every command, and a test for the bug class the suite could not
+see.** Three bugs this week were found by running the tool rather than by the
+suite, and one was structural: `watch` printed a `BrokenPipeError` traceback the
+first time its reader walked away, which is what closing a split pane does. No
+test could catch it, because a test that captures output reads all of it, and a
+reader that never leaves is the one case that cannot reproduce the failure.
+
+There is now a test that closes the pipe early against a live session, and it
+fails without the fix. Getting there took two wrong attempts worth recording:
+piping an *expired* session proves nothing, because the pane prints one frame
+and exits before the reader goes away.
+
+Alongside it, every command is now run in every session state (none, active,
+submitted, expired-but-unobserved, ended, gated with levels locked, interview)
+and must neither crash nor return an exit code outside the documented set. That
+is a low floor on purpose. It would not have caught any of this week's three:
+it cannot see a suite that fails to discriminate, a wall of output that is
+correct and useless, or anything else that is merely bad rather than broken.
+Those still need somebody to run the thing.
+
 ## 0.18.1
 
 **An answer that failed everything printed the suite back at you.** Twenty-six

@@ -2030,5 +2030,140 @@ class TestNothingIsRemembered(SessionTestCase):
         self.assertEqual(list(self.root.rglob("researched.json")), [])
 
 
+class TestEveryCommandInEveryState(SessionTestCase):
+    """No command, in any session state, may crash or invent an exit code.
+
+    Written because three separate bugs this week were found by running the
+    tool rather than by the suite, and one of them was of exactly this shape: a
+    closed pane made `watch` print a BrokenPipeError traceback. Every existing
+    test asserts a behaviour somebody thought to check. Nothing asserted the
+    floor, which is that a command in an odd state fails like a program rather
+    than like a stack trace.
+
+    This cannot catch a bad-looking answer, only a broken one. The wall of
+    twenty-six bullet points the debrief used to print would sail through here,
+    because it was correct and merely useless. That half still needs a person.
+    """
+
+    # The contract SKILL.md branches on. Anything outside this set means the
+    # agent has no documented way to react to whatever just happened.
+    DOCUMENTED = {0, 2, 3, 4, 5, 6, 7, 8, 9}
+
+    COMMANDS = (
+        ("status", ()),
+        ("report", ()),
+        ("debrief", ()),
+        ("watch", ("--once", "--plain")),
+        ("list", ()),
+        ("progress", ()),
+        ("check", ()),
+        ("submit", ("--question", "q1")),
+        ("unlock", ()),
+        ("hint", ("--note", "a nudge")),
+        ("start", ("--format", "gca", "--questions", "1")),
+    )
+
+    def states(self):
+        """Each situation a command can arrive in, as (name, extra setup)."""
+        return (
+            ("no session", self._nothing),
+            ("active", self._active),
+            ("active, one submitted", self._submitted),
+            ("expired but unobserved", self._expired),
+            ("ended, observed", self._ended),
+            ("gated, levels locked", self._gated),
+            ("interview mode", self._interview),
+        )
+
+    def _nothing(self):
+        return T0 + 60
+
+    def _active(self):
+        self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)
+        return T0 + 60
+
+    def _submitted(self):
+        self._active()
+        workspace = self.workspace()
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(*a, **k):\n    return None\n"
+        )
+        self.run_session("submit", "--question", "q1", "--now", T0 + 90)
+        return T0 + 120
+
+    def _expired(self):
+        self._active()
+        # Past the deadline, but nothing has run since, so the ending has not
+        # been written down yet. Every command has to cope with observing it.
+        return T0 + 99999
+
+    def _ended(self):
+        self._active()
+        self.run_session("status", "--now", T0 + 99999)
+        return T0 + 99999
+
+    def _gated(self):
+        self.run_session(
+            "start", "--format", "ica", "--project", "parcel-locker", "--now", T0
+        )
+        return T0 + 60
+
+    def _interview(self):
+        self.run_session("start", "--mode", "interview", "--now", T0)
+        return T0 + 60
+
+    def test_a_reader_that_walks_away_is_not_a_crash(self):
+        """Closing the pane must not print a stack trace into the terminal.
+
+        This is the one that actually happened. `watch` died with a
+        BrokenPipeError the first time its output was piped into something that
+        stopped reading, which is what closing a split does. Nothing in the
+        suite could see it, because a test that captures output reads all of it,
+        and a reader that never leaves is the one case that cannot reproduce it.
+        """
+        # A live session, on the real clock. `--now` is not honoured by the
+        # loop (deliberately: SKILL.md forbids rewinding a running session), so
+        # an injected deadline in the past would make watch print one frame and
+        # exit before the reader ever went away, which is the whole condition.
+        code, _, err = self.run_session("start", "--format", "gca", "--questions", 1)
+        self.assertEqual(code, EXIT_OK, err)
+        env = dict(os.environ)
+        env["INTERVIEW_SIM_HOME"] = str(self.root)
+        env.pop("INTERVIEW_SIM_NOW", None)
+        env.pop("INTERVIEW_SIM_SESSION", None)
+
+        for command, extra in (("watch", ["--plain"]), ("status", []), ("report", [])):
+            reader = subprocess.Popen(["head", "-2"], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, universal_newlines=True)
+            writer = subprocess.Popen(
+                [sys.executable, str(SCRIPT), command] + extra,
+                stdout=reader.stdin, stderr=subprocess.PIPE,
+                env=env, cwd=str(REPO), universal_newlines=True,
+            )
+            reader.stdin.close()
+            _, err = writer.communicate(timeout=60)
+            reader.stdout.read()
+            reader.wait(timeout=10)
+            self.assertNotIn(
+                "Traceback", err, "%s traced back when its reader closed" % (command,)
+            )
+
+    def test_nothing_crashes_and_no_exit_code_is_invented(self):
+        problems = []
+        for label, setup in self.states():
+            for command, extra in self.COMMANDS:
+                self.setUp()  # a fresh sessions root per combination
+                now = setup()
+                code, out, err = self.run_session(
+                    command, *(list(extra) + ["--now", now])
+                )
+                where = "%s / %s" % (label, command)
+                if "Traceback" in out + err:
+                    problems.append("%s: traceback\n%s" % (where, (out + err)[-400:]))
+                if code not in self.DOCUMENTED:
+                    problems.append("%s: undocumented exit %d" % (where, code))
+        self.assertEqual(problems, [], "\n\n".join(problems))
+
+
 if __name__ == "__main__":
     unittest.main()
