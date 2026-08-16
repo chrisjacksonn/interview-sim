@@ -19,6 +19,7 @@ suffix, and this way it never has to).
 """
 
 import argparse
+import ast
 import calendar
 import json
 import os
@@ -31,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.17.0"
+VERSION = "0.18.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1058,6 +1059,16 @@ Time remaining:
 
     sim status
 
+Or put a clock on screen. Split your terminal and run this in the other pane:
+
+    sim watch
+
+It counts down once a second, turns amber at ten minutes and red at two, and
+writes the time into the terminal's tab title so it is there even when the pane
+is not. A real assessment keeps a countdown where you cannot avoid it, so this
+is the closer imitation. Expect to find it slightly harder with the clock
+visible. That is the part being practised.
+
 Grade a question against the hidden tests:
 
     sim submit --question {first_dir}
@@ -1072,7 +1083,7 @@ When the clock runs out:
 ## Rules
 
 - The clock does not stop. Closing your editor does not pause it.
-- Check the time with `sim status`; do not guess.
+- Check the time with `sim status`, or keep `sim watch` open; do not guess.
 - The person proctoring will clarify what a question is asking. They will not
   tell you how to solve it.
 - Work submitted after the deadline does not count, even if it is correct.
@@ -1562,11 +1573,18 @@ def find_question(state: Dict[str, Any], wanted: Optional[str]) -> Dict[str, Any
     )
 
 
-def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict[str, Any]:
+def run_grader(
+    question: Dict[str, Any], solution: Path, timeout: float, detail: bool = False
+) -> Dict[str, Any]:
     """Shell out to grade.py.
 
     A subprocess rather than an import, so the candidate's code never executes
     inside the process holding the state file open.
+
+    `detail` asks the grader for the names of the tests that failed. It stays
+    off for `submit`, where naming them would hand over the answer while there
+    is still time to use it, and goes on for `debrief`, which runs only once the
+    clock is out and exists to name them.
     """
     grader = Path(__file__).resolve().parent / "grade.py"
     if not grader.exists():
@@ -1592,7 +1610,7 @@ def run_grader(question: Dict[str, Any], solution: Path, timeout: float) -> Dict
             "--timeout",
             str(timeout),
             "--json",
-        ],
+        ] + (["--detail"] if detail else []),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
@@ -2714,6 +2732,22 @@ def command_check(args: argparse.Namespace) -> int:
         }
     )
 
+    # Not a failure either way. The clock on screen is the real surface and the
+    # notification is a supplement, so this exists to say so before a sitting
+    # rather than at ten minutes to go.
+    found = notifier()
+    checks.append(
+        {
+            "name": "alerts",
+            "ok": True,
+            "detail": "%s, so `watch` can raise its ten and two minute warnings"
+            % (found,)
+            if found
+            else "no notifier on this platform, so `watch` warns with the bell "
+            "and the tab title only. The countdown itself still works",
+        }
+    )
+
     # Not a pass or fail, just the thing people ask for after their first
     # session, and this is the one command that knows the path.
     shortcut = 'sim() { python3 "%s" "$@"; }' % (Path(__file__).resolve(),)
@@ -2939,6 +2973,15 @@ def due_milestones(remaining: float, fired: set) -> List[Tuple[float, str]]:
             if remaining <= at and at not in fired]
 
 
+def notifier() -> Optional[str]:
+    """The program that can raise a desktop notification here, if any."""
+    if sys.platform == "darwin":
+        return shutil.which("osascript")
+    if sys.platform.startswith("linux"):
+        return shutil.which("notify-send")
+    return None
+
+
 def notify(message: str) -> None:
     """Best effort desktop notification. Never raises, never blocks.
 
@@ -2947,14 +2990,15 @@ def notify(message: str) -> None:
     may be on, and something you rely on to say the time is nearly gone that
     quietly does not is worse than not having it.
     """
+    found = notifier()
+    if not found:
+        return
     safe = message.replace('"', "'")
     if sys.platform == "darwin":
-        command = ["osascript", "-e",
+        command = [found, "-e",
                    'display notification "%s" with title "interview-sim"' % (safe,)]
-    elif sys.platform.startswith("linux"):
-        command = ["notify-send", "interview-sim", safe]
     else:
-        return
+        command = [found, "interview-sim", safe]
     try:
         with open(os.devnull, "w") as sink:
             subprocess.Popen(command, stdout=sink, stderr=sink)
@@ -2990,10 +3034,24 @@ def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
         "",
     ]
 
+    # The pane already samples edits, so it knows where the hour is going while
+    # there is still time to change it. Waiting for the debrief to say two
+    # thirds of the clock went on question two is telling somebody the thing
+    # they could have acted on, an hour after they could have acted on it.
+    timing = time_attribution(state, now)
+    spent = timing["by_level"] if FORMATS[state["format"]]["gated"] else timing["by_question"]
+    current = None
+    latest = None
+    for event in state.get("events", []):
+        if event.get("type") in ("edited", "submitted") and event.get("epoch") is not None:
+            if latest is None or event["epoch"] >= latest:
+                latest, current = event["epoch"], event.get("question")
+
     gated = FORMATS[state["format"]]["gated"]
     for question in state["questions"]:
         label = question["title"] if gated else question["dir"]
         result = question.get("result")
+        key = question["id"] if gated else question["dir"]
         if result and result.get("total"):
             body = "%d/%d" % (result["passed"], result["total"])
             body = paint(body, "green" if result.get("outcome") == "pass" else "yellow")
@@ -3001,9 +3059,16 @@ def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
             body = paint("locked", "dim")
         elif question.get("attempts"):
             body = paint(result.get("outcome", "?") if result else "?", "yellow")
-        else:
+        elif gated or question["dir"] in timing["touched"]:
             body = paint("not submitted", "dim")
-        lines.append("  %-10s %s" % (label, body))
+        else:
+            body = paint("not opened", "dim")
+
+        seconds = spent.get(key, 0.0)
+        opened = gated or question["dir"] in timing["touched"] or question.get("attempts")
+        clock_col = format_duration(seconds) if opened else ""
+        here = paint(" <- now", "yellow") if (not gated and question["dir"] == current) else ""
+        lines.append(("  %-10s %-15s %7s%s" % (label, body, clock_col, here)).rstrip())
 
     if level == "over":
         lines.append("")
@@ -3094,6 +3159,195 @@ def command_watch(args: argparse.Namespace) -> int:
                 sys.stdout.flush()
             except (BrokenPipeError, IOError, ValueError):
                 pass
+
+
+# --------------------------------------------------------------------------
+# debrief
+#
+# The hidden tests are hidden for exactly as long as the clock is running.
+# The moment it stops they have no reason to stay secret, and keeping them
+# secret is what makes a failed sitting useless: you are told you passed 19 of
+# 25 and left to guess which five cases you never thought about. That is a
+# scoreboard. Naming them, after time, is the part that teaches.
+#
+# The gate is a timestamp, never a judgement. `debrief` refuses while a
+# session is live, which is the same rule `submit` follows, for the same
+# reason: a proctor that can be talked into it is not a proctor.
+# --------------------------------------------------------------------------
+
+
+def question_bank_dir(question: Dict[str, Any]) -> Optional[Path]:
+    source = question.get("source")
+    if not source:
+        return None
+    found = Path(source) if os.path.isabs(source) else QUESTIONS_DIR / source
+    return found if found.is_dir() else None
+
+
+def test_descriptions(bank_dir: Path) -> Dict[str, str]:
+    """What each hidden test is guarding, by name.
+
+    The docstring if the test has one, otherwise the name read back as English.
+    Test names in this bank are written to describe the case rather than to
+    number it, which is what makes the fallback worth having at all.
+    """
+    suite = bank_dir / "tests_hidden.py"
+    if not suite.exists():
+        return {}
+    try:
+        tree = ast.parse(suite.read_text())
+    except (SyntaxError, OSError):
+        return {}
+    found = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test"):
+            continue
+        doc = ast.get_docstring(node)
+        if doc:
+            found[node.name] = " ".join(doc.strip().splitlines()[0].split())
+        else:
+            found[node.name] = node.name[5:].replace("_", " ").strip() or node.name
+    return found
+
+
+def debrief_question(
+    workspace: Path, question: Dict[str, Any], timeout: float, touched: bool = True
+) -> Dict[str, Any]:
+    """Re-grade one question and name what it failed."""
+    line = {
+        "dir": question["dir"],
+        "id": question["id"],
+        "title": question["title"] or question["id"],
+        "failing": [],
+        "note": None,
+    }
+    bank_dir = question_bank_dir(question)
+    if bank_dir is None:
+        line["note"] = "no longer in the bank, so its tests cannot be named"
+        return line
+
+    solution = workspace / question["dir"] / "solution.py"
+    if not solution.exists():
+        line["note"] = "no solution file was written"
+        return line
+    if not touched:
+        # An untouched starter fails everything, and printing all twenty-six as
+        # things they got wrong is both useless and a lie about what happened.
+        # Never reaching a question is a triage result, not a knowledge one.
+        line["note"] = "never opened. Nothing to name: it was the clock, not the question"
+        return line
+
+    report = run_grader(question, solution, timeout, detail=True)
+    line["passed"] = report.get("passed", 0)
+    line["total"] = report.get("total", 0)
+    line["outcome"] = report.get("outcome", "unknown")
+    if report.get("outcome") in ("timeout", "crashed", "import_error"):
+        line["note"] = {
+            "timeout": "did not finish in time, so nothing could be measured",
+            "crashed": "stopped the run before a result could be read",
+            "import_error": "did not import, so no test ran",
+        }[report["outcome"]]
+        return line
+
+    described = test_descriptions(bank_dir)
+    line["failing"] = [
+        {"name": name, "guards": described.get(name, name)}
+        for name in report.get("failing", [])
+    ]
+    return line
+
+
+def command_debrief(args: argparse.Namespace) -> int:
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+    sample_edits(workspace, state)
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+
+    if phase != STATE_ENDED:
+        raise SessionError(
+            "The clock is still running. A debrief names the hidden tests you "
+            "failed,\nand that is the answer key: it waits until the session is "
+            "over.\n\n%s remaining."
+            % (format_duration(state["clock"]["deadline_epoch"] - now),),
+            EXIT_USAGE,
+        )
+
+    gated = FORMATS[state["format"]]["gated"]
+    timing = time_attribution(state, now)
+    spent = timing["by_level"] if gated else timing["by_question"]
+    used = session_end_point(state, now) - state["clock"]["started_epoch"]
+
+    wanted = None
+    if args.question:
+        wanted = find_question(state, args.question)
+
+    lines = []
+    for question in state["questions"]:
+        if wanted is not None and question["slot"] != wanted["slot"]:
+            continue
+        if question.get("state") == STATE_LOCKED:
+            continue
+        opened = gated or question["dir"] in timing["touched"] or question.get("attempts")
+        line = debrief_question(workspace, question, args.timeout, bool(opened))
+        key = question["id"] if gated else question["dir"]
+        line["seconds"] = round(spent.get(key, 0.0), 1)
+        line["share"] = round(line["seconds"] / used, 4) if used > 0 else 0.0
+        lines.append(line)
+
+    # Costliest first. The question that ate the clock is the one worth reading
+    # about, and it is rarely the one they would have opened on their own.
+    lines.sort(key=lambda item: item["seconds"], reverse=True)
+
+    if args.json:
+        print(json.dumps({"session_id": state["session_id"], "detail": lines}, indent=2))
+        return EXIT_OK
+
+    print("Debrief: %s" % (state["session_id"],))
+    print("")
+    paragraph(
+        "The clock is out, so the hidden tests are no longer hidden. Below is "
+        "what each question was checking that your answer did not do."
+    )
+    for line in lines:
+        print("")
+        head = "%s  %s" % (line["dir"], line["title"])
+        if "total" in line and line["total"]:
+            head += "   %d/%d" % (line["passed"], line["total"])
+        if line["seconds"]:
+            head += "   %s" % (format_duration(line["seconds"]),)
+            if line["share"] >= 0.30:
+                head += " (%.0f%% of the sitting)" % (line["share"] * 100,)
+        print(head)
+        if line["note"]:
+            print("  %s" % (line["note"],))
+            continue
+        if not line["failing"]:
+            print("  Nothing failed.")
+            continue
+        for failure in line["failing"]:
+            print("  - %s" % (failure["guards"],))
+
+    if wanted is not None and lines:
+        bank_dir = question_bank_dir(wanted)
+        reference = (bank_dir / "reference.py") if bank_dir else None
+        if reference and reference.exists():
+            print("")
+            print("One way to write it:")
+            print("")
+            for text in reference.read_text().splitlines():
+                print("    %s" % (text,))
+    elif len(lines) > 1:
+        print("")
+        paragraph(
+            "For one question in full, with a reference solution beside yours: "
+            "debrief --question %s" % (lines[0]["dir"],)
+        )
+    return EXIT_OK
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -3221,6 +3475,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common(watch)
     watch.set_defaults(func=command_watch)
+
+    debrief = subparsers.add_parser(
+        "debrief", help="after time: which hidden tests failed, and what they guarded"
+    )
+    debrief.add_argument("--workspace", default=None)
+    debrief.add_argument("--session", default=None)
+    debrief.add_argument(
+        "--question", default=None,
+        help="one question in full, with a reference solution beside yours",
+    )
+    debrief.add_argument("--timeout", type=float, default=30.0)
+    add_common(debrief)
+    debrief.set_defaults(func=command_debrief)
 
     return parser
 

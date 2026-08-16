@@ -1888,6 +1888,96 @@ class TestWatch(SessionTestCase):
         )
 
 
+class TestDebrief(BankAwareTestCase):
+    """Naming the hidden tests, but only once the clock is out.
+
+    The gate is a timestamp and never a judgement, which is the same rule
+    `submit` follows: a proctor that can be talked into it is not a proctor.
+    """
+
+    AFTER = T0 + 5000
+
+    def hidden_names(self, index=0):
+        return [
+            line.split("def ")[1].split("(")[0]
+            for line in (self.bank_dir(index) / "tests_hidden.py").read_text().splitlines()
+            if line.strip().startswith("def test_")
+        ]
+
+    def test_refuses_while_the_clock_is_running(self):
+        self.start()
+        code, out, err = self.run_session("debrief", "--now", T0 + 60)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("still running", out + err)
+
+    def test_the_refusal_leaks_no_test_names(self):
+        """The most dangerous moment for this command is the one where it says no."""
+        workspace = self.start()
+        (workspace / "q1" / "solution.py").write_text(
+            "def solve(*a, **k):\n    return None\n"
+        )
+        _, out, err = self.run_session("debrief", "--now", T0 + 60)
+        names = self.hidden_names()
+        self.assertGreater(len(names), 10)
+        for name in names:
+            self.assertNotIn(name, out + err, "leaked %s" % (name,))
+
+    def test_after_time_it_names_what_failed(self):
+        workspace = self.start_with_mutants()
+        self.install_partial_mutant(workspace)
+        code, out, err = self.run_session("debrief", "--now", self.AFTER)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("no longer hidden", out)
+        # Something real was named, rather than a bare count.
+        self.assertIn("  - ", out)
+
+    def test_a_question_never_opened_is_not_a_list_of_failures(self):
+        """Never reaching one is a triage result, not a knowledge one."""
+        self.run_session("start", "--format", "gca", "--questions", 2, "--now", T0)
+        code, out, err = self.run_session("debrief", "--now", self.AFTER)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("never opened", out)
+
+    def test_the_costliest_question_is_reported_first(self):
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", 2, "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        workspace = self.workspace()
+        for directory, at in (("q1", 300), ("q2", 600), ("q2", 3000)):
+            path = workspace / directory / "solution.py"
+            path.write_text(path.read_text() + "# work\n")
+            os.utime(str(path), (T0 + at, T0 + at))
+            self.run_session("status", "--now", T0 + at + 5)
+        _, out, _ = self.run_session("debrief", "--now", self.AFTER, "--json")
+        detail = json.loads(out)["detail"]
+        self.assertEqual(detail[0]["dir"], "q2")
+        self.assertGreater(detail[0]["seconds"], detail[1]["seconds"])
+
+    def test_one_question_comes_with_a_reference(self):
+        workspace = self.start_with_mutants()
+        self.install_partial_mutant(workspace)
+        _, out, err = self.run_session(
+            "debrief", "--question", "q1", "--now", self.AFTER
+        )
+        self.assertIn("One way to write it", out)
+        reference = (self.bank_dir() / "reference.py").read_text()
+        anchor = [
+            line.strip() for line in reference.splitlines()
+            if line.strip().startswith("def ") or line.strip().startswith("class ")
+        ]
+        self.assertTrue(anchor)
+        self.assertIn(anchor[0], out)
+
+    def test_the_whole_debrief_does_not_ship_a_reference_by_default(self):
+        """Four references at once is a wall nobody reads, and it makes the
+        failing-test list harder to find than the answer."""
+        workspace = self.start_with_mutants()
+        self.install_partial_mutant(workspace)
+        _, out, _ = self.run_session("debrief", "--now", self.AFTER)
+        self.assertNotIn("One way to write it", out)
+
+
 class TestNothingIsRemembered(SessionTestCase):
     """Research is not cached, so the commands that used to cache it are gone.
 

@@ -22,7 +22,7 @@ set, because companies do not all run the same thing.
 
 If your invite email uses the platform's own names for the first two, they are
 `--format gca` and `--format ica`.
-- `start`, `status`, `submit`, `hint`, `unlock`, `report`, `watch`, and `list`
+- `start`, `status`, `submit`, `hint`, `unlock`, `report`, `debrief`, `watch`, and `list`
 - hidden-test grading with partial credit
 - deterministic timing, and submissions refused once the clock runs out
 - a per-question time breakdown, so a sitting lost to bad triage says so
@@ -431,6 +431,34 @@ If you run it through an AI coding agent, which is the usual way, that agent is
 not local: the problem text and whatever you show it of your code go to that
 provider, exactly as they would if you pasted them in yourself. The scripts work
 with no agent at all if you would rather.
+
+## The debrief
+
+The hidden tests are hidden for exactly as long as the clock is running. The
+moment it stops they have no reason to stay secret, and keeping them secret is
+what makes a failed sitting useless: you are told you passed 25 of 28 and left
+to guess which three cases you never thought of.
+
+```
+$ sim debrief
+
+q1  Bracket Check   25/28   55:00 (79% of the sitting)
+  - long unbalanced
+  - one unclosed at the end
+  - opener never closed
+
+q2  Build Order
+  never opened. Nothing to name: it was the clock, not the question
+```
+
+Questions are ordered by time spent, so the one that cost you the sitting is the
+one you read first. `debrief --question q1` prints a reference solution beside
+what you wrote.
+
+It refuses while a session is live, and the gate is a timestamp rather than a
+judgement, the same rule `submit` follows. A question you never opened is
+reported as exactly that instead of as a list of twenty-six things you got
+wrong, because never reaching it is a triage result and not a knowledge one.
 
 ## On the score
 

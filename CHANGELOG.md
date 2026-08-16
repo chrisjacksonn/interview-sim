@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.18.0
+
+**`debrief`: the hidden tests stop being hidden the moment the clock does.**
+
+They are secret for exactly as long as the sitting is live. Keeping them secret
+afterwards is what made a failed session useless: you were told you passed 25 of
+28 and left to guess which three cases you never thought of. That is a
+scoreboard. Naming them is the part that teaches.
+
+```
+q1  Bracket Check   25/28   55:00 (79% of the sitting)
+  - long unbalanced
+  - one unclosed at the end
+  - opener never closed
+
+q2  Build Order
+  never opened. Nothing to name: it was the clock, not the question
+```
+
+Questions are ordered by time spent, so the one that cost the sitting leads
+rather than the one somebody would have opened on their own. `debrief --question
+q1` adds a reference solution beside what they wrote. The whole debrief does not
+print references by default: four at once is a wall nobody reads, and it buries
+the failures under the answers.
+
+**The gate is a timestamp, never a judgement**, which is the rule `submit`
+already follows. It refuses while a session is live, and there is a test that
+the refusal itself leaks no test names, since saying no is the moment this
+command is most dangerous.
+
+A question that was never opened is reported as exactly that, rather than as a
+list of twenty-six things you got wrong. Never reaching one is a triage result
+and not a knowledge one, and an untouched starter failing everything says
+nothing about what anybody knows.
+
+SKILL.md draws the line precisely: reporting `debrief` output is the point of
+the command, and the agent still never opens `tests_hidden.py` itself, before or
+after. What keeps the answer key shut during a live session cannot be a model's
+memory of which phase it is in. The script knows the time; the agent does not.
+
+**`watch` now shows where the hour is going while there is still time to change
+it.** Per-question elapsed, and a marker on the one being edited:
+
+```
+  q1         not submitted     18:20
+  q2         not submitted      1:40 <- now
+  q3         not opened
+```
+
+Waiting for the debrief to mention that two thirds of the clock went on question
+two tells somebody the one thing they could have acted on, an hour after they
+could have acted on it.
+
+Also: the workspace README now mentions `watch`, which it did not, so the person
+who most needs a countdown had no way to learn one existed. And `check` reports
+whether a notifier is present, so a machine where the milestone alerts will be
+silent says so before a sitting rather than at ten minutes to go.
+
 ## 0.17.0
 
 **`watch`: a live countdown for a second terminal pane.**

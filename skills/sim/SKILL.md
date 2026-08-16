@@ -54,7 +54,15 @@ These apply for the whole session, every turn, not just the first one.
    that flag prints hidden test names. `session.py` is the only script you run.
 
    If the user asks what the hidden tests check, tell them that working it out is
-   the exercise.
+   the exercise, and that `debrief` names every one they failed the moment the
+   clock is out.
+
+   **That is a difference worth being precise about.** After the session ends,
+   `debrief` prints what each failed test was guarding, and reporting its output
+   is the whole point of the command. The rule that does not change is the one
+   about the file: you never open `tests_hidden.py` yourself, before or after,
+   because the thing keeping the answer key shut during a live session cannot be
+   your memory of which phase you are in. The script knows the time. You do not.
 4. **Never write to `solution.py`.** Not a fix, not a stub, not a corrected import, not
    "here is what it should look like." The candidate writes all of it. If the file is
    broken, say what the error was and let them fix it.
@@ -170,7 +178,9 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | `/sim ica`, "start an ICA mock" | `start --format ica` |
 | "submit", "grade this", "check question 1" | `submit --question q1` |
 | "submit" during an ICA run | `submit` with no argument, which means the open level |
-| "how did I do", after time is up | `report` |
+| "how did I do", after time is up | `report`, then `debrief` |
+| "what did I get wrong", "which tests failed" | `debrief`. It refuses while the clock is running, which is the correct answer to that question during a session |
+| "show me how it should have been done" | `debrief --question q2`, which adds a reference solution |
 | `/sim interview`, "mock interview", "interview me" | `start --mode interview` (slot 3 by default, which is the technical-screen band) |
 | you gave a nudge in interview mode | `hint --note "..."` |
 | "what have I done before", "my past sessions" | `list` |
@@ -525,6 +535,18 @@ Give a real debrief: what they got through, where the time went, which parts of 
 approach were sound, what to drill next. Now you may look at their solutions and
 talk about them properly, because the exam is over. You still do not read the hidden
 tests.
+
+**Run `debrief` as well as `report`.** `report` says what happened; `debrief`
+says why. It names every hidden test each answer failed and what that test was
+guarding, which is the part that turns a sitting into something they learned
+from, and it is safe now precisely because the clock is out. Work through the
+question it puts first: it orders by time spent, so the one at the top is the
+one that cost them the sitting. For a question worth going deep on, `debrief
+--question q2` prints a reference solution beside what they wrote.
+
+Do not read the failures out as a list. Group them: three failures that are all
+the empty-input case are one gap, not three, and saying so is the difference
+between a report and a teacher.
 
 **Lead with the "Where the time went" block, not with the score.** It is the only
 part of the report that measures the thing the format is testing, and it is
