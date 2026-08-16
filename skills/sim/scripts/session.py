@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.18.0"
+VERSION = "0.18.1"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -3176,6 +3176,11 @@ def command_watch(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
+# Enough to see the shape of what was missed. Past this it stops being a list of
+# gaps and becomes the suite printed out.
+FAILURES_SHOWN = 8
+
+
 def question_bank_dir(question: Dict[str, Any]) -> Optional[Path]:
     source = question.get("source")
     if not source:
@@ -3329,8 +3334,16 @@ def command_debrief(args: argparse.Namespace) -> int:
         if not line["failing"]:
             print("  Nothing failed.")
             continue
-        for failure in line["failing"]:
+        # An answer that fails everything produces a wall rather than a lesson,
+        # and the twenty-sixth line teaches nothing the first eight did not.
+        # The count is still printed above, so nothing is being hidden.
+        shown = line["failing"][:FAILURES_SHOWN]
+        for failure in shown:
             print("  - %s" % (failure["guards"],))
+        rest = len(line["failing"]) - len(shown)
+        if rest:
+            print("  ... and %d more. This one did not come close, so start with"
+                  " the problem statement rather than the list." % (rest,))
 
     if wanted is not None and lines:
         bank_dir = question_bank_dir(wanted)

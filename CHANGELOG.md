@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.1
+
+**An answer that failed everything printed the suite back at you.** Twenty-six
+bullet points is a wall, not a lesson, and the twenty-sixth teaches nothing the
+first eight did not. The list caps at eight now and says how many were left,
+with the point that a question missed this widely is one to reread rather than
+one to work through case by case. The count was always printed above it, so
+nothing is hidden by the cap.
+
 ## 0.18.0
 
 **`debrief`: the hidden tests stop being hidden the moment the clock does.**

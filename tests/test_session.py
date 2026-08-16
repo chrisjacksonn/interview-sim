@@ -1969,6 +1969,25 @@ class TestDebrief(BankAwareTestCase):
         self.assertTrue(anchor)
         self.assertIn(anchor[0], out)
 
+    def test_a_hopeless_answer_is_summarised_rather_than_dumped(self):
+        """Failing everything should not print the suite back at somebody."""
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", 1, "--now", T0
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        workspace = self.workspace()
+        path = workspace / "q1" / "solution.py"
+        path.write_text("def solve(*a, **k):\n    return None\n")
+        # Stamped and then observed, or it reads as never opened: a write inside
+        # the copy epsilon is deliberately not counted as an edit.
+        os.utime(str(path), (T0 + 600, T0 + 600))
+        self.run_session("status", "--now", T0 + 700)
+        _, out, _ = self.run_session("debrief", "--now", self.AFTER)
+        bullets = [line for line in out.splitlines() if line.startswith("  - ")]
+        self.assertLessEqual(len(bullets), 8)
+        self.assertIn("and", out)
+        self.assertIn("more", out)
+
     def test_the_whole_debrief_does_not_ship_a_reference_by_default(self):
         """Four references at once is a wall nobody reads, and it makes the
         failing-test list harder to find than the answer."""
