@@ -163,17 +163,18 @@ solution squeaked under the timeout.
   the warm-up slot has to repeat**. Interview mode draws from slot 3 alone, which
   is eight. Recently served questions are tracked and avoided until the pool is
   exhausted, after which a remembered question measures memory rather than
-  ability. Generated questions are the way past this, and they carry their own
-  caveat above.
+  ability. Generated questions are the way past this, and are gated at start
+  time as described above.
 - **Hidden tests are readable in this repository.** They are hidden from the
   session, not from you. See [ETHICS.md](ETHICS.md).
-- **Generated questions have not been through the gate at all.** A session
-  started with `--generated` uses questions written on the spot rather than from
-  the bank. They are checked to be answerable, meaning the reference solution
-  passes the hidden suite and the untouched starter does not, but nothing has
-  proved their hidden tests can distinguish a wrong answer from a right one, so
-  such a question can mark something correct that is not. The session says so
-  when it starts. Prefer the bank when the bank has something suitable.
+- **Generated questions pass the same gate as the corpus, at start time.** A
+  session started with `--generated` runs questions written for that sitting.
+  Before the clock starts, the engine checks the reference passes the hidden
+  suite, the untouched starter fails it, and every deliberately-wrong solution
+  shipped beside the question is caught. A question failing any of those is
+  refused. What the gate cannot judge is the writing itself: whether the
+  statement is clear, and whether the difficulty label is honest. Curated
+  questions had human review for that; generated ones have only their author.
 - **What a company runs is researched, never remembered.** This tool ships no
   table of companies and keeps no cache. When one is named, the agent searches,
   reports what it found and how well sourced it is, and builds the sitting from

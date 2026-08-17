@@ -398,29 +398,31 @@ telling a saved note about it, so a stored answer would quietly get worse while
 looking more authoritative every time it was read back.
 
 What research will never come back with is the company's actual questions. What
-it does come back with is the **topics**, which is the part that transfers.
-Topics steer which questions are drawn, spread across the subjects rather than
-stacked on whichever the bank has most of. `--topic graphs` works on its own
-too, for drilling something specific.
-
-Which topics a sitting covered, and which it could not, is reported in
-`start --json` rather than on screen. That is for the agent, whose job it is to
-write a question for an uncovered subject before the clock starts.
-
-If the bank has nothing shaped like the role, the agent can write questions for
-it and run a session on those:
+it does come back with is the **topics and the round style**, which is the part
+that transfers, and that is what the question is then written from. A researched
+sitting runs on an original question authored for it, not on something drawn
+from a fixed pool:
 
 ```
 python3 skills/sim/scripts/session.py start --format gca --questions 1 \
-    --generated /tmp/my-questions
+    --generated /tmp/ramp-screen --company ramp --topic "formula parsing"
 ```
 
-They are original problems, never real assessment items, and they are checked
-before the clock starts: the reference solution must pass its own hidden suite,
-and the untouched starter must fail it. What they have not had is the mutation
-gate, so nothing has proved their tests can tell a wrong answer from a right one,
-which the agent is told to say out loud. Prefer the bank when the bank has
-something close.
+Written questions are original problems, never real assessment items, and they
+pass **the same gate the shipped corpus passes in CI, before the clock starts**:
+the reference solution must pass its own hidden suite, the untouched starter
+must fail it, and every deliberately-wrong solution written alongside must be
+caught by at least one hidden test. A question whose suite lets a wrong answer
+survive is refused, and the refusal happens while rewriting is still free.
+
+Every sitting also states its topic match (`on`, `partial` or `off`) on screen
+and in the report, so a question that is not on the subject you asked for says
+so before you spend an hour on it.
+
+The pre-written questions still ship, for two jobs: they are what CI proves the
+gate works on, and they are the instant path when no company is involved and
+you just want reps. `--topic graphs` draws from them for drilling something
+specific.
 
 ## What leaves your machine
 

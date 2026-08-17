@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.19.0"
+VERSION = "0.20.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -724,22 +724,25 @@ def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
             continue
 
 
+# Three is the corpus's own floor (MIN_MUTANTS in tools/qa.py). A generated
+# question passes the same bar as a curated one or it does not run.
+GENERATED_MIN_MUTANTS = 3
+
+
 def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
     """Load questions written outside the bank, and check them before use.
 
-    This is the path for questions generated on the spot, for a company or a
-    posting the bank has nothing for. They have not been through the mutation
-    gate, so nothing has proved their hidden suites can tell a wrong answer from
-    a right one.
+    This is the primary path: a question written for this sitting, from what
+    was researched about the company, rather than drawn from a fixed corpus.
 
-    They do get the two cheap checks, because those are what stop a session
-    being a waste of an hour: the reference solution must pass the hidden suite,
-    or the question is unanswerable, and the untouched starter must fail it, or
-    the question asks for nothing. Both have caught real breakage in this
-    repository, most recently a reference that failed its own tests because the
-    author did the arithmetic in his head.
+    It passes the same three checks the corpus passes in CI. The reference must
+    pass the hidden suite, or the question is unanswerable. The untouched
+    starter must fail it, or the question asks for nothing. And every
+    deliberately-wrong solution in mutants/ must be caught, or the suite cannot
+    tell a wrong answer from a right one and the grade would be worthless.
 
-    Checking happens before the clock starts, which is the only time it is free.
+    All of it happens before the clock starts, which is the only time a
+    rejection is free.
     """
     directory = Path(directory).expanduser().resolve()
     if not directory.is_dir():
@@ -794,6 +797,44 @@ def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
             raise SessionError(
                 "%s asks for nothing: the untouched starter already passes its "
                 "hidden suite." % (entry.name,),
+                EXIT_BANK,
+            )
+
+        # The mutation gate, same as CI runs on the corpus. Generated questions
+        # used to skip it, disclosed as "nothing has proved this suite can tell
+        # a wrong answer from a right one". Now that generation is the primary
+        # path rather than the fallback, that disclosure would cover every
+        # session, which is another way of saying the gate had stopped being
+        # the product's quality claim. Whoever writes the question writes
+        # mutants/ beside it, and a suite that lets one survive is rejected
+        # here, before the clock starts, when rewriting is free.
+        mutants = (
+            sorted(p for p in (entry / "mutants").glob("*.py")
+                   if not p.name.startswith("_"))
+            if (entry / "mutants").is_dir()
+            else []
+        )
+        if len(mutants) < GENERATED_MIN_MUTANTS:
+            raise SessionError(
+                "%s has %d mutant(s), needs %d. A wrong answer the hidden suite "
+                "has never been shown to catch is a grade nobody should trust: "
+                "write %d plausible wrong solutions into %s/mutants/ and try "
+                "again."
+                % (entry.name, len(mutants), GENERATED_MIN_MUTANTS,
+                   GENERATED_MIN_MUTANTS, entry.name),
+                EXIT_BANK,
+            )
+        survivors = []
+        for mutant in mutants:
+            verdict = _grade_once(grader, entry, mutant)
+            if verdict.get("outcome") == "pass":
+                survivors.append(mutant.name)
+        if survivors:
+            raise SessionError(
+                "%s graded a wrong answer as correct: %s passed the hidden "
+                "suite. The suite cannot discriminate. Strengthen the tests, "
+                "not the mutant."
+                % (entry.name, ", ".join(survivors)),
                 EXIT_BANK,
             )
 
@@ -3613,9 +3654,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     start.add_argument(
         "--generated", default=None,
-        help="use questions from this directory instead of the bank. They are "
-             "checked for answerability first, but have not been through the "
-             "mutation gate.",
+        help="run questions from this directory: written for this sitting, "
+             "and put through the same mutation gate as the corpus before the "
+             "clock starts. Each question directory needs mutants/ with at "
+             "least 3 wrong solutions.",
     )
     start.add_argument(
         "--topic", action="append", default=None,

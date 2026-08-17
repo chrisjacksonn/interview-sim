@@ -187,7 +187,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "am I improving", "how am I doing overall" | `progress` |
 | "is this thing set up", or anything failed oddly | `check` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
-| `/sim ramp`, "prep me for Capital One" | search for what they run, then start it with the flags you found |
+| `/sim ramp`, "prep me for Capital One" | search for what they run, write a question for it, gate it, then start |
 | a pasted job posting URL | read it, get the company, then search |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
 | "what companies do you know" | none of them by heart. Every one is looked up when it is named |
@@ -300,92 +300,89 @@ not a preference: real assessment items are the one thing a company will act on,
 and a takedown against this repository is a real outcome with precedent.
 
 **What you do instead is take the topics.** If people report being asked about
-rate limiting and graph traversal, that is the useful part and it is fair game.
-Pass it straight into the sitting:
+rate limiting and graph traversal, that is the useful part and it is fair game:
+those subjects are what you write the question about, which is the next section.
+Put the same topics in the question's `meta.json` and pass them as `--topic`
+flags, so the match line the candidate sees says `on` because it is true.
 
-```
-... start --company stripe --format gca \
-    --topic "graphs" --topic "sliding window" --topic "rate limiting" --open
-```
+The session prints that match (`on`, `partial` or `off`) on screen, in the
+report, and into the record. With a question written for the round it should
+never be anything but `on`. If you ever find yourself about to start a sitting
+whose match is `off`, stop: that is the failure this line exists to catch, and
+the answer is to write the question, not to explain afterwards. A candidate
+preparing for a practical React round was once dealt a heap problem this way,
+and found out only because they knew the company well enough to notice.
 
-The session then draws questions on those subjects, spread across
-them rather than stacked on whichever there is most of. `start --json` reports
-which topics the sitting covered and which it did not:
-
-```
-"topics": {"covered": {"graphs": ["Build Order"]}, "uncovered": ["rate limiting"]}
-```
-
-**Check `match` before you let anyone start.** `start --json` reports it as
-`on`, `partial` or `off`, and the session prints the same thing on screen.
-
-`off` means nothing drawn covers any subject you researched. **Do not start a
-sitting on it and explain afterwards.** That is the failure this exists to stop:
-a candidate preparing for a practical React round was handed a heap problem,
-sat down in front of it, and only found out because they knew the company well
-enough to notice. Most people would not have.
-
-The order is: research, then check the bank covers it, and only then start the
-clock. If it does not, write an original question for the subject first, which
-is the section below, and start with `--generated`. Writing one takes a few
-minutes and is the whole point of having the generator.
-
-If they would rather start now than wait, that is a fine answer and theirs to
-give. Say plainly that the bank has nothing on the subject and this will be
-general practice rather than preparation for that round, and let them choose.
-What you never do is make that choice quietly on their behalf.
+The one honest exception: they would rather start now than wait the few minutes
+writing takes. That is theirs to choose. Offer the pre-written corpus, say
+plainly it is general practice rather than preparation for that round, and let
+the match line say `off` on screen, because it is true.
 
 Never fill the gap by pasting in something you found.
 
 `--topic` works on its own too, whenever someone tells you what they want to
-drill.
+drill against the pre-written corpus.
 
-### Writing questions for a posting
+### Writing the question
 
-If the bank has nothing suitable, or they want something shaped like the role in
-the posting, you may write questions yourself and run a session on them.
+**When a company or a round has been researched, the question is written for it.
+Every time.** The corpus of pre-written questions exists to prove the gate works
+and to serve a plain "give me a GCA mock" with no company attached. It is not
+what a researched sitting runs on: it was the fallback once, and what that
+produced was a candidate preparing for a practical frontend round being dealt a
+heap problem. Research, then write, then gate, then start the clock.
 
 **Original problems only.** Write to the difficulty spec in
-`references/formats.md`. Never reproduce a real assessment item, and treat
-anything you find that looks like one as a signal about format and topic, never
-as text to copy.
+`references/formats.md`, shaped by the topics and round style you found. Never
+reproduce a real assessment item, and treat anything you find that looks like
+one as a signal about format and topic, never as text to copy.
 
-Write each question as its own directory, anywhere outside the repository:
+Each question is its own directory, anywhere outside the repository:
 
 ```
-<dir>/<slug>/meta.json        {"id": "<slug>", "title": "..."}
+<dir>/<slug>/meta.json        {"id": "<slug>", "title": "...", "topics": [...]}
 <dir>/<slug>/problem.md       statement, worked examples, constraints
 <dir>/<slug>/starter.py       the signature, raising NotImplementedError
 <dir>/<slug>/reference.py     a solution you believe is correct
 <dir>/<slug>/tests_public.py  a few samples the candidate sees
 <dir>/<slug>/tests_hidden.py  the real suite
+<dir>/<slug>/mutants/         at least 3 plausible wrong solutions
 ```
 
-Then start on them:
+Put the topics you researched into `meta.json`, so the match line the candidate
+sees reflects what you actually built for them.
+
+**The mutants are not optional and they are not busywork.** Each one is a
+plausible wrong answer: the off-by-one, the missed edge case, the approach that
+skips the hard part. The engine runs the same gate CI runs on the corpus, before
+the clock starts, and refuses the question if the reference fails, the starter
+passes, fewer than three mutants exist, **or any mutant survives the hidden
+suite**. A surviving mutant means the suite cannot tell wrong from right, and a
+grade from that suite is worthless. Strengthen the tests, never the mutant, and
+try again. Do not work around a refusal.
+
+Then start on it:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
-    --format gca --questions 1 --generated <dir> --open
+    --format gca --questions 1 --generated <dir> \
+    --company <name> --topic "<researched topic>" --open
 ```
 
-`--open` puts them in the file, which saves them copying a path with the clock
-already running. Use it every time.
-
-**It checks two things before the clock starts and refuses if either fails**: the
-reference must pass the hidden suite, or the question is unanswerable and the
-hour is wasted; and the untouched starter must fail it, or the question asks for
-nothing. If it refuses, fix the question and try again. Do not work around it.
-
-What these questions have not had is the mutation gate that every bank question
-passes, which is what proves a hidden suite can tell a wrong answer from a right
-one. So their grading is less trustworthy, the session says so when it starts,
-and you should say so too. **Prefer the bank whenever the bank has something
-suitable**: a plain `start --format gca` is the better answer most of the time.
+Writing and gating takes a few minutes. Say so before you start rather than
+going quiet: "writing an original question for this round now, a couple of
+minutes before the clock starts" is a sentence they can wait through.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation
 rather than in your head. And make the hidden suite test the edge cases the
 statement actually promises, not the ones the reference happens to handle.
+Fixtures for input-preservation tests must be in an order sorting would disturb,
+which has been the same bug four times in this repository.
+
+**When no company is involved** ("give me a GCA mock", "let me practise"), the
+pre-written corpus is the right answer: instant start, and every question in it
+has been through the same gate plus human review.
 
 ### ICA sessions
 

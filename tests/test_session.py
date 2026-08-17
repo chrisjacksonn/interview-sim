@@ -1583,11 +1583,14 @@ class TestQuestionRotation(SessionTestCase):
 
 
 class TestGeneratedQuestions(SessionTestCase):
-    """Questions written on the spot rather than taken from the bank.
+    """Questions written on the spot, which is now the primary path.
 
-    They skip the mutation gate by design. They do not skip the two checks that
-    decide whether an hour is worth spending, and those run before the clock
-    starts because that is the only moment they are free.
+    They pass the same gate the corpus passes in CI, before the clock starts,
+    because that is the only moment a rejection is free: the reference must
+    pass, the starter must fail, and every mutant must be caught. A generated
+    question used to skip the mutation half and disclose it; once generation
+    became the default rather than the fallback, that disclosure would have
+    covered every sitting.
     """
 
     GOOD_REFERENCE = (
@@ -1609,7 +1612,7 @@ class TestGeneratedQuestions(SessionTestCase):
         "        self.assertEqual(solve([('a', -1), ('a', 2)]), {'a': 2})\n"
     )
 
-    def write_question(self, root, reference=None, starter=None):
+    def write_question(self, root, reference=None, starter=None, mutants=True):
         question = Path(root) / "generated-one"
         question.mkdir(parents=True, exist_ok=True)
         (question / "meta.json").write_text('{"id": "generated-one", "title": "Generated"}')
@@ -1620,6 +1623,29 @@ class TestGeneratedQuestions(SessionTestCase):
         (question / "reference.py").write_text(reference or self.GOOD_REFERENCE)
         (question / "tests_public.py").write_text(self.TESTS)
         (question / "tests_hidden.py").write_text(self.TESTS)
+        if mutants:
+            directory = question / "mutants"
+            directory.mkdir(exist_ok=True)
+            # Three plausible wrong answers, each caught by the suite above:
+            # returns nothing, counts negatives, only keeps the last payment.
+            (directory / "empty.py").write_text(
+                "def solve(payments):\n    return {}\n"
+            )
+            (directory / "keeps_negative.py").write_text(
+                "def solve(payments):\n"
+                "    totals = {}\n"
+                "    for merchant, amount in payments:\n"
+                "        totals[merchant] = totals.get(merchant, 0) + amount\n"
+                "    return totals\n"
+            )
+            (directory / "last_wins.py").write_text(
+                "def solve(payments):\n"
+                "    totals = {}\n"
+                "    for merchant, amount in payments:\n"
+                "        if amount >= 0:\n"
+                "            totals[merchant] = amount\n"
+                "    return totals\n"
+            )
         return Path(root)
 
     def test_a_generated_question_can_be_sat_and_graded(self):
@@ -1671,6 +1697,32 @@ class TestGeneratedQuestions(SessionTestCase):
         )
         self.assertEqual(code, EXIT_BANK)
         self.assertIn("unanswerable", err)
+
+    def test_no_mutants_is_refused(self):
+        """The gate is the quality claim, and generation is the primary path
+        now, so a generated suite proves it discriminates or it does not run."""
+        root = self.write_question(self.root / "gen", mutants=False)
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("mutant", err)
+
+    def test_a_surviving_mutant_is_refused(self):
+        """A wrong answer the suite passes means the grade is worthless."""
+        root = self.write_question(self.root / "gen")
+        # A "wrong" solution that is actually correct survives any honest suite.
+        (root / "generated-one" / "mutants" / "survivor.py").write_text(
+            self.GOOD_REFERENCE
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("cannot discriminate", err)
+        self.assertIn("survivor.py", err)
 
     def test_a_question_that_asks_for_nothing_is_refused(self):
         root = self.write_question(self.root / "gen", starter=self.GOOD_REFERENCE)
