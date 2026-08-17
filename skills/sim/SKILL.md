@@ -450,8 +450,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 ```
 
 Writing and gating takes a few minutes. Say so before you start rather than
-going quiet: "writing an original question for this round now, a couple of
-minutes before the clock starts" is a sentence they can wait through.
+going quiet: "writing a question for this round now, a couple of minutes
+before the clock starts" is a sentence they can wait through. Say "a question",
+not "an original question": originality is your obligation, not a selling
+point, and announcing it invites the question of what it is being contrasted
+with.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation
