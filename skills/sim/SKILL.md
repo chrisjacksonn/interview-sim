@@ -214,6 +214,12 @@ buys: a name to search for.
 searching is the answer to it, not a favour to check in about. Say in one line
 that you are looking, then look.
 
+**Run independent lookups in one batch, not one at a time.** The two or three
+searches do not depend on each other and nor do the gate runs later; issued
+together they cost the slowest one instead of the sum. The person watching this
+is waiting for a clock to start, and sequential calls that could have been
+parallel are seconds taken from them for nothing.
+
 That one line is also where the auto mode sentence goes, on the line beneath it,
 before any tool runs. See "Running it" above. Said any later it is advice about
 a problem they have already sat through.
@@ -373,17 +379,43 @@ heap problem. Research, then write, then gate, then start the clock.
 reproduce a real assessment item, and treat anything you find that looks like
 one as a signal about format and topic, never as text to copy.
 
-Each question is its own directory, anywhere outside the repository:
+Each question is its own directory, anywhere outside the repository. This
+listing and the example below are the complete contract: there is nothing to
+verify in the engine source, and the minutes spent re-checking it are minutes
+the candidate sits waiting.
 
 ```
-<dir>/<slug>/meta.json        {"id": "<slug>", "title": "...", "topics": [...]}
+<dir>/<slug>/meta.json        see below; id, title and topics are the fields read
 <dir>/<slug>/problem.md       statement, worked examples, constraints
 <dir>/<slug>/starter.py       the signature, raising NotImplementedError
 <dir>/<slug>/reference.py     a solution you believe is correct
 <dir>/<slug>/tests_public.py  a few samples the candidate sees
 <dir>/<slug>/tests_hidden.py  the real suite
-<dir>/<slug>/mutants/         at least 3 plausible wrong solutions
+<dir>/<slug>/mutants/         plausible wrong solutions, minimum 3
 ```
+
+A complete `meta.json`, verbatim:
+
+```json
+{"id": "formula-cells", "title": "Formula Cells",
+ "topics": ["formula parsing", "cell references", "cycles"]}
+```
+
+Anything else (`difficulty`, `slot`, `entrypoint`) is defaulted by the engine
+and not worth writing.
+
+**Write it all in one pass.** Problem, reference, both suites, and the mutants
+together, while the reference is still in front of you: a mutant is the
+reference with one thing plausibly broken, and they come out sharper written
+beside it than in a second visit.
+
+**Size it for one sitting, not for the permanent corpus.** Corpus questions
+carry 25-30 hidden tests because many people will sit them over years. This
+question runs once. **15 to 18 hidden tests** grades fairly; past that you are
+adding partial-credit granularity, not coverage. **Mutants are the opposite:
+do not economise there.** Write one per genuinely plausible way to get the
+problem wrong, usually 5 to 7, because they are what proves the grading works
+and they are cheap, each being the reference with one break in it.
 
 Put the topics you researched into `meta.json`. That is where the session reads
 what the question covers, and it prints it before the clock starts, so a
@@ -404,12 +436,17 @@ suite**. A surviving mutant means the suite cannot tell wrong from right, and a
 grade from that suite is worthless. Strengthen the tests, never the mutant, and
 try again. Do not work around a refusal.
 
-Then start on it:
+Then start on it. This invocation is complete, exam and interview both; do not
+go and check the parser:
 
 ```
+# a live round with you interviewing:
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
-    --format gca --questions 1 --generated <dir> \
-    --company <name> --topic "<researched topic>" --open
+    --format gca --questions 1 --mode interview --minutes 45 \
+    --generated <dir> --company <name> \
+    --topic "<researched topic>" --topic "<another>" --open
+
+# an asynchronous exam: drop --mode and --minutes, set --questions
 ```
 
 Writing and gating takes a few minutes. Say so before you start rather than
