@@ -431,8 +431,13 @@ nothing that could; the clock and the grading are entirely local.
 
 If you run it through an AI coding agent, which is the usual way, that agent is
 not local: the problem text and whatever you show it of your code go to that
-provider, exactly as they would if you pasted them in yourself. The scripts work
-with no agent at all if you would rather.
+provider, exactly as they would if you pasted them in yourself.
+
+The engine itself runs with no agent at all: `start --format gca` on the shipped
+questions, the clock, grading, `watch`, `report` and `debrief` are all plain
+scripts. What needs an agent is the researched sitting, because researching a
+company and writing an original question for it are the agent's work, not the
+engine's.
 
 ## The debrief
 

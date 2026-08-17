@@ -36,13 +36,24 @@ files in your own editor, hidden tests you cannot see, and a hard stop when the
 clock runs out. A correct answer submitted one second late is refused, because
 that is what happens in the real thing.
 
-The part I would actually like feedback on is the question pipeline. Every
-question ships with a reference solution, a hidden suite, and a directory of
-deliberately-wrong solutions. CI checks three things on every commit: the
-reference passes, the untouched starter does not, and **every wrong solution is
-caught by at least one hidden test**. That last check is the point. A suite that
-passes everything discriminates nothing, and grading against one is worse than
-not grading at all, because it tells you that you got it right when you did not.
+The part that changed my mind about the whole design: when you name a company,
+it does not draw from a fixed pool. The agent researches what that company's
+screen actually is (candidate reports, dated, with the sources shown), writes an
+original question shaped like that round, and the engine refuses to start the
+clock until that question proves it can grade. I added this after watching the
+fixed pool hand someone a heap problem for a practical frontend round. A
+question bank is a promise to be generic.
+
+The part I would actually like feedback on is the gate. Every question, shipped
+or written on the spot, must carry a reference solution, a hidden suite, and
+deliberately-wrong solutions. Three checks before anything is sat: the reference
+passes, the untouched starter does not, and **every wrong solution is caught by
+at least one hidden test**. Shipped questions clear it in CI on every commit;
+generated ones clear the identical checks before the clock starts, and a
+question whose suite lets a wrong answer survive is refused with the reason. A
+suite that passes everything discriminates nothing, and grading against one is
+worse than not grading at all, because it tells you that you got it right when
+you did not.
 
 It keeps catching my own suites being weak, which is the only reason I trust it.
 A shortest-path question where a depth-first traversal passed everything,
@@ -124,7 +135,7 @@ other agents through the Agent Skills convention.
 
 **Title**
 
-> Free offline practice for timed OAs. Original questions, no cheating tools.
+> Free practice for timed OAs, in your own editor. Original questions, no cheating tools.
 
 **Body**
 
@@ -135,7 +146,11 @@ Built this because the format was what kept catching me out, not the problems.
   previous one and earlier levels keep being tested, so breaking level 1 while
   adding level 4 costs you
 - Real files in your own editor, hidden tests, hard stop at time
-- Twenty-two questions and four projects, all original
+- Name a company and it researches what their screen actually is, then writes
+  an original question for that round; it will not start the clock on a
+  question that has not proved it can grade
+- Twenty-two pre-written questions and four projects for instant general reps,
+  all original
 - The report breaks down where your time actually went, per question, so a
   sitting lost to bad triage says so instead of just showing you a low score
 - `progress` shows what your sittings add up to: which difficulty band you lose
@@ -148,8 +163,8 @@ proprietary and no third-party tool can reproduce them. Anything claiming to
 predict one is guessing. This tells you which questions you solved and how many
 hidden tests passed.
 
-**It has nothing to do with cheating.** Offline, no contact with any assessment
-platform, no browser anything. It is practice equipment.
+**It has nothing to do with cheating.** The engine opens no network connection,
+and nothing touches any assessment platform. It is practice equipment.
 
 Free, MIT, no signup, no account.
 
