@@ -439,6 +439,23 @@ scripts. What needs an agent is the researched sitting, because researching a
 company and writing an original question for it are the agent's work, not the
 engine's.
 
+## Prepping one company repeatedly
+
+The agent researches a company fresh every session, deliberately: the tool
+keeps no notes, because stored answers about hiring processes go stale
+invisibly. Your own knowledge is different. If you already know the round, say
+so and the search is skipped: paste the invite or recruiter email, or put what
+you know in the practice directory's `CLAUDE.md`:
+
+```markdown
+Prepping Ramp, Software Engineer (Frontend).
+Their screen: live pairing, ~50 minutes, practical React, Google allowed.
+```
+
+Sessions in that directory then start from your notes rather than a sweep,
+which takes the setup from minutes to seconds. The sitting says the shape came
+from your material, not from research, so the provenance stays honest.
+
 ## The debrief
 
 The hidden tests are hidden for exactly as long as the clock is running. The
