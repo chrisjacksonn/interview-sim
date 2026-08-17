@@ -214,11 +214,18 @@ buys: a name to search for.
 searching is the answer to it, not a favour to check in about. Say in one line
 that you are looking, then look.
 
-**Run independent lookups in one batch, not one at a time.** The two or three
-searches do not depend on each other and nor do the gate runs later; issued
-together they cost the slowest one instead of the sum. The person watching this
-is waiting for a clock to start, and sequential calls that could have been
-parallel are seconds taken from them for nothing.
+**Research runs in three waves, and inside a wave every call goes out in one
+message.** Wave one is the posting fetch, alone, because everything else needs
+the company and the role. Wave two is every search plus the OA index fetch,
+which do not depend on each other. Wave three is the deep fetches you picked
+out of the results, which need wave two's URLs but not each other. A wave costs
+its slowest call instead of the sum, which is the difference between a minute
+of research and three.
+
+The thing that breaks this is narration. A sentence between two calls forces
+them to run one after the other, so the last run's "good signal already,
+cross-checking..." serialised the whole sweep. Say what you are about to look
+for once, before the wave, and say nothing again until it is back.
 
 That one line is also where the auto mode sentence goes, on the line beneath it,
 before any tool runs. See "Running it" above. Said any later it is advice about
