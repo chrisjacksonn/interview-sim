@@ -1,7 +1,7 @@
 ---
 name: sim
 description: Run a timed, proctored coding-assessment simulation in the terminal. Use when the user asks to start or check an OA practice run, an online assessment mock, a GCA mock (4 questions / 70 minutes), an ICA mock (1 project / 4 levels / 90 minutes), a mock interview, a pairing round, a take-home, or any timed coding assessment they want started, timed, checked, or graded, or when they paste a job posting and want to practise for that company's assessment.
-argument-hint: "[gca|ica|interview|status|<job posting URL>]"
+argument-hint: "[job posting URL, or company and role]"
 allowed-tools: Read, Glob, Bash(python3:*), WebFetch, WebSearch
 license: MIT
 ---
