@@ -269,6 +269,20 @@ Do it properly or not at all:
    same paragraph across two hundred companies. If the only thing you can find
    is that kind of page, you have found nothing.
 
+   **Research has a stop condition: two independent, dated candidate reports
+   agreeing on the round shape.** The moment you have them, stop. A lookup
+   after agreement is collecting, not learning, and every sweep so far has
+   grown fatter than the one before because nothing said when done was done.
+   The ceiling either way is **four searches and four page fetches**; if
+   agreement has not arrived by then, say plainly what is established and what
+   is not, and let the confidence statement carry the shortfall rather than a
+   ninth lookup.
+
+   A candidate report is a page of tens of kilobytes where somebody describes
+   a round they sat. An API endpoint is not one, an employer's job-board feed
+   is not one (a past sweep pulled 2.3MB of one, compensation data included,
+   and learned nothing), and a page measured in megabytes is almost never one.
+
    What you are looking for is narrow and worth being clear about: **the shape
    of the round and the subjects**. How long, how many problems, unlocked at
    once or gated, live or asynchronous, and what people say the problems were
@@ -382,6 +396,19 @@ drill against the pre-written corpus.
 
 ### Writing the question
 
+The flow, in order, no steps skipped:
+
+1. Five-line spec for the question: scenario, mechanism, requirements, sized
+   for the round.
+2. **Dispatch it to a subagent with the full contract below, before you write
+   the findings.** This is not optional when a subagent tool exists: it is what
+   lets the set build while they read.
+3. Write the findings report.
+4. When the subagent returns, `start`. Fix anything the gate names yourself.
+
+No subagent tool on this host: write it all yourself after the findings,
+reference first.
+
 **When a company or a round has been researched, the question is written for it.
 Every time.** The corpus of pre-written questions exists to prove the gate works
 and to serve a plain "give me a GCA mock" with no company attached. It is not
@@ -418,6 +445,10 @@ A complete `meta.json`, verbatim:
 
 Anything else (`difficulty`, `slot`, `entrypoint`) is defaulted by the engine
 and not worth writing.
+
+**`reference.py` is written before either test file, always.** Expected values
+come from running it (below), and a suite written first is a suite whose values
+were typed from a head. That mistake has cost a correction round once already.
 
 Both test files are **stdlib `unittest`**, and the grader collects nothing
 else. This skeleton is the convention, verbatim:
