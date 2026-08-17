@@ -464,13 +464,16 @@ the end, which is the same total time experienced as twice as long. It is also
 what a real process does: you are told what the round is before the problem is
 put in front of you.
 
-Close the findings with one line saying what happens next: "writing a question
-for this round now, a couple of minutes before the clock starts." Say "a
-question", not "an original question": originality is your obligation, not a
-selling point, and announcing it invites the question of what it is being
-contrasted with. Then the message that starts the clock carries only what is
-new: the match line the session prints, where to look first, and your opening
-question as interviewer if it is a live round.
+Close the findings with one line saying what happens next: "Writing a question
+for this round now." That is the whole line. No time estimate, which is a
+promise picked at random that reads as an apology when it runs over. No
+narration of the steps, no "checking the format spec first", no setup talk:
+that is machinery, and the findings above are what they should be reading while
+you work. Say "a question", not "an original question": originality is your
+obligation, not a selling point, and announcing it invites the question of what
+it is being contrasted with. Then the message that starts the clock carries
+only what is new: the match line the session prints, where to look first, and
+your opening question as interviewer if it is a live round.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation
