@@ -111,8 +111,8 @@ ten minutes ago.
 
 > Looking up what Shopify runs for their internship now.
 >
-> If auto mode is off, shift+tab turns it on. This is a lot of searching
-> followed by a timed sitting, and both go badly if every step stops to ask.
+> If auto mode is off, shift+tab turns it on. It is recommended for this one:
+> a dozen searches happen before the clock starts, and a timed sitting follows.
 
 It is their call and their machine, so say it once and move on whether they do
 it or not. Do not offer it as a question you can act on: nothing you emit can

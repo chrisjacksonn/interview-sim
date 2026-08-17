@@ -972,6 +972,237 @@ class TestCompanyLabels(BankAwareTestCase):
         self.assertEqual(code, EXIT_USAGE)
 
 
+class TestSessionDirectoryNames(BankAwareTestCase):
+    """The directory is named after the sitting, so a sidebar can be read.
+
+    A column of gca-<timestamp> answered no question anyone had. The company
+    and round lead, and the timestamp is a directory below them so repeat
+    sittings for one company stack up instead of spreading out.
+    """
+
+    def test_the_company_and_round_name_the_group(self):
+        workspace = self.start(
+            extra=["--company", "Stripe", "--round", "OA", "--force"]
+        )
+        self.assertEqual(workspace.parent.name, "stripe-oa")
+        self.assertEqual(workspace.parent.parent, self.root)
+        self.assertEqual(self.state()["session_id"], "stripe-oa/" + workspace.name)
+
+    def test_the_timestamp_is_the_whole_leaf(self):
+        """Sorting inside a group has to stay chronological."""
+        workspace = self.start(
+            extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        self.assertRegex(workspace.name, r"^\d{8}T\d{6}Z$")
+
+    def test_repeat_sittings_share_one_group(self):
+        first = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        second = self.start(
+            now=T0 + 2 * HOUR,
+            extra=["--company", "stripe", "--round", "oa", "--force"],
+        )
+        self.assertNotEqual(first, second)
+        self.assertEqual(first.parent, second.parent)
+
+    def test_the_format_names_the_group_when_no_round_is_given(self):
+        """"gca" is our jargon, so it only appears when nothing better exists."""
+        workspace = self.start(extra=["--company", "stripe", "--force"])
+        self.assertEqual(workspace.parent.name, "stripe-gca")
+
+    def test_a_session_with_no_labels_is_still_grouped(self):
+        workspace = self.start(extra=["--force"])
+        self.assertEqual(workspace.parent.name, "gca")
+
+    def test_free_text_is_slugged_rather_than_trusted(self):
+        """--company is typed by a human and lands in a path."""
+        workspace = self.start(
+            extra=["--company", "Ernst & Young", "--round", "Take Home", "--force"]
+        )
+        self.assertEqual(workspace.parent.name, "ernst-young-take-home")
+
+    def test_a_label_that_slugs_to_nothing_falls_back(self):
+        """A name of pure punctuation must not produce a "-" directory."""
+        workspace = self.start(extra=["--company", "???", "--force"])
+        self.assertEqual(workspace.parent.name, "gca")
+
+    def test_a_path_separator_cannot_escape_the_root(self):
+        workspace = self.start(
+            extra=["--company", "../../etc", "--round", "oa", "--force"]
+        )
+        self.assertEqual(workspace.parent.parent, self.root)
+        self.assertNotIn("..", workspace.parent.name)
+
+    def test_a_non_latin_company_still_names_its_own_folder(self):
+        """Stripping to ASCII made the company vanish from its own directory."""
+        workspace = self.start(
+            extra=["--company", "楽天", "--round", "oa", "--force"]
+        )
+        self.assertEqual(workspace.parent.name, "楽天-oa")
+
+
+class TestTwoSittingsInOneSecond(BankAwareTestCase):
+    """The name no longer carries the format, so it cannot rely on it to differ.
+
+    Dropping an ICA project into a GCA sitting's directory leaves both sets of
+    files in one place and overwrites anything already written there.
+    """
+
+    def test_a_second_sitting_does_not_reuse_the_directory(self):
+        first = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        second = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        self.assertNotEqual(first, second)
+        self.assertEqual(first.parent, second.parent)
+        self.assertTrue((first / ".sim" / "state.json").exists())
+        self.assertTrue((second / ".sim" / "state.json").exists())
+
+    def test_work_in_the_first_sitting_survives_the_second(self):
+        first = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        answer = first / "q1" / "solution.py"
+        answer.write_text("# my answer\n")
+        self.start(now=T0, extra=["--company", "stripe", "--round", "oa", "--force"])
+        self.assertEqual(answer.read_text(), "# my answer\n")
+
+    def test_the_id_matches_where_the_session_actually_is(self):
+        self.start(now=T0, extra=["--company", "stripe", "--round", "oa", "--force"])
+        second = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        state = json.loads((second / ".sim" / "state.json").read_text())
+        self.assertEqual(state["session_id"], "stripe-oa/" + second.name)
+        self.assertEqual(Path(state["workspace"]), second)
+
+    def test_two_formats_in_one_second_do_not_share_a_workspace(self):
+        """The case the old format-first name got right for free."""
+        first = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        code, out, err = self.run_session(
+            "start", "--company", "stripe", "--round", "oa", "--format", "ica",
+            "--now", T0, "--force",
+        )
+        self.assertEqual(code, EXIT_OK, "%s%s" % (out, err))
+        second = self.workspace()
+        self.assertNotEqual(first, second)
+        self.assertFalse((second / "q2").exists())
+
+
+class TestSessionsStayOutOfGit(SessionTestCase):
+    """A sitting must not turn into a commit, at any depth."""
+
+    def test_the_root_is_ignored_whole(self):
+        import subprocess as sp
+
+        repo = self.root / "repo"
+        repo.mkdir()
+        for cmd in (
+            ["git", "init", "-q", "."],
+            ["git", "config", "user.email", "t@t"],
+            ["git", "config", "user.name", "t"],
+        ):
+            sp.check_call(cmd, cwd=str(repo))
+        (repo / "README.md").write_text("hi\n")
+        sp.check_call(["git", "add", "-A"], cwd=str(repo))
+        sp.check_call(["git", "commit", "-qm", "init"], cwd=str(repo))
+
+        code, out, err = self.run_session(
+            "start", "--company", "stripe", "--round", "oa", "--format", "gca",
+            "--questions", "1", "--now", T0,
+            home=repo / "interview-sim-sessions", cwd=str(repo),
+        )
+        self.assertEqual(code, EXIT_OK, "%s%s" % (out, err))
+        status = sp.check_output(
+            ["git", "status", "--porcelain"], cwd=str(repo), universal_newlines=True
+        )
+        self.assertEqual(status, "", "sessions showed up in git:\n%s" % (status,))
+
+
+class TestSessionLookupByName(BankAwareTestCase):
+    """--session takes the id that list prints, and the useful half of it."""
+
+    def test_the_full_id_resolves(self):
+        self.start(extra=["--company", "stripe", "--round", "oa", "--force"])
+        session_id = self.state()["session_id"]
+        code, out, err = self.run_session("status", "--session", session_id, "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn(session_id, out)
+
+    def test_the_timestamp_alone_resolves_when_it_is_unique(self):
+        self.start(extra=["--company", "stripe", "--round", "oa", "--force"])
+        session_id = self.state()["session_id"]
+        leaf = session_id.split("/")[-1]
+        code, out, err = self.run_session("status", "--session", leaf, "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn(session_id, out)
+
+    def test_an_ambiguous_timestamp_refuses_rather_than_guesses(self):
+        """Opening the wrong session silently is worse than saying no."""
+        first = self.start(
+            now=T0, extra=["--company", "stripe", "--round", "oa", "--force"]
+        )
+        clone = self.root / "palantir-technical" / first.name
+        clone.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(str(first), str(clone))
+        code, out, err = self.run_session("status", "--session", first.name, "--now", T0)
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("stripe-oa/" + first.name, out + err)
+        self.assertIn("palantir-technical/" + first.name, out + err)
+
+    def test_an_unknown_name_is_still_an_unknown_name(self):
+        self.start(extra=["--force"])
+        code, _, _ = self.run_session("status", "--session", "nope", "--now", T0)
+        self.assertEqual(code, EXIT_NO_SESSION)
+
+
+class TestNestedSessionsStayVisible(BankAwareTestCase):
+    """History reads directories, and the directories moved a level down."""
+
+    def test_list_finds_a_nested_session(self):
+        self.start(extra=["--company", "stripe", "--round", "oa", "--force"])
+        session_id = self.state()["session_id"]
+        code, out, err = self.run_session("list", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn(session_id, out)
+
+    def test_list_still_finds_a_session_sat_before_the_change(self):
+        """Flat sessions from an older version are still yours.
+
+        Checked by path rather than by printed id: the id comes out of the
+        state file, so a copied session would report the name it was born with
+        and prove nothing about where the scan looked.
+        """
+        workspace = self.start(extra=["--force"])
+        legacy = self.root / "gca-20260101T000000Z"
+        shutil.copytree(str(workspace), str(legacy))
+        shutil.rmtree(str(workspace.parent))
+        # A session records its own path and id when it starts, so a copy has to
+        # be told where it now lives to stand in for one sat before the change.
+        state_file = legacy / ".sim" / "state.json"
+        state = json.loads(state_file.read_text())
+        state["workspace"] = str(legacy)
+        state["session_id"] = legacy.name
+        state_file.write_text(json.dumps(state))
+        code, out, err = self.run_session("list", "--json", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        rows = json.loads(out)
+        self.assertEqual([row["session_id"] for row in rows], ["gca-20260101T000000Z"])
+        self.assertEqual([Path(row["workspace"]) for row in rows], [legacy])
+
+    def test_scanning_does_not_descend_into_a_session(self):
+        """q1/ is not a session, and neither is .sim/."""
+        self.start(extra=["--company", "stripe", "--round", "oa", "--force"])
+        code, out, err = self.run_session("list", "--json", "--now", T0)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(len(json.loads(out)), 1)
+
+
 class TestCheck(SessionTestCase):
     """The preflight.
 

@@ -52,7 +52,7 @@ sim() { python3 ~/interview-sim/skills/sim/scripts/session.py "$@"; }
 
 ```console
 checkout-service $ sim start --company capital-one --format gca
-Session started: gca-20260812T013654Z
+Session started: capital-one-gca/20260812T013654Z
 
 capital-one. GCA-style exam.
 
@@ -60,7 +60,7 @@ capital-one. GCA-style exam.
 Deadline 2026-08-12T02:46:54Z UTC.
 
 Work here:
-  ./interview-sim-sessions/gca-20260812T013654Z
+  ./interview-sim-sessions/capital-one-gca/20260812T013654Z
     q1/problem.md   Bracket Check
     q2/problem.md   Build Order
     q3/problem.md   Merge Feeds
@@ -69,7 +69,7 @@ Work here:
 Read a problem.md first, then write your answer in the solution.py beside it.
 The clock is running.
 
-$ ls ./interview-sim-sessions/gca-20260812T013654Z/q1
+$ ls ./interview-sim-sessions/capital-one-gca/20260812T013654Z/q1
 problem.md   solution.py   tests_public.py
 
 $ sim submit --question q1
@@ -80,10 +80,10 @@ attempt 1, 1:09:36 left on the clock.
 $ sim status
 1:09:24 remaining
 
-session   gca-20260812T013654Z  (gca, exam mode)
+session   capital-one-gca/20260812T013654Z  (gca, exam mode)
 elapsed   0:35
 deadline  2026-08-12T02:46:54Z UTC
-workspace ./interview-sim-sessions/gca-20260812T013654Z
+workspace ./interview-sim-sessions/capital-one-gca/20260812T013654Z
 
   q1   27/28          Bracket Check
   q2   not submitted  Build Order
@@ -244,7 +244,7 @@ python3 skills/sim/scripts/session.py watch
   ┌─────────────────┐
   │      38:14      │
   └─────────────────┘
-  gca-20260815T091200Z
+  capital-one-gca/20260815T091200Z
 
   q1         28/28
   q2         19/25
@@ -273,7 +273,7 @@ where the time actually went:
 
 ```console
 $ sim report
-gca-20260812T013654Z  GCA
+capital-one-gca/20260812T013654Z  GCA
 Finished (time). Used 1:10:00 of 1:10:00.
 
   q1   28/28         warmup     Bracket Check
@@ -337,7 +337,7 @@ changes.
 
 ```
 python3 skills/sim/scripts/session.py list
-python3 skills/sim/scripts/session.py report --session gca-20260811T193740Z
+python3 skills/sim/scripts/session.py report --session capital-one-gca/20260811T193740Z
 ```
 
 Sessions are kept, so you can look at what you did last week.

@@ -146,6 +146,84 @@ def utc_string(epoch: float) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
 
+def slugify(value: str, limit: int = 24) -> str:
+    """Reduce free text to something safe to put in a path.
+
+    --company and --round are labels typed by whoever started the sitting, and
+    they now land in a directory name rather than only in state.json. So this
+    has to survive "Ernst & Young", "Goldman Sachs", a pasted tab, and a name
+    that is nothing but punctuation, without ever producing a path that escapes
+    the sessions root or starts with a dash.
+
+    Letters outside ASCII are kept rather than stripped. Restricting to ASCII
+    made a company written in a non-Latin script vanish from its own directory
+    name, which is worse than the thing it was guarding against: everything
+    dangerous in a path (the separators, the dots, the control characters) is
+    not alphanumeric, so isalnum() already excludes it.
+
+    Returns "" when nothing usable survives, which callers treat as "no label"
+    rather than substituting a placeholder.
+    """
+    kept = []
+    for char in value.strip().lower():
+        if char.isalnum():
+            kept.append(char)
+        elif kept and kept[-1] != "-":
+            kept.append("-")
+    slug = "".join(kept).strip("-")
+    if len(slug) > limit:
+        slug = slug[:limit].rstrip("-")
+    return slug
+
+
+def build_session_id(
+    fmt: str, now: float, company: Optional[str], round_name: Optional[str]
+) -> str:
+    """Name the directory after the sitting it holds.
+
+    A column of gca-20260816T142530Z tells you nothing you wanted to know. What
+    you are looking for in a sidebar is which company and which round, so those
+    lead, and the format only appears when no round was given, because "oa" and
+    "pairing" are what candidates call these and "gca" is our own jargon.
+
+    The timestamp is a directory below that rather than more name, so sittings
+    for one company and round stack up under a single folder instead of filling
+    a sidebar with near-identical rows. Sorting inside the folder stays
+    chronological because the timestamp is the whole leaf name.
+
+    The separator is always "/", including on Windows, because this string is
+    both a path fragment and the id that gets printed and typed back into
+    --session. pathlib accepts it in either role.
+    """
+    parts = []
+    for label in (company, round_name):
+        slug = slugify(label or "")
+        if slug:
+            parts.append(slug)
+    if not round_name or not slugify(round_name):
+        parts.append(fmt)
+    group = "-".join(parts)
+    return "%s/%s" % (group, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
+
+
+def workspace_label(workspace: Path) -> str:
+    """A session's name as it sits under its root, e.g. stripe-oa/20260816T142530Z.
+
+    Falls back to the leaf directory name for a workspace somewhere else
+    entirely, which --workspace allows.
+    """
+    try:
+        resolved = workspace.resolve()
+    except OSError:
+        return workspace.name
+    for root in history_roots():
+        try:
+            return resolved.relative_to(root.resolve()).as_posix()
+        except (ValueError, OSError):
+            continue
+    return workspace.name
+
+
 def format_duration(seconds: float) -> str:
     """Render a duration as H:MM:SS or M:SS, clamped at zero."""
     total = int(seconds)
@@ -413,9 +491,30 @@ def resolve_workspace(args: argparse.Namespace) -> Path:
 
     if getattr(args, "session", None):
         workspace = sessions_root() / args.session
-        if not state_path(workspace).exists():
-            raise SessionError("No session named %r" % (args.session,), EXIT_NO_SESSION)
-        return workspace
+        if state_path(workspace).exists():
+            return workspace
+        # Ids have two segments now, and the half worth typing is the timestamp.
+        # Accepting the leaf on its own saves retyping the company, as long as
+        # it picks out exactly one session: guessing between two would open the
+        # wrong one silently.
+        matches = [
+            found
+            for found, _ in walk_sessions()
+            if workspace_label(found).split("/")[-1] == args.session
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise SessionError(
+                "%r matches %d sessions. Name one of these in full:\n  %s"
+                % (
+                    args.session,
+                    len(matches),
+                    "\n  ".join(sorted(workspace_label(m) for m in matches)),
+                ),
+                EXIT_USAGE,
+            )
+        raise SessionError("No session named %r" % (args.session,), EXIT_NO_SESSION)
 
     env = os.environ.get("INTERVIEW_SIM_SESSION")
     if env:
@@ -1359,12 +1458,25 @@ def command_start(args: argparse.Namespace) -> int:
         )
 
     duration = minutes * 60.0
-    session_id = "%s-%s" % (fmt, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now)))
+    session_id = build_session_id(fmt, now, company, round_name)
 
     if args.workspace:
         workspace = Path(args.workspace).expanduser().resolve()
     else:
         workspace = sessions_root() / session_id
+        # Two sittings can start in the same second, and the name no longer
+        # carries the format to tell a GCA one from an ICA one. Reusing the
+        # directory would drop a project on top of the last sitting's q1..q4
+        # and overwrite whatever had been written in them, so the second one
+        # takes the next free name rather than the same bed.
+        if state_path(workspace).exists():
+            group, leaf = session_id.split("/")
+            for suffix in range(2, 100):
+                candidate = sessions_root() / group / ("%s-%d" % (leaf, suffix))
+                if not state_path(candidate).exists():
+                    workspace = candidate
+                    session_id = "%s/%s-%d" % (group, leaf, suffix)
+                    break
 
     try:
         workspace.mkdir(parents=True, exist_ok=True)
@@ -1379,6 +1491,17 @@ def command_start(args: argparse.Namespace) -> int:
     # commit without anyone having to remember.
     try:
         (workspace / ".gitignore").write_text("*\n")
+    except OSError:
+        pass
+
+    # The per-session file above never covered the root's own bookkeeping, so
+    # `current` and history.json still showed up as an untracked
+    # interview-sim-sessions/ in a candidate's repository. One at the root
+    # covers the whole tree, this file included.
+    try:
+        root_ignore = sessions_root() / ".gitignore"
+        if root_ignore.parent.is_dir() and not root_ignore.exists():
+            root_ignore.write_text("*\n")
     except OSError:
         pass
 
@@ -2455,17 +2578,34 @@ def walk_sessions() -> List[Tuple[Path, Optional[Dict[str, Any]]]]:
     for root in history_roots():
         if not root.is_dir():
             continue
-        for entry in root.iterdir():
-            if not state_path(entry).exists():
+        for entry in sorted(root.iterdir()):
+            if not entry.is_dir():
                 continue
-            key = str(entry.resolve())
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                found.append((entry, read_state(entry)))
-            except SessionError:
-                found.append((entry, None))
+            # Sessions sit one level down now, grouped by company and round, so
+            # a directory is either a session itself (every session sat before
+            # the change, and anything started with --workspace) or a group
+            # holding them. Only the second case is descended into, which keeps
+            # this out of q1/ and .sim/ and off the rest of the tree.
+            if state_path(entry).exists():
+                candidates = [entry]
+            else:
+                try:
+                    candidates = sorted(
+                        child for child in entry.iterdir() if child.is_dir()
+                    )
+                except OSError:
+                    continue
+            for candidate in candidates:
+                if not state_path(candidate).exists():
+                    continue
+                key = str(candidate.resolve())
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    found.append((candidate, read_state(candidate)))
+                except SessionError:
+                    found.append((candidate, None))
     found.sort(
         key=lambda pair: ((pair[1] or {}).get("clock") or {}).get("started_epoch", 0),
         reverse=True,
@@ -2787,7 +2927,7 @@ def command_list(args: argparse.Namespace) -> int:
             # line, so it can be seen and deleted.
             rows.append(
                 {
-                    "session_id": workspace.name,
+                    "session_id": workspace_label(workspace),
                     "unreadable": True,
                     "workspace": str(workspace),
                 }
@@ -2827,15 +2967,24 @@ def command_list(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     current = read_pointer()
+    # Ids carry a company and a round now, so their width varies with whoever
+    # was typed in rather than sitting at a known 28. Measured across the rows
+    # actually being printed, so the columns line up in this listing instead of
+    # in the abstract.
+    width = max(28, max(len(row["session_id"]) for row in rows))
     for row in rows:
         if row["unreadable"]:
-            print("  %-28s (unreadable, from an older version)" % (row["session_id"],))
+            print(
+                "  %-*s (unreadable, from an older version)"
+                % (width, row["session_id"])
+            )
             continue
         marker = "*" if current is not None and str(current) == row["workspace"] else " "
         print(
-            "%s %-28s %-4s %-9s %-8s %d/%d solved  %s"
+            "%s %-*s %-4s %-9s %-8s %d/%d solved  %s"
             % (
                 marker,
+                width,
                 row["session_id"],
                 row["format"],
                 row["mode"],

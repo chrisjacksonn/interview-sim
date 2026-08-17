@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.19.0
+
+**Sessions are named after the sitting, and grouped by it.** A directory called
+`gca-20260812T013654Z` answered a question nobody was asking. What you want from
+a sidebar is which company and which round, so those lead now, and the timestamp
+became a directory underneath rather than more name:
+
+```
+./interview-sim-sessions/
+  stripe-oa/20260817T142530Z
+  stripe-oa/20260818T142530Z
+  stripe-pairing/20260819T142530Z
+  palantir-technical/20260820T142530Z
+```
+
+Repeat sittings for one company stack up in one folder instead of spreading
+across the listing, and sorting inside a folder stays chronological because the
+timestamp is the whole leaf name. The format only appears when no `--round` was
+given: "oa" and "pairing" are what candidates call these, and "gca" is our own
+jargon. A session with no labels at all still groups, under the format.
+
+`--company` and `--round` are free text typed by a person and now land in a
+path, so they are slugged: lowercased, punctuation collapsed to single hyphens,
+capped, and a label that reduces to nothing is dropped rather than allowed to
+produce a directory named `-`. A separator in the label cannot walk out of the
+sessions root.
+
+Three things assumed sessions sat one level down and were taught otherwise:
+history scanning (which now descends exactly one level, and still finds the flat
+sessions sat before this change), the id printed by `list` (whose column now
+measures itself rather than trusting a hardcoded 28), and `--session`, which
+takes the full `company-round/timestamp` id and also the timestamp on its own
+when that picks out exactly one session. When it does not, it lists the
+candidates and refuses, because opening the wrong past session silently is worse
+than asking.
+
+The sessions root is still `interview-sim-sessions/` rather than
+`interview-sim/`. The shorter name collides with this repository's own directory
+name, which would put practice sessions inside a clone and take them with it
+when the clone was deleted.
+
+Dropping the format from the name cost a guarantee that the old name had for
+free: a GCA and an ICA sitting started in the same second used to differ by
+their names and now would not, so the second would open on top of the first,
+inheriting its `q1`..`q4` and overwriting whatever had been written in them. A
+sitting that finds a session already at its name now takes the next free one
+(`...T142530Z-2`) instead of the same bed. This was always possible for two
+sittings of the same format; it is now impossible for either.
+
+**Sessions really do stay out of git now.** Every session has always written a
+`.gitignore` that ignores everything including itself, but the root's own
+bookkeeping (`current`, `history.json`) sat above all of them and was covered by
+none, so a candidate's `git status` showed an untracked
+`interview-sim-sessions/` anyway. There is a `.gitignore` at the root as well.
+
+A company written in a non-Latin script used to vanish from its own directory
+name, because the slug kept ASCII only and `楽天` has none, leaving a folder
+called `oa/`. Everything dangerous in a path is punctuation, which is excluded
+by being non-alphanumeric rather than by being non-ASCII, so letters are letters
+now: `楽天-oa/20260816T142530Z`.
+
 ## 0.18.2
 
 **A floor under every command, and a test for the bug class the suite could not
