@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.18.2"
+VERSION = "0.19.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1535,6 +1535,28 @@ def command_start(args: argparse.Namespace) -> int:
     add_event(state, now, "session_started", format=fmt, mode=args.mode, questions=count)
 
 
+    # What was asked for against what was actually drawn. Computed here rather
+    # than at print time so it lands in state.json: at the debrief, whether the
+    # sitting was even on the right subject matters as much as the score.
+    briefing = {
+        "generated": bool(args.generated),
+        "company": company,
+        "round": round_name,
+        "topics": {"asked": list(topics), "covered": {}, "uncovered": []},
+    }
+    for want in topics:
+        hits = [
+            question.get("title", question["id"])
+            for question in (questions or [])
+            if topic_match(question, [want])
+        ]
+        if hits:
+            briefing["topics"]["covered"][want] = hits
+        else:
+            briefing["topics"]["uncovered"].append(want)
+    briefing["match"] = match_band(list(topics), briefing["topics"]["uncovered"])
+    state["briefing"] = briefing
+
     # Record what the freshly copied starters look like, without emitting edit
     # events for them. Copying a starter is not work, and counting it as the
     # first edit would put every session's opening minutes on question one.
@@ -1556,22 +1578,6 @@ def command_start(args: argparse.Namespace) -> int:
     # reads. Removed from the candidate's screen, not from the record: the
     # proctor needs to know which requested topics went uncovered, because that
     # is the cue to write a question for them.
-    briefing = {
-        "generated": bool(args.generated),
-        "company": company,
-        "round": round_name,
-        "topics": {"asked": list(topics), "covered": {}, "uncovered": []},
-    }
-    for want in topics:
-        hits = [
-            question.get("title", question["id"])
-            for question in (questions or [])
-            if topic_match(question, [want])
-        ]
-        if hits:
-            briefing["topics"]["covered"][want] = hits
-        else:
-            briefing["topics"]["uncovered"].append(want)
     payload["briefing"] = briefing
 
     if args.json:
@@ -1632,6 +1638,12 @@ def command_start(args: argparse.Namespace) -> int:
         # Point at the problem, not the workspace. Someone who opens the starter
         # first starts typing before they know what is being asked, and the
         # first instruction should rehearse the habit the format rewards.
+        told = describe_match(briefing)
+        if told:
+            for line in told:
+                print(line)
+            print("")
+
         opening = first_reading(workspace, state)
         if len(state["questions"]) == 1 or config["gated"]:
             where = "%s/%s" % (opening.parent.name, opening.name)
@@ -2558,6 +2570,17 @@ def command_report(args: argparse.Namespace) -> int:
             )
         else:
             print("No hints given.")
+    told = describe_match(state.get("briefing") or {})
+    if told:
+        print("")
+        for line in told:
+            print(line)
+        if (state.get("briefing") or {}).get("match") == "off":
+            paragraph(
+                "Worth remembering when you read the numbers above: this sitting "
+                "was not on the subject you asked to practise."
+            )
+
     print("")
     paragraph(payload["score_note"])
     return EXIT_OK
@@ -3510,6 +3533,48 @@ def command_debrief(args: argparse.Namespace) -> int:
             "debrief --question %s" % (lines[0]["dir"],)
         )
     return EXIT_OK
+
+
+def match_band(asked: List[str], uncovered: List[str]) -> Optional[str]:
+    """How well the drawn questions match what was asked for.
+
+    Three words rather than a percentage. The only signal here is which topic
+    tags overlap, and turning that into "68% match" would invent a precision the
+    data does not have. That is the same mistake as reporting a score out of
+    600, which this tool refuses to do for the same reason.
+    """
+    if not asked:
+        return None
+    if len(uncovered) == len(asked):
+        return "off"
+    if uncovered:
+        return "partial"
+    return "on"
+
+
+def describe_match(briefing: Dict[str, Any]) -> List[str]:
+    """The match, in the words a candidate should read before starting."""
+    topics = briefing.get("topics") or {}
+    asked = topics.get("asked") or []
+    covered = topics.get("covered") or {}
+    uncovered = topics.get("uncovered") or []
+    band = briefing.get("match")
+    if not asked or band is None:
+        return []
+
+    if band == "on":
+        return ["Topic match: on. Covers %s." % (", ".join(sorted(covered)),)]
+    if band == "partial":
+        return [
+            "Topic match: partial.",
+            "  covers      %s" % (", ".join(sorted(covered)),),
+            "  not covered %s" % (", ".join(uncovered),),
+        ]
+    return [
+        "Topic match: off.",
+        "  you asked for  %s" % (", ".join(asked),),
+        "  nothing drawn covers any of it. General practice, not that round.",
+    ]
 
 
 def build_parser() -> argparse.ArgumentParser:

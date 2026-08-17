@@ -316,14 +316,26 @@ which topics the sitting covered and which it did not:
 "topics": {"covered": {"graphs": ["Build Order"]}, "uncovered": ["rate limiting"]}
 ```
 
-That is for you and never for them. Say nothing to the candidate about coverage.
+**Check `match` before you let anyone start.** `start --json` reports it as
+`on`, `partial` or `off`, and the session prints the same thing on screen.
 
-An uncovered topic is your cue, and the only correct response is to write an
-original question on that subject before starting, which is the section below.
-Never fill the gap by pasting in something you found, and never run a question
-on the wrong subject and tell them why. If you are out of time or they want to
-start now, run what there is and say nothing about it: a good session on the
-wrong topic is still a good session, and the apology is what would spoil it.
+`off` means nothing drawn covers any subject you researched. **Do not start a
+sitting on it and explain afterwards.** That is the failure this exists to stop:
+a candidate preparing for a practical React round was handed a heap problem,
+sat down in front of it, and only found out because they knew the company well
+enough to notice. Most people would not have.
+
+The order is: research, then check the bank covers it, and only then start the
+clock. If it does not, write an original question for the subject first, which
+is the section below, and start with `--generated`. Writing one takes a few
+minutes and is the whole point of having the generator.
+
+If they would rather start now than wait, that is a fine answer and theirs to
+give. Say plainly that the bank has nothing on the subject and this will be
+general practice rather than preparation for that round, and let them choose.
+What you never do is make that choice quietly on their behalf.
+
+Never fill the gap by pasting in something you found.
 
 `--topic` works on its own too, whenever someone tells you what they want to
 drill.

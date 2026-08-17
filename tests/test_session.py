@@ -893,12 +893,23 @@ class TestTopics(BankAwareTestCase):
         self.assertIn("graphs", flat)
         self.assertTrue(any("sliding window" in tag for tag in flat), flat)
 
-    def test_a_topic_the_bank_cannot_cover_is_reported_to_the_proctor(self):
-        """And to nobody else.
+    def test_a_topic_the_bank_cannot_cover_is_reported_to_everybody(self):
+        """This reverses half of an earlier decision, on evidence.
 
-        A candidate hearing "we had nothing on this so here is something else"
-        loses confidence in the sitting, and cannot act on it either. The
-        proctor can: an uncovered topic is the cue to write a question for it.
+        The original rule was that only the proctor heard about coverage, on the
+        grounds that "we had nothing on this so here is something else" reads as
+        an apology for the product and is not something a candidate can act on.
+
+        What that produced: somebody preparing for a company's practical
+        frontend round was dealt a heap problem and told nothing. The session had
+        recorded the topics as uncovered the entire time. They caught it only
+        because they knew the company well enough to be suspicious, and most
+        people would not have. Silence did not protect their confidence, it
+        spent it.
+
+        So the match is now stated. The half of the original rule that stands is
+        the other one: never discuss the machinery. The candidate is told what
+        subject they are practising, never that a bank exists or what is in it.
         """
         _, out, _ = self.run_session(
             "start", "--format", "gca", "--questions", "2",
@@ -912,8 +923,11 @@ class TestTopics(BankAwareTestCase):
             "start", "--format", "gca", "--questions", "2",
             "--topic", "quantum teleportation", "--now", T0, "--force",
         )
+        # Still never the machinery.
         self.assertNotIn("bank", human.lower())
-        self.assertNotIn("quantum", human.lower())
+        # But the subject itself, plainly, where they will see it.
+        self.assertIn("topic match: off", human.lower())
+        self.assertIn("quantum teleportation", human.lower())
 
     def test_an_undrawn_topic_is_reported_as_uncovered_by_this_sitting(self):
         """One question, slot 1, and no slot 1 question is a graph question."""
@@ -2259,6 +2273,78 @@ class TestNothingIsRemembered(SessionTestCase):
             "--company", "shopify", "--now", T0,
         )
         self.assertEqual(list(self.root.rglob("researched.json")), [])
+
+
+class TestTopicMatchIsStated(SessionTestCase):
+    """Whether the question is on the subject you asked for, said out loud.
+
+    Written after a session researched a company's practical frontend round,
+    found nothing in the bank covering it, and dealt a heap problem anyway
+    without a word. The topics were recorded as uncovered the whole time; the
+    only thing missing was saying so where a person would see it.
+
+    Deliberately three words and not a percentage. The signal is which topic
+    tags overlap, and "68% match" would invent a precision the data has not got.
+    """
+
+    def start_with(self, *topics, **kwargs):
+        args = ["start", "--format", "gca", "--mode", "interview",
+                "--seed", kwargs.get("seed", 3), "--force", "--now", T0]
+        for topic in topics:
+            args += ["--topic", topic]
+        code, out, err = self.run_session(*(args + ["--json"]))
+        self.assertEqual(code, EXIT_OK, err)
+        return json.loads(out)["briefing"]
+
+    def test_nothing_asked_for_means_no_claim_made(self):
+        self.assertIsNone(self.start_with()["match"])
+
+    def test_a_subject_the_bank_does_not_have_is_off(self):
+        briefing = self.start_with("react", "spreadsheet")
+        self.assertEqual(briefing["match"], "off")
+        self.assertEqual(sorted(briefing["topics"]["uncovered"]), ["react", "spreadsheet"])
+
+    def test_some_of_it_is_partial(self):
+        briefing = self.start_with("rate limiting", "react")
+        self.assertEqual(briefing["match"], "partial")
+
+    def test_all_of_it_is_on(self):
+        self.assertEqual(self.start_with("rate limiting")["match"], "on")
+
+    def test_the_candidate_is_told_on_screen(self):
+        """The JSON already knew. Nobody reads the JSON."""
+        args = ["start", "--format", "gca", "--mode", "interview", "--seed", 3,
+                "--force", "--now", T0, "--topic", "react", "--topic", "spreadsheet"]
+        code, out, err = self.run_session(*args)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("Topic match: off", out)
+        self.assertIn("react", out)
+
+    def test_it_still_starts(self):
+        """Never refuse. Saying so is the fix; blocking is not."""
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--mode", "interview", "--seed", 3,
+            "--force", "--now", T0, "--topic", "nothing the bank has",
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+    def test_the_report_says_it_again(self):
+        """By the debrief, whether it was even the right subject matters as
+        much as the score, and by then nobody remembers what was asked for."""
+        self.run_session(
+            "start", "--format", "gca", "--mode", "interview", "--seed", 3,
+            "--force", "--now", T0, "--topic", "react",
+        )
+        _, out, _ = self.run_session("report", "--now", T0 + 99999)
+        self.assertIn("Topic match: off", out)
+        self.assertIn("not on the subject you asked to practise", " ".join(out.split()))
+
+    def test_the_match_survives_in_the_session_record(self):
+        self.run_session(
+            "start", "--format", "gca", "--mode", "interview", "--seed", 3,
+            "--force", "--now", T0, "--topic", "react",
+        )
+        self.assertEqual(self.state()["briefing"]["match"], "off")
 
 
 class TestEveryCommandInEveryState(SessionTestCase):
