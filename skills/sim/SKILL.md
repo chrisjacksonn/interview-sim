@@ -449,12 +449,28 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 # an asynchronous exam: drop --mode and --minutes, set --questions
 ```
 
-Writing and gating takes a few minutes. Say so before you start rather than
-going quiet: "writing a question for this round now, a couple of minutes
-before the clock starts" is a sentence they can wait through. Say "a question",
-not "an original question": originality is your obligation, not a selling
-point, and announcing it invites the question of what it is being contrasted
-with.
+**Deliver the research findings in full before you start writing.** What they
+run, end to end. The sources, their dates, and the confidence. The adaptation
+you are making and why. Which round this sitting is. All of it, before the
+first line of the question is written, not bundled into the message that starts
+the clock.
+
+The reason is the shape of the wait. Writing and gating takes a few minutes,
+and the findings take about that long to read, so delivered first they overlap:
+the candidate spends the authoring time reading what their company actually
+runs, and the clock line is waiting when they finish. The first live run did it
+the other way, four minutes of "made 9 edits" and then everything at once at
+the end, which is the same total time experienced as twice as long. It is also
+what a real process does: you are told what the round is before the problem is
+put in front of you.
+
+Close the findings with one line saying what happens next: "writing a question
+for this round now, a couple of minutes before the clock starts." Say "a
+question", not "an original question": originality is your obligation, not a
+selling point, and announcing it invites the question of what it is being
+contrasted with. Then the message that starts the clock carries only what is
+new: the match line the session prints, where to look first, and your opening
+question as interviewer if it is a live round.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation
