@@ -187,7 +187,7 @@ Add `--json` when you need to branch on a value rather than show the user prose.
 | "am I improving", "how am I doing overall" | `progress` |
 | "is this thing set up", or anything failed oddly | `check` |
 | "interview me on a hard one" | `start --mode interview --slot 4` |
-| `/sim ramp`, "prep me for Capital One" | search for what they run, write a question for it, gate it, then start |
+| `/sim ramp`, "prep me for Capital One" | search for what the company runs, write a question for it, gate it, then start |
 | a pasted job posting URL | read it, get the company, then search |
 | "make me questions for this role" | write them, then `start --generated <dir>` |
 | "what companies do you know" | none of them by heart. Every one is looked up when it is named |
@@ -245,7 +245,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 `--company` and `--round` are labels for the record. `--format`, `--mode`,
 `--questions`, `--minutes` and `--topic` are the shape, and they come from the
 research and nowhere else. **Naming a company without `--format` is refused**,
-because naming a company is a claim about what they run, and the tool will not
+because naming a company is a claim about what that company runs, and the tool will not
 guess one. If the search establishes nothing usable, that refusal is your cue to
 ask them which format they would rather practise, and to say plainly that nobody
 established it.
@@ -338,9 +338,9 @@ Do it properly or not at all:
    and not with a preamble. "Enough to go on", "that was harder than expected",
    "here is what I could piece together" all rate the search instead of
    reporting it, and they make a solid result sound like a shrug. State what
-   they run, then where that came from and how confident it is. The confidence
+   the company runs, then where that came from and how confident it is. The confidence
    belongs in a clause at the end, not in a throat-clear at the front.
-4. **Say which of the two claims you actually established.** Whether they run an
+4. **Say which of the two claims you actually established.** Whether the company runs an
    asynchronous coding assessment at all, and what that assessment is, are
    separate questions and the second is usually the one you cannot answer.
 5. **Never present a guess as a finding.** If the search comes back thin, the
@@ -354,8 +354,8 @@ Do it properly or not at all:
    something you found before, never refer to a previous sitting, and never let
    a second session for the same company skip the search.
 
-**A process is usually more than one sitting, so say so.** If they run an
-assessment and then a live round, those are two different shapes and only one of
+**A process is usually more than one sitting, so say so.** If the process is
+an assessment and then a live round, those are two different shapes and only one of
 them is what they are practising today. Tell them what the process looks like
 end to end, then **set up the round the posting's stage implies, the technical
 screen unless something says otherwise, and say so in one clause with the offer
@@ -404,20 +404,16 @@ drill against the pre-written corpus.
 
 The flow, in order, no steps skipped:
 
-1. Five-line spec for the question: scenario, mechanism, requirements, sized
-   for the round.
-2. **Dispatch it to a subagent before you write the findings.** The dispatch
-   is a copy job, not a composition job. The prompt is exactly three parts: the
-   five-line spec, the absolute path to build in, and everything from "Each
-   question is its own directory" down through the sizing list, pasted
-   verbatim. Assemble, send, move on. If you are about to write the question
-   yourself with a subagent tool available, you are trading their reading time
-   for your typing time; do not.
-3. Write the findings report.
-4. When the subagent returns, `start`. Fix anything the gate names yourself.
+1. Sketch the question from the research: scenario, mechanism, three or four
+   requirements, sized for the round.
+2. Write the findings brief.
+3. Write the set: reference first, values from running it, suites, mutants.
+4. `start`. Fix anything the gate names yourself.
 
-No subagent tool on this host: write it all yourself after the findings,
-reference first.
+A subagent dispatch used to sit in this flow so the set could build while the
+candidate read. Every live run skipped it, and at the current set size it was
+worth thirty seconds against a cold start, so it is gone rather than escalated.
+Do not reintroduce it.
 
 **When a company or a round has been researched, the question is written for it.
 Every time.** The corpus of pre-written questions exists to prove the gate works
@@ -476,30 +472,9 @@ Plain pytest-style test functions collect as **zero tests** and the gate
 refuses the question. No pytest, no fixtures, no parametrize: Python 3.9
 stdlib is the whole world here.
 
-**Dispatch the writing to a subagent, then report.** As soon as the round is
-chosen, write a short spec for the question, five lines: the scenario, the
-mechanism it tests, the three or four requirements, sized for the round. Hand
-it to a subagent (the Task tool) together with the directory to build in and
-the whole contract above, verbatim: the file list, the meta.json shape, the
-unittest skeleton, the size budget, the expected-values order, the
-never-reproduce rule. Then write the findings report while it builds. The two
-generations run in parallel, and the set is usually ready about when the
-candidate finishes reading.
-
-The spec is where your research lands. The subagent was not in the search, so
-the spec carries what matters out of it: the round style, the reported topics,
-what the interviewer escalates into. Do not send it the raw findings; send the
-five lines.
-
-When it returns, run `start`. **The gate is the review**: it validates the
-whole set and names what is wrong if anything is. Fix what it names yourself
-rather than re-dispatching, which costs another cold start. And read the
-problem and the reference before you interview on them: you are about to take
-questions on a file you did not write.
-
-**No subagent tool on this host** (some environments running this skill have
-none): write it all yourself in one pass, reference first, mutants beside it,
-in the same order as always. The parallelism is lost; nothing else changes.
+**Write it in one pass, reference first, mutants beside it.** The gate is the
+review: `start` validates the whole set and names what is wrong if anything
+is, in under a second, so go straight to it and fix what it names.
 
 **Start from the skeleton instead of typing boilerplate:**
 
@@ -565,9 +540,7 @@ the loop end to end; what is established against what is only reported, with
 dates; the confidence in one line; the adaptation and why; which round this
 sitting is, with the offer to switch. Sources as bare links at the end. Longer
 is not more confident: the substance is the claims, their dates, and what
-disagrees, and paragraphs around them are generation time spent on nobody. The
-one thing that goes before the findings is the subagent dispatch, ten seconds
-of spec, so the question is being built underneath while they read.
+disagrees, and paragraphs around them are generation time spent on nobody.
 
 The reason is the shape of the wait. Writing and gating takes a few minutes,
 and the findings take about that long to read, so delivered first they overlap:
@@ -599,7 +572,8 @@ are, only whether the suite discriminates.
 Two things to get right while writing, both of which have gone wrong here
 before. **Expected values come out of running code, in this order: write the
 reference first, run it on the test inputs, paste what it printed into the
-tests.** Never type a value from your head and check it after; the last run
+tests.** The skeleton ships `values.py` for exactly this: fill in the data and
+the cases once, run it, transcribe. Never type a value from your head and check it after; the last run
 lost a correction round to exactly that, and the order above makes the mistake
 impossible rather than catchable. And make the hidden suite test the edge cases the
 statement actually promises, not the ones the reference happens to handle.
@@ -742,7 +716,7 @@ that is genuinely reassuring to watch, because it is the difference between a
 tool that looked and a tool that guessed. Do not hide it behind a summary.
 
 **Then say the sourcing once, in your own words.** One or two sentences: what
-they run, how sure you are, and what you are about to sit. Then stop. Three
+the company runs, how sure you are, and what you are about to sit. Then stop. Three
 sentences of caveat where one would do reads as a tool with no confidence in
 itself, and the third one is never the one that changes their mind. Repeating it as the clock starts, and again as a
 "quick caveat" once they are in, reads as a tool with no confidence in itself,
