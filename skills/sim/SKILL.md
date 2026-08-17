@@ -337,7 +337,12 @@ Do it properly or not at all:
 **A process is usually more than one sitting, so say so.** If they run an
 assessment and then a live round, those are two different shapes and only one of
 them is what they are practising today. Tell them what the process looks like
-end to end, ask which round they want, and pass the shape of the one they pick.
+end to end, then **set up the round the posting's stage implies, the technical
+screen unless something says otherwise, and say so in one clause with the offer
+to switch**: "this sitting is the live screen; say the word if you want the
+assessment instead." Do not stop on a blocking question. Two runs asked and one
+decided, the deciding one was better, and the answer is almost always the
+recommended round while the round-trip costs a minute of their attention.
 A live round runs as `--mode interview`, so you are the interviewer for it.
 
 **What you may never do is reproduce their questions.** Not the ones in a forum
@@ -435,13 +440,21 @@ together, while the reference is still in front of you: a mutant is the
 reference with one thing plausibly broken, and they come out sharper written
 beside it than in a second visit.
 
-**Size it for one sitting, not for the permanent corpus.** Corpus questions
-carry 25-30 hidden tests because many people will sit them over years. This
-question runs once. **15 to 18 hidden tests** grades fairly; past that you are
-adding partial-credit granularity, not coverage. **Mutants are the opposite:
-do not economise there.** Write one per genuinely plausible way to get the
-problem wrong, usually 5 to 7, because they are what proves the grading works
-and they are cheap, each being the reference with one break in it.
+**Size it for one sitting, not for the permanent corpus.** The whole set,
+every file included, should land near **350 lines**; the last run wrote 598 and
+the difference was a minute of somebody waiting. Where the budget goes:
+
+- Problem statement: **50 lines or fewer.** Statement, one worked example,
+  constraints. A candidate reads this on the clock.
+- Hidden suite: **15 to 18 tests**, compact. Descriptive names, no docstrings:
+  the debrief reads the name back as English, so `test_empty_filter_matches_all`
+  is the documentation.
+- Public samples: 3 tests.
+- **Mutants: 4, each a different failure mode.** Every mutant is a full copy of
+  the reference with one break, which makes them most of the tokens in the set,
+  and a fifth mutant that fails the same way as the second proves nothing the
+  gate did not already know. Four distinct ways to get it wrong is the proof;
+  code only, a one-line comment naming the break, no prose.
 
 Put the topics you researched into `meta.json`. That is where the session reads
 what the question covers, and it prints it before the clock starts, so a
@@ -509,8 +522,11 @@ the expected values, below, because the gate cannot know what the right answers
 are, only whether the suite discriminates.
 
 Two things to get right while writing, both of which have gone wrong here
-before. Work out expected values with a throwaway brute-force implementation
-rather than in your head. And make the hidden suite test the edge cases the
+before. **Expected values come out of running code, in this order: write the
+reference first, run it on the test inputs, paste what it printed into the
+tests.** Never type a value from your head and check it after; the last run
+lost a correction round to exactly that, and the order above makes the mistake
+impossible rather than catchable. And make the hidden suite test the edge cases the
 statement actually promises, not the ones the reference happens to handle.
 Fixtures for input-preservation tests must be in an order sorting would disturb,
 which has been the same bug four times in this repository.
