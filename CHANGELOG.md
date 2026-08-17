@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.1
+
+**The argument hint says what to give it, not what it can be told to do.** The
+prompt read `[gca|ica|interview|status|<job posting URL>]`, which listed the
+plumbing first and the actual way in last. It reads
+`[job posting URL, or company and role]` now: the two things worth typing, with
+no company named in it. The subcommands all still work and are still documented;
+they are just no longer the first thing anyone sees.
+
 ## 0.19.0
 
 **Sessions are named after the sitting, and grouped by it.** A directory called
