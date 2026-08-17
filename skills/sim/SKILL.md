@@ -435,10 +435,30 @@ Plain pytest-style test functions collect as **zero tests** and the gate
 refuses the question. No pytest, no fixtures, no parametrize: Python 3.9
 stdlib is the whole world here.
 
-**Write it all in one pass.** Problem, reference, both suites, and the mutants
-together, while the reference is still in front of you: a mutant is the
-reference with one thing plausibly broken, and they come out sharper written
-beside it than in a second visit.
+**Dispatch the writing to a subagent, then report.** As soon as the round is
+chosen, write a short spec for the question, five lines: the scenario, the
+mechanism it tests, the three or four requirements, sized for the round. Hand
+it to a subagent (the Task tool) together with the directory to build in and
+the whole contract above, verbatim: the file list, the meta.json shape, the
+unittest skeleton, the size budget, the expected-values order, the
+never-reproduce rule. Then write the findings report while it builds. The two
+generations run in parallel, and the set is usually ready about when the
+candidate finishes reading.
+
+The spec is where your research lands. The subagent was not in the search, so
+the spec carries what matters out of it: the round style, the reported topics,
+what the interviewer escalates into. Do not send it the raw findings; send the
+five lines.
+
+When it returns, run `start`. **The gate is the review**: it validates the
+whole set and names what is wrong if anything is. Fix what it names yourself
+rather than re-dispatching, which costs another cold start. And read the
+problem and the reference before you interview on them: you are about to take
+questions on a file you did not write.
+
+**No subagent tool on this host** (some environments running this skill have
+none): write it all yourself in one pass, reference first, mutants beside it,
+in the same order as always. The parallelism is lost; nothing else changes.
 
 **Size it for one sitting, not for the permanent corpus.** The whole set,
 every file included, should land near **350 lines**; the last run wrote 598 and
@@ -488,11 +508,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 # an asynchronous exam: drop --mode and --minutes, set --questions
 ```
 
-**Deliver the research findings in full before you start writing.** What they
-run, end to end. The sources, their dates, and the confidence. The adaptation
-you are making and why. Which round this sitting is. All of it, before the
-first line of the question is written, not bundled into the message that starts
-the clock.
+**Deliver the research findings in full before you write anything yourself.**
+What they run, end to end. The sources, their dates, and the confidence. The
+adaptation you are making and why. Which round this sitting is. All of it, not
+bundled into the message that starts the clock. The one thing that goes before
+the findings is the subagent dispatch, ten seconds of spec, so the question is
+being built underneath while they read.
 
 The reason is the shape of the wait. Writing and gating takes a few minutes,
 and the findings take about that long to read, so delivered first they overlap:
