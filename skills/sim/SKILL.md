@@ -269,6 +269,12 @@ Do it properly or not at all:
    same paragraph across two hundred companies. If the only thing you can find
    is that kind of page, you have found nothing.
 
+   **And never fetch an aggregator page at all.** Its one claim, when it has
+   one, is already in the search snippet, and its page is reliably the largest
+   fetch in the sweep: the same 900KB guide has been fetched in three separate
+   sittings to corroborate what the snippet already said. Corroboration reads
+   fine from a snippet. Fetches are for candidate reports.
+
    **Research has a stop condition: two independent, dated candidate reports
    agreeing on the round shape.** The moment you have them, stop. A lookup
    after agreement is collecting, not learning, and every sweep so far has
@@ -495,21 +501,31 @@ questions on a file you did not write.
 none): write it all yourself in one pass, reference first, mutants beside it,
 in the same order as always. The parallelism is lost; nothing else changes.
 
-**Size it for one sitting, not for the permanent corpus.** The whole set,
-every file included, should land near **350 lines**; the last run wrote 598 and
-the difference was a minute of somebody waiting. Where the budget goes:
+**Start from the skeleton instead of typing boilerplate:**
 
-- Problem statement: **50 lines or fewer.** Statement, one worked example,
+```
+cp -r "${CLAUDE_PLUGIN_ROOT}/skills/sim/references/question-skeleton" <dir>/<slug>
+```
+
+then fill it. Copying is instant; the imports and class lines are the same
+every time and typing them is seconds spent on nothing.
+
+**Size it for one sitting, not for the permanent corpus.** The whole set,
+every file included, should land near **275 lines**; sittings have shipped 600
+and then 434, and every line above the budget was somebody waiting. Where it
+goes:
+
+- Problem statement: **40 lines or fewer.** Statement, one worked example,
   constraints. A candidate reads this on the clock.
-- Hidden suite: **15 to 18 tests**, compact. Descriptive names, no docstrings:
+- Hidden suite: **12 to 15 tests**, compact. Descriptive names, no docstrings:
   the debrief reads the name back as English, so `test_empty_filter_matches_all`
   is the documentation.
 - Public samples: 3 tests.
-- **Mutants: 4, each a different failure mode.** Every mutant is a full copy of
-  the reference with one break, which makes them most of the tokens in the set,
-  and a fifth mutant that fails the same way as the second proves nothing the
-  gate did not already know. Four distinct ways to get it wrong is the proof;
-  code only, a one-line comment naming the break, no prose.
+- **Mutants: 3 or 4, each a different failure mode.** Every mutant is a full
+  copy of the reference with one break, which makes them most of the tokens in
+  the set, and a second mutant that fails the same way as the first proves
+  nothing the gate did not already know. Distinct ways to get it wrong are the
+  proof; code only, a one-line comment naming the break, no prose.
 
 Put the topics you researched into `meta.json`. That is where the session reads
 what the question covers, and it prints it before the clock starts, so a
@@ -543,12 +559,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 # an asynchronous exam: drop --mode and --minutes, set --questions
 ```
 
-**Deliver the research findings in full before you write anything yourself.**
-What they run, end to end. The sources, their dates, and the confidence. The
-adaptation you are making and why. Which round this sitting is. All of it, not
-bundled into the message that starts the clock. The one thing that goes before
-the findings is the subagent dispatch, ten seconds of spec, so the question is
-being built underneath while they read.
+**Deliver the research findings before you write anything yourself, as a
+brief, not an essay: about 150 words.** Five parts, one to three lines each:
+the loop end to end; what is established against what is only reported, with
+dates; the confidence in one line; the adaptation and why; which round this
+sitting is, with the offer to switch. Sources as bare links at the end. Longer
+is not more confident: the substance is the claims, their dates, and what
+disagrees, and paragraphs around them are generation time spent on nobody. The
+one thing that goes before the findings is the subagent dispatch, ten seconds
+of spec, so the question is being built underneath while they read.
 
 The reason is the shape of the wait. Writing and gating takes a few minutes,
 and the findings take about that long to read, so delivered first they overlap:
