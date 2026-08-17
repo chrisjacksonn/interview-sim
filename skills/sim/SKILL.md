@@ -400,9 +400,13 @@ The flow, in order, no steps skipped:
 
 1. Five-line spec for the question: scenario, mechanism, requirements, sized
    for the round.
-2. **Dispatch it to a subagent with the full contract below, before you write
-   the findings.** This is not optional when a subagent tool exists: it is what
-   lets the set build while they read.
+2. **Dispatch it to a subagent before you write the findings.** The dispatch
+   is a copy job, not a composition job. The prompt is exactly three parts: the
+   five-line spec, the absolute path to build in, and everything from "Each
+   question is its own directory" down through the sizing list, pasted
+   verbatim. Assemble, send, move on. If you are about to write the question
+   yourself with a subagent tool available, you are trading their reading time
+   for your typing time; do not.
 3. Write the findings report.
 4. When the subagent returns, `start`. Fix anything the gate names yourself.
 
