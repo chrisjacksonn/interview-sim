@@ -2363,6 +2363,51 @@ class TestTopicMatchIsStated(SessionTestCase):
     def test_all_of_it_is_on(self):
         self.assertEqual(self.start_with("rate limiting")["match"], "on")
 
+    def test_a_written_question_states_its_provenance_without_any_flags(self):
+        """The first live run of the write-the-question flow printed nothing.
+
+        The agent wrote the question and started without --topic, so there were
+        no asked topics to match against and the line vanished entirely, in the
+        one case where the answer was most reassuring. Provenance comes from the
+        question's own metadata now, so it does not depend on the caller having
+        remembered a flag.
+        """
+        root = self.root / "gen"
+        question = root / "written-one"
+        question.mkdir(parents=True)
+        (question / "meta.json").write_text(
+            '{"id": "written-one", "title": "Written", '
+            '"topics": ["formula parsing", "cycles"]}'
+        )
+        (question / "problem.md").write_text("# Written\n")
+        (question / "starter.py").write_text("def solve(x):\n    raise NotImplementedError\n")
+        (question / "reference.py").write_text("def solve(x):\n    return sorted(x)\n")
+        tests = (
+            "import unittest\n"
+            "from solution import solve\n"
+            "class T(unittest.TestCase):\n"
+            "    def test_sorts(self):\n"
+            "        self.assertEqual(solve([2, 1]), [1, 2])\n"
+            "    def test_empty(self):\n"
+            "        self.assertEqual(solve([]), [])\n"
+        )
+        (question / "tests_public.py").write_text(tests)
+        (question / "tests_hidden.py").write_text(tests)
+        mutants = question / "mutants"
+        mutants.mkdir()
+        (mutants / "unsorted.py").write_text("def solve(x):\n    return list(x)\n")
+        (mutants / "reversed.py").write_text("def solve(x):\n    return sorted(x, reverse=True)\n")
+        (mutants / "empty.py").write_text("def solve(x):\n    return []\n")
+
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("Written for this round", out)
+        self.assertIn("formula parsing", out)
+        self.assertIn("same grading gate", out)
+
     def test_the_candidate_is_told_on_screen(self):
         """The JSON already knew. Nobody reads the JSON."""
         args = ["start", "--format", "gca", "--mode", "interview", "--seed", 3,

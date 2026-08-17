@@ -246,10 +246,9 @@ Do it properly or not at all:
 
    Where those live, roughly in order of how much they are worth: Blind and the
    company-specific subreddits, then r/csMajors, r/cscareerquestions and
-   r/leetcode, then LeetCode Discuss, then Glassdoor's interview section, then
-   the community-maintained OA repositories on GitHub. Search terms that work
-   are the plain ones a person would type: "<company> online assessment intern
-   2026", "<company> OA reddit", "<company> codesignal".
+   r/leetcode, then LeetCode Discuss, then Glassdoor's interview section. Search
+   terms that work are the plain ones a person would type: "<company> online
+   assessment intern 2026", "<company> OA reddit", "<company> codesignal".
 
    What to discount: the company's own careers page, which describes the process
    they wish they ran, and the prep-site pages that rank for "<company>
@@ -263,7 +262,38 @@ Do it properly or not at all:
    about. "Two problems, an hour, one was a string parsing thing and one was a
    graph" is a complete result. Anything more specific than that is question
    text, and question text is not what you are collecting.
-2. **Report what you found before acting on it.** Say what the sources are, how
+2. **Date it against the OA index. Every time, not only when step 1 came back
+   thin.** Forum posts do not carry a "still true" stamp, and stale-but-confident
+   is the failure mode that matters here: a round described accurately in 2024
+   may have been replaced twice since.
+
+   https://github.com/perixtar/Tech-OA-Interview-Questions
+
+   It is a table of company, question title, **format** (Coding, SQL, System
+   design, Low-level design, AI coding), and **when that question was last
+   reported**, flagged for the last two weeks and the last 45 days. Two things
+   to take from it: the format column, which is the shape-of-round signal
+   directly, and the dates, which tell you whether what the forums described is
+   still being seen.
+
+   Weight it as corroboration, never as the finding. It is the front page of a
+   commercial practice site, the freshness dates are self-reported and nobody
+   has verified them, so it never outranks somebody describing a screen they
+   personally sat. What it is good for is saying "and it is still being seen
+   this month", or "and nothing has been reported since 2024", both of which
+   change the confidence you state out loud.
+
+   **Take titles as topics and stop there. Do not follow the links.** The
+   statements behind them are real assessment items and this is the single place
+   in the whole flow where reproducing one is easiest, because a title like
+   "Minimum Height Difference Between Distant Peaks" is specific enough to
+   reconstruct the problem from. "They ask interval problems" is the legitimate
+   use of that title. A question that is recognisably that problem with the
+   nouns changed is a derivative and is forbidden, see below.
+
+   If the repository is gone, renamed, or will not load, say so in a clause and
+   move on. It is a cross-check, not a dependency.
+3. **Report what you found before acting on it.** Say what the sources are, how
    old they are, and how much they agree. Two posts from the same month
    describing the same round is a finding. One comment from 2021 is a rumour
    with a link on it.
@@ -274,14 +304,14 @@ Do it properly or not at all:
    reporting it, and they make a solid result sound like a shrug. State what
    they run, then where that came from and how confident it is. The confidence
    belongs in a clause at the end, not in a throat-clear at the front.
-3. **Say which of the two claims you actually established.** Whether they run an
+4. **Say which of the two claims you actually established.** Whether they run an
    asynchronous coding assessment at all, and what that assessment is, are
    separate questions and the second is usually the one you cannot answer.
-4. **Never present a guess as a finding.** If the search comes back thin, the
+5. **Never present a guess as a finding.** If the search comes back thin, the
    honest output is "I could not establish this", followed by asking which
    format they want to practise. Thin research presented confidently is worse
    than no research, because they will plan around it.
-5. **Nothing is remembered between sessions, and that is deliberate.** There is
+6. **Nothing is remembered between sessions, and that is deliberate.** There is
    no log to write to and none to read from. Every company is looked up the day
    it is named, because a hiring process changes between cycles and a note from
    last month is a guess wearing a date. So never say a search agrees with
@@ -295,9 +325,15 @@ end to end, ask which round they want, and pass the shape of the one they pick.
 A live round runs as `--mode interview`, so you are the interviewer for it.
 
 **What you may never do is reproduce their questions.** Not the ones in a forum
-post, not the ones on a practice site, not a lightly reworded version. This is
-not a preference: real assessment items are the one thing a company will act on,
-and a takedown against this repository is a real outcome with precedent.
+post, not the ones on a practice site, not the ones behind a title in the OA
+index, not a lightly reworded version of any of them. This is not a preference:
+real assessment items are the one thing a company will act on, and a takedown
+against this repository is a real outcome with precedent.
+
+The test to apply while writing: if somebody who had sat the real thing read
+your question, would they recognise it as the same problem? If yes, it is a
+derivative however much the wording moved. Same subject is fine and is the whole
+point. Same problem is not.
 
 **What you do instead is take the topics.** If people report being asked about
 rate limiting and graph traversal, that is the useful part and it is fair game:
@@ -349,8 +385,15 @@ Each question is its own directory, anywhere outside the repository:
 <dir>/<slug>/mutants/         at least 3 plausible wrong solutions
 ```
 
-Put the topics you researched into `meta.json`, so the match line the candidate
-sees reflects what you actually built for them.
+Put the topics you researched into `meta.json`. That is where the session reads
+what the question covers, and it prints it before the clock starts, so a
+candidate can see the sitting was built for their round rather than taking your
+word for it.
+
+**Pass those same topics as `--topic` flags too.** The metadata says what the
+question covers; the flags say what you set out to cover. With both, the session
+can tell them the two agree, which is a stronger claim than either alone and the
+one worth making after research.
 
 **The mutants are not optional and they are not busywork.** Each one is a
 plausible wrong answer: the off-by-one, the missed edge case, the approach that

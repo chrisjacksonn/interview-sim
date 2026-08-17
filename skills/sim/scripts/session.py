@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.20.0"
+VERSION = "0.21.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1596,6 +1596,15 @@ def command_start(args: argparse.Namespace) -> int:
         else:
             briefing["topics"]["uncovered"].append(want)
     briefing["match"] = match_band(list(topics), briefing["topics"]["uncovered"])
+    # What the questions themselves say they are about, from their own metadata.
+    # A question written for this sitting always declares its subjects, so
+    # provenance can be stated without the caller having remembered --topic.
+    covers = []
+    for question in (questions or []):
+        for subject in (question.get("topics") or []):
+            if subject not in covers:
+                covers.append(subject)
+    briefing["covers"] = covers
     state["briefing"] = briefing
 
     # Record what the freshly copied starters look like, without emitting edit
@@ -3594,28 +3603,48 @@ def match_band(asked: List[str], uncovered: List[str]) -> Optional[str]:
 
 
 def describe_match(briefing: Dict[str, Any]) -> List[str]:
-    """The match, in the words a candidate should read before starting."""
+    """Where this question came from and whether it is the right subject.
+
+    Two separate claims, and a session can make either without the other.
+    Provenance comes from the question's own metadata, so it is stated even when
+    nobody passed --topic: a sitting whose question was written for the round
+    should say so, and the first live run of that flow did not, because the
+    agent wrote the question and then started without the flags.
+    """
     topics = briefing.get("topics") or {}
     asked = topics.get("asked") or []
     covered = topics.get("covered") or {}
     uncovered = topics.get("uncovered") or []
     band = briefing.get("match")
+    covers = briefing.get("covers") or []
+
+    lines = []
+    if briefing.get("generated"):
+        lines.append("Written for this round, not drawn from the shipped set.")
+        if covers:
+            lines.append("  covers        %s" % (", ".join(covers),))
+        lines.append("  it passed the same grading gate as every shipped question.")
+
     if not asked or band is None:
-        return []
+        return lines
+    if lines:
+        lines.append("")
 
     if band == "on":
-        return ["Topic match: on. Covers %s." % (", ".join(sorted(covered)),)]
-    if band == "partial":
-        return [
+        lines.append("Topic match: on. Covers %s." % (", ".join(sorted(covered)),))
+    elif band == "partial":
+        lines.extend([
             "Topic match: partial.",
             "  covers      %s" % (", ".join(sorted(covered)),),
             "  not covered %s" % (", ".join(uncovered),),
-        ]
-    return [
-        "Topic match: off.",
-        "  you asked for  %s" % (", ".join(asked),),
-        "  nothing drawn covers any of it. General practice, not that round.",
-    ]
+        ])
+    else:
+        lines.extend([
+            "Topic match: off.",
+            "  you asked for  %s" % (", ".join(asked),),
+            "  nothing drawn covers any of it. General practice, not that round.",
+        ])
+    return lines
 
 
 def build_parser() -> argparse.ArgumentParser:
