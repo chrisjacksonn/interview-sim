@@ -156,10 +156,15 @@ solution squeaked under the timeout.
 - **Difficulty calibration is a judgement call.** Slots are assigned by the
   author against the public difficulty descriptions. There is no candidate data
   behind them.
-- **The bank is small.** Twenty-two questions and four projects is five or six
-  sittings of each format. Recently served questions are tracked and avoided, but
-  once the bank is exhausted it starts over, and a remembered question measures
-  memory rather than ability.
+- **The question bank is small, and one slot is smaller than the rest.** Twenty-two
+  questions and four projects sounds like more sittings than it is. An exam takes
+  one question per difficulty slot, and those slots hold 4, 5, 8 and 5 questions,
+  so there are 800 distinct four-question papers but only **four sittings before
+  the warm-up slot has to repeat**. Interview mode draws from slot 3 alone, which
+  is eight. Recently served questions are tracked and avoided until the pool is
+  exhausted, after which a remembered question measures memory rather than
+  ability. Generated questions are the way past this, and they carry their own
+  caveat above.
 - **Hidden tests are readable in this repository.** They are hidden from the
   session, not from you. See [ETHICS.md](ETHICS.md).
 - **Generated questions have not been through the gate at all.** A session
