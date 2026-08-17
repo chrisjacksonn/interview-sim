@@ -273,7 +273,10 @@ Do it properly or not at all:
    is the failure mode that matters here: a round described accurately in 2024
    may have been replaced twice since.
 
-   https://github.com/perixtar/Tech-OA-Interview-Questions
+   Fetch this exact URL, once. It is the raw file; the rendered page is a
+   second, larger fetch of the same content:
+
+   https://raw.githubusercontent.com/perixtar/Tech-OA-Interview-Questions/main/README.md
 
    It is a table of company, question title, **format** (Coding, SQL, System
    design, Low-level design, AI coding), and **when that question was last
@@ -404,6 +407,22 @@ A complete `meta.json`, verbatim:
 Anything else (`difficulty`, `slot`, `entrypoint`) is defaulted by the engine
 and not worth writing.
 
+Both test files are **stdlib `unittest`**, and the grader collects nothing
+else. This skeleton is the convention, verbatim:
+
+```python
+import unittest
+from solution import solve
+
+class TestHidden(unittest.TestCase):
+    def test_the_worked_example(self):
+        self.assertEqual(solve(["a", "b"]), 2)
+```
+
+Plain pytest-style test functions collect as **zero tests** and the gate
+refuses the question. No pytest, no fixtures, no parametrize: Python 3.9
+stdlib is the whole world here.
+
 **Write it all in one pass.** Problem, reference, both suites, and the mutants
 together, while the reference is still in front of you: a mutant is the
 reference with one thing plausibly broken, and they come out sharper written
@@ -474,6 +493,13 @@ obligation, not a selling point, and announcing it invites the question of what
 it is being contrasted with. Then the message that starts the clock carries
 only what is new: the match line the session prints, where to look first, and
 your opening question as interviewer if it is a live round.
+
+**Then go straight to `start`. Do not build a verification harness first.**
+The gate runs every check in under a second and a refusal costs nothing and
+names its reason, while a hand-rolled pre-check costs a minute of somebody's
+wait and proves less than the gate does. The one check that is yours to do is
+the expected values, below, because the gate cannot know what the right answers
+are, only whether the suite discriminates.
 
 Two things to get right while writing, both of which have gone wrong here
 before. Work out expected values with a throwaway brute-force implementation

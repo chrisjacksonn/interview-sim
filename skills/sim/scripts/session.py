@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.21.3"
+VERSION = "0.22.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -784,6 +784,25 @@ def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
             raise SessionError("%s/meta.json is not an object" % (entry,), EXIT_BANK)
 
         reference = _grade_once(grader, entry, entry / "reference.py")
+        if reference.get("total", 0) == 0:
+            # The most likely author of a generated question is a model, and the
+            # most likely mistake is pytest-style plain functions, which stdlib
+            # unittest collects as nothing. Without this message, that shows up
+            # as "reference scores 0/0" and the diagnosis costs a trip through
+            # the engine source with somebody waiting for a clock.
+            raise SessionError(
+                "%s produced no runnable tests: unittest collected nothing from "
+                "tests_hidden.py. Tests live in a class "
+                "(class TestX(unittest.TestCase)) with test_ methods; plain "
+                "pytest-style functions collect as zero." % (entry.name,),
+                EXIT_BANK,
+            )
+        if "def test_" not in (entry / "tests_public.py").read_text():
+            raise SessionError(
+                "%s has no tests in tests_public.py, so the candidate has no "
+                "samples to run." % (entry.name,),
+                EXIT_BANK,
+            )
         if reference.get("outcome") != "pass":
             raise SessionError(
                 "%s is unanswerable: its own reference solution scores %d/%d (%s). "

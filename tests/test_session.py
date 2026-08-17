@@ -1724,6 +1724,38 @@ class TestGeneratedQuestions(SessionTestCase):
         self.assertIn("cannot discriminate", err)
         self.assertIn("survivor.py", err)
 
+    def test_pytest_style_suites_are_named_as_the_cause(self):
+        """Zero collected tests must say why, not just score 0/0.
+
+        The first live run to hit this spent two minutes reading engine source
+        to diagnose it: the suites were plain functions, unittest collected
+        nothing, and the refusal said only that the reference failed.
+        """
+        root = self.write_question(self.root / "gen")
+        plain = (
+            "from solution import solve\n"
+            "def test_sums():\n"
+            "    assert solve([('a', 1)]) == {'a': 1}\n"
+        )
+        (root / "generated-one" / "tests_hidden.py").write_text(plain)
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("unittest.TestCase", err)
+        self.assertIn("pytest-style", err)
+
+    def test_an_empty_public_suite_is_refused(self):
+        root = self.write_question(self.root / "gen")
+        (root / "generated-one" / "tests_public.py").write_text("# nothing\n")
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("no tests in tests_public.py", err)
+
     def test_a_question_that_asks_for_nothing_is_refused(self):
         root = self.write_question(self.root / "gen", starter=self.GOOD_REFERENCE)
         code, _, err = self.run_session(
