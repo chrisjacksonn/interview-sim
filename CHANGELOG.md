@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.2
+
+**The description was 454 characters and the picker showed 88 of them.** It
+listed every phrasing anyone might use to ask for a sitting, which is what the
+field is for, except the first thing a person sees is the field truncated
+mid-sentence. It is 166 characters now, leading with what the skill does and
+keeping the phrases that decide when it gets invoked behind it.
+
 ## 0.19.1
 
 **The argument hint says what to give it, not what it can be told to do.** The
