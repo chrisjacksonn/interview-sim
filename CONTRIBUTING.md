@@ -1,7 +1,18 @@
 # Contributing
 
-Contributions are welcome, particularly questions. There is one rule that is not
-negotiable and a quality gate that runs automatically.
+Contributions are welcome. The most valuable ones, in order: reports from
+platforms I cannot test (Windows, Codex, Cursor: did it work?), bug reports
+with a session transcript, and corpus questions.
+
+On questions, know what you are contributing to: sessions for a researched
+company always run on a question written live for that round, never on the
+corpus. The corpus serves two jobs: the instant no-company mock ("give me a
+GCA mock" starts in seconds), and the fixtures CI proves the grading gate
+against on every commit. A good corpus question makes the quick path richer;
+it will never appear in a company-prep sitting.
+
+There is one rule that is not negotiable and a quality gate that runs
+automatically.
 
 ## The rule: original questions only
 
