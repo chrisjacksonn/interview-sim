@@ -162,8 +162,8 @@ the agent driving it does, for research, exactly as if you searched yourself.
 
 ## Contributing
 
-Questions must pass the gate: reference passes the hidden suite, the untouched
-starter does not, and every wrong solution in `mutants/` is caught. See
-[CONTRIBUTING.md](CONTRIBUTING.md), in particular: original questions only.
+Bug reports, platform reports, and feature PRs (issue first) are welcome;
+question PRs are not, since questions are written live per sitting. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 MIT. Not affiliated with any assessment platform or employer.
