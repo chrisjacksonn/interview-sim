@@ -1859,6 +1859,28 @@ class TestGeneratedQuestions(SessionTestCase):
         self.assertIn("survivor.py", err)
         self.assertIn("cannot discriminate", err)
 
+    def test_a_question_set_inside_the_working_directory_is_refused(self):
+        """The set is the answer key. Built where the candidate works, it shows
+        in their file tree one click from the problem, which happened twice."""
+        root = self.write_question(self.root / "gen")
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0, cwd=str(self.root),
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("answer key", err)
+
+    def test_a_question_set_inside_the_working_directory_is_refused(self):
+        """The set is the answer key. Built where the candidate works, it shows
+        in their file tree one click from the problem, which happened twice."""
+        root = self.write_question(self.root / "gen")
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0, cwd=str(self.root),
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("answer key", err)
+
     def test_a_question_that_asks_for_nothing_is_refused(self):
         root = self.write_question(self.root / "gen", starter=self.GOOD_REFERENCE)
         code, _, err = self.run_session(

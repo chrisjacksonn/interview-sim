@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.27.5"
+VERSION = "0.28.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -786,6 +786,20 @@ def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
     directory = Path(directory).expanduser().resolve()
     if not directory.is_dir():
         raise SessionError("No such directory: %s" % (directory,), EXIT_BANK)
+    # The source set is the answer key: reference.py and tests_hidden.py sit in
+    # it. Built inside the directory the candidate is working from, it shows up
+    # in their file tree one click from the problem, which has happened twice.
+    # Instructions drift; refusals do not.
+    try:
+        directory.relative_to(Path.cwd().resolve())
+        raise SessionError(
+            "%s is inside the working directory, where the candidate can read "
+            "the answer key (reference.py, tests_hidden.py). Build generated "
+            "questions in a temp directory outside it." % (directory,),
+            EXIT_BANK,
+        )
+    except ValueError:
+        pass
 
     candidates = sorted(
         entry for entry in directory.iterdir()
