@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.28.0"
+VERSION = "0.29.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -3230,6 +3230,37 @@ def command_hint(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def command_end(args: argparse.Namespace) -> int:
+    """Stop a session on purpose, before the clock does.
+
+    Giving up is a legitimate ending and it needed a door: without one, the
+    only path to the abandoned state was force-starting a new session, so
+    somebody who stopped caring still had a live clock holding the debrief
+    shut for half an hour.
+    """
+    now = resolve_now(args.now)
+    workspace = resolve_workspace(args)
+    state = read_state(workspace)
+    sample_edits(workspace, state)
+
+    phase = classify(state, now)
+    if phase == STATE_EXPIRED:
+        state = finalize(workspace, state, now, END_REASON_TIME)
+        phase = STATE_ENDED
+    if phase == STATE_ENDED:
+        print("This session is already over (%s)." % (state["clock"].get("end_reason"),))
+        return EXIT_OK
+
+    state = finalize(workspace, state, now, END_REASON_ABANDONED)
+    print("Session ended (abandoned), %s in." % (format_duration(time_used(state, now)),))
+    paragraph(
+        "Nothing more can be submitted. `report` shows what happened, and "
+        "`debrief` now names what each hidden test was checking, with "
+        "`debrief --question q1` printing a reference solution."
+    )
+    return EXIT_OK
+
+
 def command_status(args: argparse.Namespace) -> int:
     now = resolve_now(args.now)
     workspace = resolve_workspace(args)
@@ -3346,7 +3377,11 @@ def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     level = "over" if ended else urgency(remaining)
 
     if level == "over":
-        face = "TIME IS UP"
+        face = (
+            "TIME IS UP"
+            if clock.get("end_reason") in (None, END_REASON_TIME)
+            else "SESSION ENDED"
+        )
         tint = "red"
     else:
         face = format_duration(remaining)
@@ -3880,6 +3915,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common(watch)
     watch.set_defaults(func=command_watch)
+
+    end = subparsers.add_parser(
+        "end", help="stop the session now, recorded as abandoned"
+    )
+    end.add_argument("--workspace", default=None)
+    end.add_argument("--session", default=None)
+    add_common(end)
+    end.set_defaults(func=command_end)
 
     debrief = subparsers.add_parser(
         "debrief", help="after time: which hidden tests failed, and what they guarded"

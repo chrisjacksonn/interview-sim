@@ -93,6 +93,8 @@ already looking at.
 | "show me how it should be done" | `debrief --question q2` (adds a reference) |
 | "mock interview", "interview me" | `start --mode interview` (slot 3 default; `--slot 4` for hard) |
 | you gave a nudge in interview mode | `hint --note "..."` |
+| "I give up", "stop the session", "end it" | `end`, then offer `report` and `debrief` |
+| "what's the answer", clock running | refuse; after `end` or time, `debrief --question qN` prints the reference |
 | "my past sessions" | `list` |
 | "am I improving" | `progress` |
 | "is this set up", anything failed oddly | `check` |
@@ -380,8 +382,11 @@ thing the format tests, and speak of it as decisions they can practise, not
 facts that befell them. A never-opened question may have been the solvable one;
 say so plainly.
 
-**`debrief` names what each failed test guarded**, ordered by time spent; work
-through the top one first. `debrief --question q2` adds a reference beside
+**`debrief` names what each failed test guarded**, ordered by time spent; it
+works with or without submissions, and it is the sanctioned answer channel:
+`--question` prints the engine's reference solution, so "show me the answer"
+after an ending is a debrief call, never a refusal. Work through the top
+question first. `debrief --question q2` adds a reference beside
 their code. Group failures by gap (three empty-input failures are one gap),
 never read them as a list. You still never open the hidden test files.
 

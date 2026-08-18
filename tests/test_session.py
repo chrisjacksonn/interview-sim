@@ -2601,6 +2601,53 @@ class TestTopicMatchIsStated(SessionTestCase):
         self.assertEqual(self.state()["briefing"]["match"], "off")
 
 
+class TestEndingOnPurpose(SessionTestCase):
+    """Giving up is a legitimate ending, and it opens the debrief.
+
+    Without a door to the abandoned state, somebody who stopped caring still
+    had a live clock holding the debrief and its reference solution shut."""
+
+    def test_end_stops_an_active_session_as_abandoned(self):
+        self.start()
+        code, out, _ = self.run_session("end", "--now", T0 + 600)
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("abandoned", out)
+        clock = self.state()["clock"]
+        self.assertEqual(clock["end_reason"], "abandoned")
+
+    def test_end_twice_says_already_over(self):
+        self.start()
+        self.run_session("end", "--now", T0 + 600)
+        code, out, _ = self.run_session("end", "--now", T0 + 700)
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("already over", out)
+
+    def test_end_with_no_session_is_the_usual_exit(self):
+        code, _, _ = self.run_session("end")
+        self.assertEqual(code, EXIT_NO_SESSION)
+
+    def test_no_submission_after_an_end(self):
+        workspace = self.start()
+        self.run_session("end", "--now", T0 + 600)
+        (workspace / "q1" / "solution.py").write_text("def solve(x):\n    return x\n")
+        code, _, err = self.run_session("submit", "--question", "q1", "--now", T0 + 700)
+        self.assertEqual(code, EXIT_EXPIRED)
+
+    def test_the_answer_is_reachable_after_giving_up(self):
+        """The whole point: end, then debrief prints the reference, engine-gated."""
+        self.start()
+        code, out, err = self.run_session(
+            "debrief", "--question", "q1", "--now", T0 + 60
+        )
+        self.assertEqual(code, EXIT_USAGE)  # clock running: still refused
+        self.run_session("end", "--now", T0 + 600)
+        code, out, err = self.run_session(
+            "debrief", "--question", "q1", "--now", T0 + 700
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("One way to write it", out)
+
+
 class TestEveryCommandInEveryState(SessionTestCase):
     """No command, in any session state, may crash or invent an exit code.
 
