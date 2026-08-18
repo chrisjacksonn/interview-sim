@@ -496,7 +496,7 @@ then fill it. Copying is instant; the imports and class lines are the same
 every time and typing them is seconds spent on nothing.
 
 **Size it for one sitting, not for the permanent corpus.** The whole set,
-every file included, should land near **275 lines**; sittings have shipped 600
+every file included, should land near **175 lines**; sittings have shipped 600
 and then 434, and every line above the budget was somebody waiting. Where it
 goes:
 
@@ -506,11 +506,21 @@ goes:
   the debrief reads the name back as English, so `test_empty_filter_matches_all`
   is the documentation.
 - Public samples: 3 tests.
-- **Mutants: 3 or 4, each a different failure mode.** Every mutant is a full
-  copy of the reference with one break, which makes them most of the tokens in
-  the set, and a second mutant that fails the same way as the first proves
-  nothing the gate did not already know. Distinct ways to get it wrong are the
-  proof; code only, a one-line comment naming the break, no prose.
+- **Mutants: 3 or 4, each a one-line break, written as a patch.** A mutant
+  file is a comment naming the break plus two strings, and nothing else:
+
+  ```python
+  # counts refusals against the budget
+  OLD = "if amount < 0:"
+  NEW = "if amount <= 0:"
+  ```
+
+  OLD quotes a snippet of reference.py verbatim and must pin down exactly one
+  place; the engine composes it against the reference and the suite must kill
+  the result. Re-typing the whole reference to change one line is what made
+  mutants most of the tokens in the set. A full standalone solution file still
+  works for the rare break a substitution cannot express, and each mutant is a
+  different failure mode: a second one that fails the same way proves nothing.
 
 Put the topics you researched into `meta.json`. That is where the session reads
 what the question covers, and it prints it before the clock starts, so a
@@ -583,9 +593,10 @@ are, only whether the suite discriminates.
 
 Two things to get right while writing, both of which have gone wrong here
 before. **Expected values come out of running code, in this order: write the
-reference first, run it on the test inputs, paste what it printed into the
-tests.** The skeleton ships `values.py` for exactly this: fill in the data and
-the cases once, run it, transcribe. Never type a value from your head and check it after; the last run
+reference first, define the data and cases once at the top of tests_hidden.py,
+run the skeleton's `values.py` (it imports them from there, with the reference
+standing in for the solution), paste what it printed into the tests.** The
+data is never written twice: the suite owns it and values.py reads it. Never type a value from your head and check it after; the last run
 lost a correction round to exactly that, and the order above makes the mistake
 impossible rather than catchable. And make the hidden suite test the edge cases the
 statement actually promises, not the ones the reference happens to handle.

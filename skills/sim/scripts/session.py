@@ -27,12 +27,13 @@ import random
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.25.2"
+VERSION = "0.26.0"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -729,6 +730,44 @@ def open_in_editor(workspace: Path, focus: Optional[Path] = None) -> None:
 GENERATED_MIN_MUTANTS = 3
 
 
+def patch_mutant_fields(path: Path) -> Optional[Tuple[str, str]]:
+    """(OLD, NEW) if this mutant is a patch, None if it is a full solution.
+
+    A mutant used to be the entire reference re-typed with one line changed,
+    which made mutants most of the tokens in a generated set: forty lines of
+    copying to express a one-line break. A patch mutant declares just the
+    break, as two module-level strings, and the engine composes it against
+    reference.py before grading. Full standalone mutants still work, for the
+    rare break a substitution cannot express.
+
+    Read with ast rather than executed: a full mutant defines functions and
+    would run on import, and the only question here is whether OLD and NEW
+    string constants exist at the top level.
+    """
+    try:
+        tree = ast.parse(path.read_text())
+    except (SyntaxError, OSError):
+        # Not parseable here; the grader will fail it as a full mutant and
+        # name it, which is the better error.
+        return None
+    old = new = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id not in ("OLD", "NEW"):
+            continue
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            if target.id == "OLD":
+                old = value.value
+            else:
+                new = value.value
+    if old is None or new is None:
+        return None
+    return old, new
+
+
 def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
     """Load questions written outside the bank, and check them before use.
 
@@ -844,10 +883,45 @@ def load_generated(directory: Path, count: int) -> List[Dict[str, Any]]:
                 EXIT_BANK,
             )
         survivors = []
-        for mutant in mutants:
-            verdict = _grade_once(grader, entry, mutant)
-            if verdict.get("outcome") == "pass":
-                survivors.append(mutant.name)
+        reference_text = (entry / "reference.py").read_text()
+        scratch = None
+        try:
+            for mutant in mutants:
+                fields = patch_mutant_fields(mutant)
+                if fields is None:
+                    verdict = _grade_once(grader, entry, mutant)
+                else:
+                    old_text, new_text = fields
+                    hits = reference_text.count(old_text)
+                    if hits != 1:
+                        raise SessionError(
+                            "%s/mutants/%s: OLD %s in reference.py. A patch "
+                            "mutant quotes a snippet of the reference verbatim, "
+                            "and the snippet has to pin down one place."
+                            % (entry.name, mutant.name,
+                               "matches nothing" if hits == 0
+                               else "matches %d places" % (hits,)),
+                            EXIT_BANK,
+                        )
+                    if old_text == new_text:
+                        raise SessionError(
+                            "%s/mutants/%s: OLD and NEW are identical, so this "
+                            "mutant is the reference and proves nothing."
+                            % (entry.name, mutant.name),
+                            EXIT_BANK,
+                        )
+                    if scratch is None:
+                        scratch = Path(tempfile.mkdtemp(prefix="sim-mutants-"))
+                    composed = scratch / mutant.name
+                    composed.write_text(
+                        reference_text.replace(old_text, new_text)
+                    )
+                    verdict = _grade_once(grader, entry, composed)
+                if verdict.get("outcome") == "pass":
+                    survivors.append(mutant.name)
+        finally:
+            if scratch is not None:
+                shutil.rmtree(str(scratch), ignore_errors=True)
         if survivors:
             raise SessionError(
                 "%s graded a wrong answer as correct: %s passed the hidden "

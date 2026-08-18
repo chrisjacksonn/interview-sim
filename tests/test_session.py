@@ -1756,6 +1756,109 @@ class TestGeneratedQuestions(SessionTestCase):
         self.assertEqual(code, EXIT_BANK)
         self.assertIn("no tests in tests_public.py", err)
 
+    def test_a_patch_mutant_is_composed_and_graded(self):
+        """One-line breaks declared as OLD/NEW, composed against the reference.
+
+        Re-typing the whole reference to change one line made mutants most of
+        the tokens in a generated set, so a patch declares just the break.
+        """
+        root = self.write_question(self.root / "gen")
+        directory = root / "generated-one" / "mutants"
+        # Replace one full mutant with an equivalent patch: the reference
+        # skips negatives via `continue`; breaking that keeps them.
+        (directory / "empty.py").unlink()
+        (directory / "keeps_negative.py").unlink()
+        (directory / "keeps_negative.py").write_text(
+            '# keeps negative amounts\n'
+            'OLD = "if amount < 0:"\n'
+            'NEW = "if amount < -10**18:"\n'
+        )
+        code, out, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK, err)
+        # Two mutants only, so the floor refuses: proves the patch COUNTED.
+        self.assertIn("2 mutant(s), needs 3", err)
+
+        (directory / "empty.py").write_text(
+            "def solve(payments):\n    return {}\n"
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+
+    def test_a_patch_matching_nothing_is_refused_with_the_reason(self):
+        root = self.write_question(self.root / "gen")
+        (root / "generated-one" / "mutants" / "ghost.py").write_text(
+            'OLD = "text that is not in the reference"\nNEW = "something"\n'
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("matches nothing", err)
+
+    def test_a_patch_matching_twice_is_refused(self):
+        """An ambiguous snippet composes silently into the wrong mutant."""
+        root = self.write_question(self.root / "gen")
+        question = root / "generated-one"
+        (question / "reference.py").write_text(
+            "def solve(payments):\n"
+            "    totals = {}\n"
+            "    for merchant, amount in payments:\n"
+            "        if amount < 0:\n"
+            "            continue\n"
+            "        if amount < 0:\n"
+            "            continue\n"
+            "        totals[merchant] = totals.get(merchant, 0) + amount\n"
+            "    return totals\n"
+        )
+        (question / "mutants" / "ambiguous.py").write_text(
+            'OLD = "if amount < 0:"\nNEW = "if amount <= 0:"\n'
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("matches 2 places", err)
+
+    def test_a_patch_equal_to_the_reference_is_refused(self):
+        root = self.write_question(self.root / "gen")
+        (root / "generated-one" / "mutants" / "noop.py").write_text(
+            'OLD = "if amount < 0:"\nNEW = "if amount < 0:"\n'
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("identical", err)
+
+    def test_a_surviving_patch_mutant_is_named(self):
+        """A break the suite cannot see is still a refusal, composed or not."""
+        root = self.write_question(self.root / "gen")
+        # Changing a dict literal the tests never exercise: composes fine,
+        # passes the suite, and must therefore be refused as a survivor.
+        (root / "generated-one" / "reference.py").write_text(
+            "UNUSED_LABEL = 'a'\n"
+            + self.GOOD_REFERENCE
+        )
+        (root / "generated-one" / "mutants" / "survivor.py").write_text(
+            "OLD = \"UNUSED_LABEL = 'a'\"\nNEW = \"UNUSED_LABEL = 'b'\"\n"
+        )
+        code, _, err = self.run_session(
+            "start", "--format", "gca", "--questions", "1",
+            "--generated", str(root), "--now", T0,
+        )
+        self.assertEqual(code, EXIT_BANK)
+        self.assertIn("survivor.py", err)
+        self.assertIn("cannot discriminate", err)
+
     def test_a_question_that_asks_for_nothing_is_refused(self):
         root = self.write_question(self.root / "gen", starter=self.GOOD_REFERENCE)
         code, _, err = self.run_session(

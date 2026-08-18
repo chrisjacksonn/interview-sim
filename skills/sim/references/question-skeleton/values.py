@@ -1,18 +1,20 @@
-"""Produce every expected value by running the reference. Data and cases are
-defined once, here; run it, paste the printed answers into the suites."""
+"""Expected values, produced by running the reference against the suite's own
+data. DATA and CASES live in tests_hidden.py, defined once; this reads them
+from there, with the reference standing in for the candidate's solution."""
 
 import copy
+import sys
 
-from reference import solve
+import reference
 
-DATA = []  # the dataset every case runs against
+# tests_hidden does `from solution import solve`. During authoring there is
+# no solution yet; the reference is the solution.
+sys.modules["solution"] = reference
 
-CASES = [
-    # ("test_name", CASE_ARGS),
-]
+import tests_hidden  # noqa: E402  - needs the shim above
 
 if __name__ == "__main__":
-    before = copy.deepcopy(DATA)
-    for name, case in CASES:
-        print(name, "->", solve(DATA, case))
-    print("input preserved:", DATA == before)
+    before = copy.deepcopy(tests_hidden.DATA)
+    for name, case in tests_hidden.CASES:
+        print(name, "->", reference.solve(tests_hidden.DATA, case))
+    print("input preserved:", tests_hidden.DATA == before)
