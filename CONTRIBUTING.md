@@ -35,5 +35,4 @@ as a stranger would.
   `X | Y` annotations, no `tomllib`, no third-party imports anywhere,
   including tests. The floor is what machines actually have: Apple Command
   Line Tools still ships 3.9.6.
-- **No em dashes in files.** A comma, colon, or full stop instead.
 - Comments explain why, not what.
