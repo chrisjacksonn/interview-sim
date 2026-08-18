@@ -15,15 +15,6 @@ their question live, and the small shipped corpus (instant no-company mocks,
 plus the fixtures CI proves the gate against) is maintained here. A PR adding
 questions will be closed with thanks.
 
-## The rule that covers everything
-
-**Nothing real, nothing cheat-adjacent.** No real assessment items or
-recognisable derivatives, from any source, in any file. No capability for
-interacting with a live assessment, a proctoring system, or a browser
-session. See [ETHICS.md](ETHICS.md). If anything in this repository is ever
-identified as a real assessment item, open an issue; it is treated as urgent
-and replaced the same day.
-
 ## Before a PR
 
 Everything must stay green:
