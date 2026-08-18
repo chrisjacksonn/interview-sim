@@ -211,7 +211,7 @@ The complete contract (nothing to verify in the engine):
 <dir>/<slug>/problem.md       statement, one worked example, constraints
 <dir>/<slug>/starter.py       the signature, raising NotImplementedError
 <dir>/<slug>/reference.py     a solution you believe is correct
-<dir>/<slug>/tests_public.py  3 sample tests
+<dir>/<slug>/tests_public.py  2 sample tests
 <dir>/<slug>/tests_hidden.py  the real suite
 <dir>/<slug>/mutants/         3-4 wrong answers, patches (below)
 ```
@@ -238,9 +238,9 @@ class TestHidden(unittest.TestCase):
         self.assertEqual(solve(["a", "b"]), 2)
 ```
 
-**Budget: ~175 lines for the whole set.** Statement ≤ 40 lines. Hidden suite
-12-15 tests, descriptive names, no docstrings (the debrief reads names back as
-English). Public samples: 3. **Mutants: 3-4, each a distinct one-line break,
+**Budget: ~160 lines for the whole set.** Statement ≤ 40 lines. Hidden suite
+about 12 tests, descriptive names, no docstrings (the debrief reads names back
+as English). Public samples: 2. **Mutants: 3-4, each a distinct one-line break,
 written as a patch**:
 
 ```python
