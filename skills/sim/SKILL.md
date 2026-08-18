@@ -93,7 +93,7 @@ already looking at.
 | "show me how it should be done" | `debrief --question q2` (adds a reference) |
 | "mock interview", "interview me" | `start --mode interview` (slot 3 default; `--slot 4` for hard) |
 | you gave a nudge in interview mode | `hint --note "..."` |
-| "I give up", "stop the session", "end it" | `end`, then offer `report` and `debrief` |
+| "I give up", "stop the session", "end it" | confirm once in one line ("End it? Nothing more can be submitted after"), then `end` on their yes and offer `report` and `debrief`. A repeated or unambiguous "just stop" is the yes; never ask twice |
 | "what's the answer", clock running | refuse; after `end` or time, `debrief --question qN` prints the reference |
 | "my past sessions" | `list` |
 | "am I improving" | `progress` |
