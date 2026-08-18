@@ -92,28 +92,7 @@ animation. It is genuinely doing the work, and it should look like it.
 
 ### Where it goes
 
-Once `demo-posting.gif` exists, it replaces the terminal GIF at the top of the
-README and the terminal one moves down. The posting demo shows what the tool is;
-the terminal demo shows the engine underneath, which is worth keeping but is not
-the opening argument.
-
-```markdown
-## What it looks like
-
-![Pasting a job posting into an editor terminal: the agent researches what that
-company runs, then a timed session appears in the project with the first problem
-open](demo-posting.gif)
-
-You are in your own project. You name a company, it finds out what their screen
-actually is, and a real sitting appears beside the work you already had open.
-
-<details>
-<summary>The engine underneath, without an agent driving it</summary>
-
-![A GCA session: naming a company starts the clock, real files appear, ...](demo.gif)
-
-</details>
-```
-
-Keep both under 10MB. GitHub silently refuses to render a README image above
-that, and a broken hero image is worse than a plain heading.
+The README's demo slot is the image line near the top. Swap `demo.gif` for the
+posting recording when it exists, and keep the file under 10MB: GitHub
+silently refuses to render a README image above that, and a broken hero image
+is worse than a plain heading.
