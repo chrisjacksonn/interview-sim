@@ -222,6 +222,10 @@ Other meta fields are defaulted; do not write them. Start from the skeleton:
 cp -r "${CLAUDE_PLUGIN_ROOT}/skills/sim/references/question-skeleton" <dir>/<slug>
 ```
 
+Fill the copied files with `cat >` heredocs in Bash, not the Write tool: Write
+demands a read-back of every existing file first, which is four wasted
+round-trips per set.
+
 **Write `reference.py` before either test file.** Both suites are **stdlib
 `unittest.TestCase`** (pytest-style functions collect as zero tests and the
 gate refuses):
@@ -268,8 +272,10 @@ this round now." No time estimate, no step narration, and "a question", not
 "an original question". The clock-starting message carries only what is new:
 the match line, where to look first, and your opening question if interviewing.
 
-**Go straight to `start`; do not build a verification harness.** The gate
-checks everything in under a second and names any refusal. Then the start
+**Go straight to `start`; never pre-verify.** No "sanity-check the reference",
+no "verify each mutant is killed": the gate runs those exact checks in under a
+second and names any refusal, so a hand-rolled pre-check is pure wait added to
+somebody's sitting. Then the start
 invocation, complete:
 
 ```
