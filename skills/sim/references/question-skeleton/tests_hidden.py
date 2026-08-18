@@ -3,7 +3,8 @@ import unittest
 from solution import solve
 
 # Defined once, here, and only here. values.py imports these and prints the
-# expected value for every case; run it, paste the answers into the tests.
+# expected value for every case; run it, paste the answers into the tests and
+# the first case's answer into problem.md's worked example.
 DATA = []
 CASES = [
     # ("test_name", CASE_ARGS),

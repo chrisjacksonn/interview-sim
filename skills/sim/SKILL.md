@@ -64,10 +64,9 @@ what you are about to look up:
 > fastest sitting (~2 minutes), use Sonnet on low effort: `/model sonnet`,
 > then `/effort low`.
 
-Say it once, never again, and do not offer it as a question: nothing you emit
-can change the permission mode. If they want it permanent, it is
-`{"permissions": {"defaultMode": "auto"}}` in the practice directory's
-`.claude/settings.json`; offer once, write it only if asked.
+Say it once, never again; nothing you emit can change the permission mode.
+Permanent version, only if asked: `{"permissions": {"defaultMode": "auto"}}`
+in the practice directory's `.claude/settings.json`.
 
 **Always pass `--open`** when a person is at the keyboard. It focuses the
 problem statement in the editor they already have open. Tell them to read it
@@ -148,8 +147,9 @@ nothing usable, ask which format they want and say nobody established it.
    endpoint or a megabytes-large page is not a candidate report.
 
    **Stop condition: two independent, dated candidate reports agreeing on the
-   round shape. Ceiling: four searches and four fetches.** Past either, state
-   what is and is not established and move on. You are collecting the shape of
+   round shape. Ceiling: four searches and four fetches, fallbacks included.**
+   Past either, state what is and is not established and move on; with old
+   sources, two old agreeing reports beat a fifth fetch. You are collecting the shape of
    the round and the subjects, never question text.
 
 2. **Date it against the OA index, every time.** Fetch exactly this raw URL,
@@ -256,21 +256,26 @@ still works for a break a substitution cannot express. The gate refuses the
 question if the reference fails, the starter passes, mutants are missing, or
 any mutant survives; strengthen the tests, never the mutant.
 
-**Expected values come from running code**: reference first, DATA and CASES
-defined once at the top of tests_hidden.py, run the skeleton's `values.py`
-(it shims the reference in as the solution), paste what it printed. Never type
-a value from your head. Make the suite test what the statement promises, not
+**Every expected value comes from running code, including the statement's
+worked example**: reference first, DATA and CASES defined once at the top of
+tests_hidden.py with the worked example as the first case, run the skeleton's
+`values.py` (it shims the reference in as the solution), paste what it printed
+into the tests and into problem.md. Never type a value from your head, in any
+file. Make the suite test what the statement promises, not
 what the reference happens to handle; input-preservation fixtures must be in
 an order sorting would disturb.
 
-**Findings brief before you write anything: about 150 words, four parts**, one
-to three lines each: the loop end to end; established versus reported, with
-dates (that split IS the confidence — no separate confidence line); the
-adaptation and why; which round this sitting is, with the offer to switch.
-Sources as bare links at the end. Close with exactly: "Writing a question for
-this round now." No time estimate, no step narration, and "a question", not
-"an original question". The clock-starting message carries only what is new:
-the match line, where to look first, and your opening question if interviewing.
+**Findings brief before you write anything: about 150 words, formatted, not one
+paragraph.** A short header naming the company and round, then labeled
+sections (short headers or bold lead-ins) covering, in order: the process end
+to end; what's established versus not, with dates (that split IS the
+confidence — no separate confidence line, bullets are fine for the individual
+points of agreement); the adaptation and why; which round this sitting is,
+with the offer to switch. Sources as bare links at the end, under their own
+line. Close with exactly: "Writing a question for this round now." No time
+estimate, no step narration, and "a question", not "an original question".
+The clock-starting message carries only what is new: the match line, where to
+look first, and your opening question if interviewing.
 
 **Go straight to `start`; never pre-verify.** No "sanity-check the reference",
 no "verify each mutant is killed": the gate runs those exact checks in under a
@@ -359,10 +364,9 @@ it, what it covers. If researched topics are uncovered, write a question;
 never run a mismatched one and apologise. `start --json` shows coverage; that
 is for you.
 
-**Show the research as it happens** (visible searching is the difference
-between looked and guessed), **then state the sourcing once**: what the
-company runs, how sure, what they are about to sit. Once. Repetition reads as
-a tool with no confidence in itself. The register to hit:
+**Show the research as it happens, then state the sourcing once**: what the
+company runs, how sure, what they are about to sit. Repetition reads as a tool
+with no confidence in itself. The register:
 
 > Shopify run a pairing round, around 80 minutes, practical rather than
 > algorithmic. That's from a handful of candidate reports this year, so treat
