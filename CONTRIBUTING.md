@@ -30,10 +30,10 @@ One directory per question, under `skills/sim/questions/gca/<your-slug>/`:
 meta.json          id, slot, difficulty, title, time_hint_minutes, topics
 problem.md         the statement, with worked examples and constraints
 starter.py         the signature and a docstring, raising NotImplementedError
-tests_public.py    four or five samples the candidate can see
-tests_hidden.py    the real suite, twenty or so tests
+tests_public.py    a few samples the candidate can see
+tests_hidden.py    the real suite, fifteen to twenty-five tests
 reference.py       a solution that passes tests_hidden.py
-mutants/*.py       at least three plausible wrong answers
+mutants/*.py       at least three plausible wrong answers (two forms, below)
 ```
 
 `meta.json` `id` must match the directory name. `slot` is the difficulty position
@@ -42,8 +42,8 @@ and drives selection:
 | Slot | Difficulty | Typical shape |
 | --- | --- | --- |
 | 1 | warmup | strings, loops, a dictionary |
-| 2 | medium | hash maps, sorting, binary search |
-| 3 | medium | graphs, basic dynamic programming |
+| 2 | medium | hash maps, sliding windows, sorting |
+| 3 | medium | graphs, object design, simulation, basic DP |
 | 4 | hard | advanced DP, graph algorithms, optimisation |
 
 A session takes one question per slot, so slots need roughly even coverage. Check
@@ -88,6 +88,12 @@ CI runs this on every commit and a PR does not merge until it passes. It checks:
    would disturb. This has been the same bug in four different questions: the
    test looks right, asserts the right thing, and passes for a solution that
    sorts the caller's list in place, because the fixture was already in order.
+
+A mutant is either a full standalone solution, or a **patch**: a comment
+naming the break plus two strings, `OLD` quoting a unique verbatim snippet of
+`reference.py` and `NEW` the broken version. The gate composes patches against
+the reference before grading, and one lives in `gca/bracket-check/mutants/` as
+the working example.
 
 **Check three is the point of the whole exercise.** Your mutants are plausible
 wrong answers: the off-by-one, the unsorted assumption, the missed edge case, the
@@ -138,9 +144,9 @@ There used to be a table of companies in this repository, and contributions to i
 were welcome. It has been removed. A file describing what a company does to
 candidates is out of date the moment a hiring cycle turns over, and every
 mechanism for managing that (confidence tiers, dates, staleness thresholds)
-turned out to be scaffolding around a bad idea. The agent researches it live now,
-reports its sources, and writes a dated note that is never consulted in place of
-looking again.
+turned out to be scaffolding around a bad idea. The agent researches it live
+now, reports its sources, and stores nothing: a second session for the same
+company searches again.
 
 So there is nothing to contribute here any more, which is the point.
 

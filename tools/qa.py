@@ -33,6 +33,7 @@ QUESTIONS = REPO / "skills" / "sim" / "questions"
 sys.path.insert(0, str(REPO / "skills" / "sim" / "scripts"))
 
 import grade  # noqa: E402  - path is set up immediately above
+import session  # noqa: E402  - for patch_mutant_fields, the one shared piece
 
 REQUIRED_FILES = (
     "meta.json",
@@ -181,9 +182,35 @@ def check_mutants(question, tier):
             % (len(mutants), MIN_MUTANTS)
         )
 
+    # Patch mutants (OLD/NEW strings composed against the reference) are the
+    # convention generated questions use, and without composing them here a
+    # patch-style file in a corpus mutants/ dir fails to import and counts as
+    # "caught", which is a meaningless mutant passing the gate silently.
+    reference_text = (question / "reference.py").read_text()
+    composed_dir = None
+    prepared = []
+    for mutant in mutants:
+        fields = session.patch_mutant_fields(mutant)
+        if fields is None:
+            prepared.append(mutant)
+            continue
+        old_text, new_text = fields
+        if reference_text.count(old_text) != 1:
+            raise Failure(
+                "%s: OLD must match reference.py exactly once" % (mutant.name,)
+            )
+        if old_text == new_text:
+            raise Failure("%s: OLD and NEW are identical" % (mutant.name,))
+        if composed_dir is None:
+            import tempfile
+            composed_dir = Path(tempfile.mkdtemp(prefix="qa-mutants-"))
+        target = composed_dir / mutant.name
+        target.write_text(reference_text.replace(old_text, new_text))
+        prepared.append(target)
+
     survivors = []
     caught = []
-    for mutant, report in grade_all(question, mutants):
+    for mutant, report in grade_all(question, prepared):
         if report["outcome"] == "pass":
             survivors.append(mutant.name)
         elif report["total"]:
