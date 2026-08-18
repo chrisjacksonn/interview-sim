@@ -1,6 +1,6 @@
 {
   "name": "interview-sim",
-  "version": "0.25.1",
+  "version": "0.25.2",
   "description": "Practice the technical screen a company actually runs: paste a posting, it researches the format, then sits you down with real files, hidden tests and a clock that does not negotiate.",
   "author": {
     "name": "Chris Jackson",

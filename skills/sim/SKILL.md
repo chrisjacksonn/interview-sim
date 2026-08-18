@@ -545,10 +545,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sim/scripts/session.py" start \
 ```
 
 **Deliver the research findings before you write anything yourself, as a
-brief, not an essay: about 150 words.** Five parts, one to three lines each:
+brief, not an essay: about 150 words.** Four parts, one to three lines each:
 the loop end to end; what is established against what is only reported, with
-dates; the confidence in one line; the adaptation and why; which round this
-sitting is, with the offer to switch. Sources as bare links at the end. Longer
+dates; the adaptation and why; which round this sitting is, with the offer to
+switch. No separate confidence line: the established-versus-reported split is
+the confidence, and a second line restating it is the brief marking its own
+homework. Sources as bare links at the end. Longer
 is not more confident: the substance is the claims, their dates, and what
 disagrees, and paragraphs around them are generation time spent on nobody.
 
