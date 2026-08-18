@@ -162,8 +162,7 @@ the agent driving it does, for research, exactly as if you searched yourself.
 
 ## Contributing
 
-Bug reports, platform reports, and feature PRs (issue first) are welcome;
-question PRs are not, since questions are written live per sitting. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports, platform reports, and feature PRs (issue first) are welcome.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 MIT. Not affiliated with any assessment platform or employer.

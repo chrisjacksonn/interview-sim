@@ -10,11 +10,6 @@ Welcome, in this order:
    this is a side project with a small time budget, and agreeing on the shape
    first is what gets a PR merged fast.
 
-**Question PRs are not accepted.** Sessions for a researched company write
-their question live, and the small shipped corpus (instant no-company mocks,
-plus the fixtures CI proves the gate against) is maintained here. A PR adding
-questions will be closed with thanks.
-
 ## Before a PR
 
 Everything must stay green:
