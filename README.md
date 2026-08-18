@@ -1,5 +1,8 @@
 # interview-sim
 
+[![CI](https://github.com/chrisjacksonn/interview-sim/actions/workflows/qa.yml/badge.svg)](https://github.com/chrisjacksonn/interview-sim/actions/workflows/qa.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Practice the screen a company actually runs, on a real clock, in your own editor.**
 
 Paste a job posting. It researches what that company's technical screen is,
