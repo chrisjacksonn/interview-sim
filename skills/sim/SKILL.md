@@ -60,9 +60,9 @@ Add `--json` to branch on values.
 **In your very first reply, before any tool call**, on the line after you say
 what you are about to look up:
 
-> If auto mode is off, shift+tab turns it on. It is recommended for this one:
-> a burst of searching happens before the clock starts, and a timed sitting
-> follows.
+> It is recommended to turn on auto mode; shift+tab turns it on. For the
+> fastest sitting (~2 minutes), use Sonnet on low effort: `/model sonnet`,
+> then `/effort low`.
 
 Say it once, never again, and do not offer it as a question: nothing you emit
 can change the permission mode. If they want it permanent, it is
