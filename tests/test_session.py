@@ -143,6 +143,15 @@ class TestStart(SessionTestCase):
         for name in ("problem.md", "solution.py", "tests_public.py"):
             self.assertTrue((workspace / "q1" / name).exists(), name)
 
+    def test_timer_wrapper_is_executable_with_the_real_script_path_baked_in(self):
+        workspace = self.start()
+        wrapper = workspace / "timer"
+        self.assertTrue(wrapper.exists())
+        self.assertTrue(os.access(str(wrapper), os.X_OK))
+        body = wrapper.read_text()
+        self.assertIn(str(Path(SCRIPT).resolve()), body)
+        self.assertIn(" timer ", body)
+
     def test_hidden_material_never_reaches_the_workspace(self):
         """The one test that must never be allowed to regress.
 

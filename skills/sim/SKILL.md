@@ -76,8 +76,13 @@ already looking at.
 **Never run `timer` yourself** (it blocks until the clock ends). Append the
 offer to every session-start message, as its own line, so nobody has to ask:
 
-> If you want a clock on screen, split your terminal and run `sim timer` in the
-> other pane. It also puts the time in the tab title.
+> If you want a clock on screen, split your terminal, `cd` into the session
+> directory above, and run `./timer`. It also puts the time in the tab title.
+
+`./timer` is a shim `start` writes into the workspace itself, with the real
+script path already resolved in it — say that phrasing exactly; do not tell
+people to type `sim timer`, which is not a real command outside an agent's
+own shell.
 
 **If asked for it later** ("how do I get a clock", "can I see a timer",
 `/interview-sim:sim timer`), answer with exactly that line and nothing else —
@@ -91,7 +96,7 @@ rule governs what you do; it is not something to narrate at the person.
 | `/sim`, `/sim gca`, "start a GCA mock" | `start --format gca` |
 | "how long do I have" | `status` (the clock is per session, never per question) |
 | "where did my time go" | `report`, after the sitting |
-| "can I see a timer" | tell them `timer` in a split pane; never run it yourself |
+| "can I see a timer" | tell them `./timer` from the session directory, in a split pane; never run it yourself |
 | `/sim ica`, "start an ICA mock" | `start --format ica` |
 | "submit", "grade this" | `submit --question q1`; bare `submit` in ICA means the open level |
 | "how did I do", after time | `report`, then `debrief` |

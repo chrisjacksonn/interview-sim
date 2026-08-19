@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.29.6"
+VERSION = "0.29.7"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1306,9 +1306,9 @@ Time remaining:
 
     sim status
 
-Or put a clock on screen. Split your terminal and run this in the other pane:
+Or put a clock on screen. Split your terminal, cd into this directory, and run:
 
-    sim timer
+    ./timer
 
 It counts down once a second, turns amber at ten minutes and red at two, and
 writes the time into the terminal's tab title so it is there even when the pane
@@ -1330,11 +1330,23 @@ When the clock runs out:
 ## Rules
 
 - The clock does not stop. Closing your editor does not pause it.
-- Check the time with `sim status`, or keep `sim timer` open; do not guess.
+- Check the time with `sim status`, or keep `./timer` open; do not guess.
 - The person proctoring will clarify what a question is asking. They will not
   tell you how to solve it.
 - Work submitted after the deadline does not count, even if it is correct.
 {extra}"""
+
+
+def write_timer_wrapper(workspace: Path) -> None:
+    # `sim` and ${CLAUDE_PLUGIN_ROOT} both only resolve inside an agent's own
+    # shell, so a person typing into a second terminal pane by hand has
+    # neither. This bakes the script's real, resolved location in at write
+    # time so `./timer` works with no setup, in any shell, anywhere.
+    path = workspace / "timer"
+    script = Path(__file__).resolve()
+    with open(str(path), "w") as handle:
+        handle.write('#!/bin/sh\nexec python3 "%s" timer "$@"\n' % (script,))
+    os.chmod(str(path), 0o755)
 
 
 def write_readme(workspace: Path, state: Dict[str, Any]) -> None:
@@ -1721,6 +1733,7 @@ def command_start(args: argparse.Namespace) -> int:
 
     write_state(workspace, state)
     write_readme(workspace, state)
+    write_timer_wrapper(workspace)
     write_pointer(workspace)
     if args.open:
         # The problem, not the solution. Landing in an empty starter file puts

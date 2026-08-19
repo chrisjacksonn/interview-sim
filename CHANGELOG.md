@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.7
+
+**`sim timer` was never a real command outside an agent's own shell.** A
+person typing it into a fresh second terminal pane, by hand, hit `zsh:
+command not found: sim`, since neither `sim` nor `${CLAUDE_PLUGIN_ROOT}`
+resolve there. `start` now writes a small executable shim, `timer`, straight
+into the session workspace, with the real script's resolved path already
+baked in. The instruction is `./timer` from inside the workspace: no shell
+function to define first, no version-pinned path to type out, works the same
+in tmux, VS Code's integrated terminal, iTerm, or plain Terminal.app.
+
 ## 0.29.6
 
 **`watch` is `timer` now.** A live session called it by typing
