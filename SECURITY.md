@@ -4,11 +4,12 @@ What this skill can do on your machine, why, and where the lines are.
 
 ## Capabilities and why they exist
 
-- **Run Python**, scoped in the frontmatter to the engine and the values
-  script (`Bash(python3 *session.py *)`): the clock, grader, and question
-  validation are Python scripts. Honesty note: a pattern over a shell string
-  is a scanner-legible scope, not an injection boundary; the behavioral rule
-  below is the real one.
+- **Run Python** (`Bash(python3:*)`): the engine, grader, and clock are
+  Python scripts, and generated questions are validated by running them. A
+  narrower pattern over the shell string was tried and abandoned: it is not an
+  injection boundary (any pattern over a command is satisfiable by
+  construction), so the behavioral rule below is the real line, stated
+  honestly instead of scoped cosmetically.
 - **Fetch and search the web** (`WebFetch`, `WebSearch`): live research into
   what a company's screen currently is. This is the product's core mechanism;
   a version without it is a different tool.

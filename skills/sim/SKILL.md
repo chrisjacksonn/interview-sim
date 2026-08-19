@@ -2,7 +2,7 @@
 name: sim
 description: Run a timed coding assessment simulation in the terminal. Use for OA practice, GCA or ICA mocks, mock interviews, pairing rounds, take-homes, and pasted job postings.
 argument-hint: "[job posting URL, or company and role]"
-allowed-tools: Read, Glob, Bash(python3 *session.py *), Bash(python3 *values.py*), WebFetch, WebSearch
+allowed-tools: Read, Glob, Bash(python3:*), WebFetch, WebSearch
 license: MIT
 ---
 
