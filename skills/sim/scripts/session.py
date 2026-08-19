@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.29.5"
+VERSION = "0.29.6"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -1308,7 +1308,7 @@ Time remaining:
 
 Or put a clock on screen. Split your terminal and run this in the other pane:
 
-    sim watch
+    sim timer
 
 It counts down once a second, turns amber at ten minutes and red at two, and
 writes the time into the terminal's tab title so it is there even when the pane
@@ -1330,7 +1330,7 @@ When the clock runs out:
 ## Rules
 
 - The clock does not stop. Closing your editor does not pause it.
-- Check the time with `sim status`, or keep `sim watch` open; do not guess.
+- Check the time with `sim status`, or keep `sim timer` open; do not guess.
 - The person proctoring will clarify what a question is asking. They will not
   tell you how to solve it.
 - Work submitted after the deadline does not count, even if it is correct.
@@ -2370,7 +2370,7 @@ def sample_edits_locked(workspace: Path) -> None:
     """Take a reading under the lock, re-reading the state first.
 
     `sample_edits` writes the state object its caller is already holding, which
-    is correct for a command that read it a moment ago and exits. A watch pane
+    is correct for a command that read it a moment ago and exits. A timer pane
     lives for an hour beside a grader, so it must not write back a copy it read
     before the last submission landed. Re-reading inside the lock closes that
     window; the cost is a lock the grader briefly waits on, which is
@@ -3060,10 +3060,10 @@ def command_check(args: argparse.Namespace) -> int:
         {
             "name": "alerts",
             "ok": True,
-            "detail": "%s, so `watch` can raise its ten and two minute warnings"
+            "detail": "%s, so `timer` can raise its ten and two minute warnings"
             % (found,)
             if found
-            else "no notifier on this platform, so `watch` warns with the bell "
+            else "no notifier on this platform, so `timer` warns with the bell "
             "and the tab title only. The countdown itself still works",
         }
     )
@@ -3288,7 +3288,7 @@ def command_status(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
-# watch
+# timer
 #
 # A real assessment puts a countdown in the browser chrome where you cannot
 # avoid it, and coding with a clock in your peripheral vision is a different
@@ -3326,7 +3326,7 @@ def urgency(remaining: float) -> str:
 def due_milestones(remaining: float, fired: set) -> List[Tuple[float, str]]:
     """Thresholds crossed since the last look.
 
-    Starting a watch with five minutes left must not fire thirty and ten on the
+    Starting a timer with five minutes left must not fire thirty and ten on the
     way in, so the caller seeds `fired` with everything already behind it.
     """
     return [(at, label) for at, label in MILESTONES
@@ -3366,7 +3366,7 @@ def notify(message: str) -> None:
         pass
 
 
-def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
+def timer_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     """One rendered frame of the pane."""
     def paint(text, name):
         return "%s%s%s" % (ANSI[name], text, ANSI["reset"]) if colour else text
@@ -3440,7 +3440,7 @@ def watch_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     return "\n".join(lines) + "\n"
 
 
-def command_watch(args: argparse.Namespace) -> int:
+def command_timer(args: argparse.Namespace) -> int:
     """A countdown in its own pane, redrawn once a second.
 
     Never run this from an agent. It does not return until the clock does, so
@@ -3451,7 +3451,7 @@ def command_watch(args: argparse.Namespace) -> int:
     live = sys.stdout.isatty() and not args.plain
 
     if args.once:
-        sys.stdout.write(watch_frame(state, resolve_now(args.now), colour=live))
+        sys.stdout.write(timer_frame(state, resolve_now(args.now), colour=live))
         return EXIT_EXPIRED if classify(state, resolve_now(args.now)) != STATE_ACTIVE else EXIT_OK
 
     # Everything already behind us is not news.
@@ -3478,7 +3478,7 @@ def command_watch(args: argparse.Namespace) -> int:
                 # which is the cheapest surface here and the only one that needs
                 # no permission and no pane on screen.
                 sys.stdout.write("\033]0;%s left\007" % (format_duration(remaining),))
-            sys.stdout.write(watch_frame(state, now, colour=live))
+            sys.stdout.write(timer_frame(state, now, colour=live))
             sys.stdout.flush()
 
             if phase == STATE_ENDED:
@@ -3900,21 +3900,21 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(status)
     status.set_defaults(func=command_status)
 
-    watch = subparsers.add_parser(
-        "watch", help="a live countdown, for a second terminal pane"
+    timer = subparsers.add_parser(
+        "timer", help="a live countdown, for a second terminal pane"
     )
-    watch.add_argument("--workspace", default=None)
-    watch.add_argument("--session", default=None)
-    watch.add_argument(
+    timer.add_argument("--workspace", default=None)
+    timer.add_argument("--session", default=None)
+    timer.add_argument(
         "--once", action="store_true",
         help="draw one frame and exit instead of running the clock down",
     )
-    watch.add_argument(
+    timer.add_argument(
         "--plain", action="store_true",
         help="no colour, no cursor tricks, no tab title",
     )
-    add_common(watch)
-    watch.set_defaults(func=command_watch)
+    add_common(timer)
+    timer.set_defaults(func=command_timer)
 
     end = subparsers.add_parser(
         "end", help="stop the session now, recorded as abandoned"

@@ -2219,7 +2219,7 @@ class TestStartsOnTheProblem(SessionTestCase):
         self.assertTrue(chosen.exists())
 
 
-class TestWatch(SessionTestCase):
+class TestTimer(SessionTestCase):
     """The countdown pane.
 
     The loop itself is not driven here: it runs until the clock does, so a test
@@ -2272,7 +2272,7 @@ class TestWatch(SessionTestCase):
     def test_once_renders_the_clock_and_the_questions(self):
         self.run_session("start", "--format", "gca", "--questions", 2, "--now", T0)
         code, out, err = self.run_session(
-            "watch", "--once", "--plain", "--now", self.deadline() - 900
+            "timer", "--once", "--plain", "--now", self.deadline() - 900
         )
         self.assertEqual(code, EXIT_OK, err)
         self.assertIn("15:00", out)
@@ -2282,7 +2282,7 @@ class TestWatch(SessionTestCase):
     def test_once_says_time_is_up_and_exits_four(self):
         self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)
         code, out, _ = self.run_session(
-            "watch", "--once", "--plain", "--now", self.deadline() + 10
+            "timer", "--once", "--plain", "--now", self.deadline() + 10
         )
         self.assertEqual(code, EXIT_EXPIRED)
         self.assertIn("TIME IS UP", out)
@@ -2292,7 +2292,7 @@ class TestWatch(SessionTestCase):
         """Piping it somewhere, or --plain, must not paint anything."""
         self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)
         _, out, _ = self.run_session(
-            "watch", "--once", "--plain", "--now", self.deadline() - 60
+            "timer", "--once", "--plain", "--now", self.deadline() - 60
         )
         self.assertNotIn("\033", out)
 
@@ -2303,12 +2303,12 @@ class TestWatch(SessionTestCase):
         )
         self.run_session("submit", "--question", "q1", "--now", T0 + 60)
         _, out, _ = self.run_session(
-            "watch", "--once", "--plain", "--now", self.deadline() - 60
+            "timer", "--once", "--plain", "--now", self.deadline() - 60
         )
         self.assertNotIn("not submitted", out)
 
     def test_no_session_is_the_usual_exit_code(self):
-        code, _, _ = self.run_session("watch", "--once")
+        code, _, _ = self.run_session("timer", "--once")
         self.assertEqual(code, EXIT_NO_SESSION)
 
     def test_sampling_never_writes_back_over_a_submission(self):
@@ -2653,7 +2653,7 @@ class TestEveryCommandInEveryState(SessionTestCase):
 
     Written because three separate bugs this week were found by running the
     tool rather than by the suite, and one of them was of exactly this shape: a
-    closed pane made `watch` print a BrokenPipeError traceback. Every existing
+    closed pane made `timer` print a BrokenPipeError traceback. Every existing
     test asserts a behaviour somebody thought to check. Nothing asserted the
     floor, which is that a command in an odd state fails like a program rather
     than like a stack trace.
@@ -2671,7 +2671,7 @@ class TestEveryCommandInEveryState(SessionTestCase):
         ("status", ()),
         ("report", ()),
         ("debrief", ()),
-        ("watch", ("--once", "--plain")),
+        ("timer", ("--once", "--plain")),
         ("list", ()),
         ("progress", ()),
         ("check", ()),
@@ -2733,7 +2733,7 @@ class TestEveryCommandInEveryState(SessionTestCase):
     def test_a_reader_that_walks_away_is_not_a_crash(self):
         """Closing the pane must not print a stack trace into the terminal.
 
-        This is the one that actually happened. `watch` died with a
+        This is the one that actually happened. `timer` died with a
         BrokenPipeError the first time its output was piped into something that
         stopped reading, which is what closing a split does. Nothing in the
         suite could see it, because a test that captures output reads all of it,
@@ -2741,7 +2741,7 @@ class TestEveryCommandInEveryState(SessionTestCase):
         """
         # A live session, on the real clock. `--now` is not honoured by the
         # loop (deliberately: SKILL.md forbids rewinding a running session), so
-        # an injected deadline in the past would make watch print one frame and
+        # an injected deadline in the past would make timer print one frame and
         # exit before the reader ever went away, which is the whole condition.
         code, _, err = self.run_session("start", "--format", "gca", "--questions", 1)
         self.assertEqual(code, EXIT_OK, err)
@@ -2750,7 +2750,7 @@ class TestEveryCommandInEveryState(SessionTestCase):
         env.pop("INTERVIEW_SIM_NOW", None)
         env.pop("INTERVIEW_SIM_SESSION", None)
 
-        for command, extra in (("watch", ["--plain"]), ("status", []), ("report", [])):
+        for command, extra in (("timer", ["--plain"]), ("status", []), ("report", [])):
             reader = subprocess.Popen(["head", "-2"], stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE, universal_newlines=True)
             writer = subprocess.Popen(

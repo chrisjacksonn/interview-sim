@@ -55,7 +55,7 @@ writes the question, and the clock starts. Work in your own editor; `submit`
 tells you how many hidden tests passed and nothing else. Which ones failed is
 the exercise.
 
-While you work: split your terminal and run `sim watch` for a live countdown.
+While you work: split your terminal and run `sim timer` for a live countdown.
 When it ends (or you `end` it): `report` breaks the clock down per question,
 and `debrief` turns the hidden tests into the lesson:
 
@@ -115,7 +115,7 @@ workspace README defines.
 sim start --format gca          # a 4-question exam from the shipped set
 sim status                      # time remaining
 sim submit --question q1        # grade against the hidden suite
-sim watch                       # live countdown, for a second pane
+sim timer                       # live countdown, for a second pane
 sim end                         # give up on purpose; opens the debrief
 sim report                      # per-question results and time breakdown
 sim debrief --question q1       # failed tests explained + reference solution

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.6
+
+**`watch` is `timer` now.** A live session called it by typing
+`/interview-sim:sim watch`, which re-invoked the skill with "watch" as the
+message rather than running the command — correctly, since the agent must
+never run it itself (it blocks until the clock ends), but the reply lectured
+about that rule instead of just answering. Renamed the subcommand to `timer`,
+the clearer name candidates actually reach for, and the split-pane offer is
+now appended to every session-start message instead of waiting to be asked.
+
 ## 0.19.2
 
 **The description was 454 characters and the picker showed 88 of them.** It
