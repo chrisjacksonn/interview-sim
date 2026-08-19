@@ -28,7 +28,10 @@ What this skill can do on your machine, why, and where the lines are.
   The engine refuses a generated question set placed inside your working
   directory, because it contains the answer key.
 - **It cannot change its own permissions.** Auto mode is suggested once, in
-  words; only you can enable it.
+  words; only you can enable it. Know the trade when you do: auto mode
+  approves this session's tool calls without prompting, which is what keeps a
+  timed sitting uninterrupted and also what removes the prompt as a
+  checkpoint. Scope it to a practice directory if that matters to you.
 - **Nothing cheat-adjacent.** No interaction with live assessments or
   proctoring systems, ever. See [ETHICS.md](ETHICS.md).
 

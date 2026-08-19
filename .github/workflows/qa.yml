@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# The token can read the checkout and nothing else. Least privilege, and the
+# actions are pinned to commit SHAs rather than tags, because a tag can move.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,8 +22,8 @@ jobs:
         python: ["3.9", "3.13"]
     name: tests (py${{ matrix.python }})
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python }}
       - name: No third-party imports
@@ -33,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     name: question gate
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.9"
       - name: Every question must pass the gate
@@ -47,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     name: manifests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Manifests are valid JSON with the required fields
         run: |
           python - <<'PY'
@@ -92,8 +97,8 @@ jobs:
     runs-on: ubuntu-latest
     name: a fresh clone is not this machine
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.9"
       - name: Nothing tracked belongs to one machine
@@ -165,8 +170,8 @@ jobs:
     runs-on: ubuntu-latest
     name: no hidden material in a workspace
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.9"
       - name: Start a session and prove nothing hidden was copied
