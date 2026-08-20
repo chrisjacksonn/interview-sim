@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.29.9
+
+**A security audit found the docs claiming things the code didn't quite do.**
+ETHICS.md still described research findings being written down so a later
+search could be compared against them, a mechanism deleted back in the
+research-memory cleanup; nothing is kept anywhere now, and the doc says so.
+SECURITY.md's write-scope claim missed the root `./timer` shim entirely, never
+mentioned that grading runs a candidate's own code with no sandbox beyond a
+timeout, and never named that writing a generated question runs `cp` and `cat`
+through Bash, outside the `python3`-only permission line, which is the real
+reason the skill asks for auto mode before research starts. All three are
+fixed to say what the code actually does. `grade.py`'s internal
+self-invocation also lost its by-name module import: it only ever ran
+`tests_hidden`, so it says so directly now instead of taking the name off the
+command line.
+
 ## 0.29.8
 
 **The 0.29.7 shim still made you `cd` to reach it.** `./timer` lived only in
