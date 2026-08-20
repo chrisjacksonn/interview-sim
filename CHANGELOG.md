@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.8
+
+**The 0.29.7 shim still made you `cd` to reach it.** `./timer` lived only in
+the session workspace, so the offer to put a clock on screen came with an
+implicit "go find the timestamped directory first." `start` now writes a
+second copy of the same shim beside `interview-sim-sessions/`, resolving the
+active session through the `current` pointer instead of a baked-in path, so
+`./timer` works from wherever you're already standing. Docs and the
+session-start message both say so now.
+
 ## 0.29.7
 
 **`sim timer` was never a real command outside an agent's own shell.** A
