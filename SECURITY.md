@@ -25,9 +25,12 @@ What this skill can do on your machine, why, and where the lines are.
   import nothing that could; the clock and grading are entirely local.
   Research is done by the agent, exactly as if you searched yourself.
 - **Writes are confined** to the session directory (`./interview-sim-sessions/`
-  in the folder you run from, self-gitignored) and the session scratchpad.
-  The engine refuses a generated question set placed inside your working
-  directory, because it contains the answer key.
+  in the folder you run from, self-gitignored), the session scratchpad, and one
+  pair of files at the invoking directory itself: a `./timer` shim and the
+  `.gitignore` entry that hides it, written once and never overwriting a
+  `./timer` that is not already one of ours. The engine refuses a generated
+  question set placed inside your working directory, because it contains the
+  answer key.
 - **It cannot change its own permissions.** Auto mode is suggested once, in
   words; only you can enable it. Know the trade when you do: auto mode
   approves this session's tool calls without prompting, which is what keeps a
