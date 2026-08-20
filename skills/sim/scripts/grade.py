@@ -20,6 +20,7 @@ Python 3.9, standard library only.
 """
 
 import argparse
+import importlib
 import json
 import os
 import shutil
@@ -75,10 +76,11 @@ def execute_suite():
     # Import explicitly rather than letting the loader do it. loadTestsFromName
     # swallows an ImportError into a _FailedTest, which would report a broken
     # solution as "1 test, 1 failed" instead of "this did not import". The name
-    # is a literal, not a string from the command line: this only ever runs
-    # tests_hidden.
+    # comes from HIDDEN_TESTS, the same constant used everywhere else in this
+    # file, not from the command line: this only ever runs the one hidden
+    # suite.
     try:
-        import tests_hidden as module
+        module = importlib.import_module(Path(HIDDEN_TESTS).stem)
     except Exception as exc:  # noqa: BLE001 - any import-time failure counts
         return {
             "loaded": False,

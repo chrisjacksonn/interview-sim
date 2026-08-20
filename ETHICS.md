@@ -33,9 +33,13 @@ someone else's property and a worse tool: memorising answers is not practice.
 
 And the agent can write questions for you, for a company or a posting the bank
 has nothing for. Those are original problems it invents, never real assessment
-items, and they are checked to be answerable before the clock starts. What they
-have not had is the mutation gate every bank question passes, so their grading is
-less trustworthy, and the tool says so out loud when a session uses them.
+items, and before the clock starts they clear the identical mutation gate every
+bank question passes in CI: the reference has to pass, the untouched starter
+has to fail, and every deliberately-wrong solution shipped beside the question
+has to be caught, or the question never runs. What the gate cannot judge is the
+writing itself, whether the statement is clear and the difficulty honest:
+curated questions had a person's review for that, generated ones have only
+their own author.
 
 **It is not a cheating tool.** Nothing here is designed to be undetectable,
 because there is nothing to detect: the tool has no contact with the systems it
