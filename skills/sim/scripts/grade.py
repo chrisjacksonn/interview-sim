@@ -20,7 +20,6 @@ Python 3.9, standard library only.
 """
 
 import argparse
-import importlib
 import json
 import os
 import shutil
@@ -60,8 +59,8 @@ class _CountingResult(unittest.TestResult):
         self.successes += 1
 
 
-def execute_suite(module_name):
-    """Load and run a test module in the current directory. Child process only.
+def execute_suite():
+    """Load and run the hidden test module in the current directory. Child process only.
 
     Returns a dict rather than printing, so the parent decides what is safe to
     show. A failure to load is reported as its own outcome: an unimportable
@@ -75,9 +74,11 @@ def execute_suite(module_name):
 
     # Import explicitly rather than letting the loader do it. loadTestsFromName
     # swallows an ImportError into a _FailedTest, which would report a broken
-    # solution as "1 test, 1 failed" instead of "this did not import".
+    # solution as "1 test, 1 failed" instead of "this did not import". The name
+    # is a literal, not a string from the command line: this only ever runs
+    # tests_hidden.
     try:
-        module = importlib.import_module(module_name)
+        import tests_hidden as module
     except Exception as exc:  # noqa: BLE001 - any import-time failure counts
         return {
             "loaded": False,
@@ -224,7 +225,6 @@ def grade(question_dir, solution_path, timeout=DEFAULT_TIMEOUT):
                     sys.executable,
                     str(Path(__file__).resolve()),
                     "--execute",
-                    "tests_hidden",
                     "--result-file",
                     result_file,
                 ],
@@ -322,7 +322,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="grade.py", description="Run a question's hidden suite against a solution."
     )
-    parser.add_argument("--execute", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--execute", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--result-file", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--question", default=None, help="question directory in the bank")
     parser.add_argument("--solution", default=None, help="path to the candidate's file")
@@ -338,7 +338,7 @@ def main(argv=None):
     # Child process: run the suite in cwd and hand structured results back up
     # through a file. Never stdout: the candidate's own prints go there.
     if args.execute:
-        payload = json.dumps(execute_suite(args.execute))
+        payload = json.dumps(execute_suite())
         if args.result_file:
             with open(args.result_file, "w") as handle:
                 handle.write(payload)
