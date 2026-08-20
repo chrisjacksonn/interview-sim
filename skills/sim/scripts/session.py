@@ -1306,7 +1306,7 @@ Time remaining:
 
     sim status
 
-Or put a clock on screen. Split your terminal, cd into this directory, and run:
+Or put a clock on screen. Split your terminal and run, from wherever you are:
 
     ./timer
 
@@ -1347,6 +1347,48 @@ def write_timer_wrapper(workspace: Path) -> None:
     with open(str(path), "w") as handle:
         handle.write('#!/bin/sh\nexec python3 "%s" timer "$@"\n' % (script,))
     os.chmod(str(path), 0o755)
+    write_root_timer_wrapper(script)
+
+
+def write_root_timer_wrapper(script: Path) -> None:
+    # The per-session shim above means finding the clock means finding the
+    # session directory first, which is exactly the cd-hunting this is meant
+    # to save someone from. One shim at the invoking directory, beside
+    # interview-sim-sessions/, so `./timer` works from wherever the person
+    # already is. No --workspace is baked in: resolve_workspace() already
+    # falls back to the `current` pointer when cwd isn't inside a session.
+    root = sessions_root().parent
+    path = root / "timer"
+    if path.exists() and "session.py" not in path.read_text():
+        # A person's own ./timer at their project root outranks ours; don't
+        # clobber something we didn't write. (A stale copy of ours, pointing
+        # at an old script path, still contains "session.py" and gets
+        # refreshed below.)
+        return
+    path.write_text(_root_timer_body(script))
+    os.chmod(str(path), 0o755)
+
+    # This one lands beside whatever repository the candidate is standing
+    # in, unlike the workspace shim's own self-ignoring .gitignore, so it
+    # needs an entry of its own rather than a blanket "*" that would ignore
+    # the candidate's real files.
+    try:
+        ignore = root / ".gitignore"
+        existing = ignore.read_text() if ignore.exists() else ""
+        lines = existing.splitlines()
+        wanted = ["/timer"] if existing else ["/timer", "/.gitignore"]
+        missing = [line for line in wanted if line not in lines]
+        if missing:
+            with open(str(ignore), "a") as handle:
+                if existing and not existing.endswith("\n"):
+                    handle.write("\n")
+                handle.write("\n".join(missing) + "\n")
+    except OSError:
+        pass
+
+
+def _root_timer_body(script: Path) -> str:
+    return '#!/bin/sh\nexec python3 "%s" timer "$@"\n' % (script,)
 
 
 def write_readme(workspace: Path, state: Dict[str, Any]) -> None:

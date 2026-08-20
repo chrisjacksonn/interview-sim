@@ -55,9 +55,9 @@ writes the question, and the clock starts. Work in your own editor; `submit`
 tells you how many hidden tests passed and nothing else. Which ones failed is
 the exercise.
 
-While you work: split your terminal, cd into the session directory, and run
-`./timer` for a live countdown (`start` writes that shim into the workspace
-itself, so it needs no setup).
+While you work: split your terminal and run `./timer` for a live countdown
+(`start` writes that shim both into the workspace and beside
+`interview-sim-sessions/`, so it needs no setup and no `cd`).
 When it ends (or you `end` it): `report` breaks the clock down per question,
 and `debrief` turns the hidden tests into the lesson:
 

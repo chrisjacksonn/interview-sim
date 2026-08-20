@@ -76,13 +76,15 @@ already looking at.
 **Never run `timer` yourself** (it blocks until the clock ends). Append the
 offer to every session-start message, as its own line, so nobody has to ask:
 
-> If you want a clock on screen, split your terminal, `cd` into the session
-> directory above, and run `./timer`. It also puts the time in the tab title.
+> If you want a clock on screen, split your terminal and run `./timer` right
+> here. It also puts the time in the tab title.
 
-`./timer` is a shim `start` writes into the workspace itself, with the real
-script path already resolved in it — say that phrasing exactly; do not tell
-people to type `sim timer`, which is not a real command outside an agent's
-own shell.
+`./timer` is a shim `start` writes both into the workspace and at the
+invoking directory (beside `interview-sim-sessions/`), with the real script
+path already resolved in it. The top-level one finds the active session via
+the `current` pointer, so it works from wherever the person already is, no
+`cd` required — say that phrasing exactly; do not tell people to type `sim
+timer`, which is not a real command outside an agent's own shell.
 
 **If asked for it later** ("how do I get a clock", "can I see a timer",
 `/interview-sim:sim timer`), answer with exactly that line and nothing else —
