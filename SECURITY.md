@@ -24,6 +24,12 @@ What this skill can do on your machine, why, and where the lines are.
 - **The engine opens no network connection.** `session.py` and `grade.py`
   import nothing that could; the clock and grading are entirely local.
   Research is done by the agent, exactly as if you searched yourself.
+- **Grading runs your own code with no sandbox.** `submit`, `debrief`, and the
+  mutation gate all execute `solution.py`, `reference.py`, and each mutant in a
+  subprocess with a timeout, so a hang or a crash cannot take down the session
+  or corrupt the result channel. That subprocess is not a security boundary:
+  it runs as you, with your filesystem and network access, because it is your
+  own code on your own machine.
 - **Writes are confined** to the session directory (`./interview-sim-sessions/`
   in the folder you run from, self-gitignored), the session scratchpad, and one
   pair of files at the invoking directory itself: a `./timer` shim and the
