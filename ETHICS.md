@@ -23,10 +23,10 @@ local either way, and the scripts work with no agent at all.
 
 The agent can also read and search on your behalf, when you ask it to. Paste a
 job posting and it will fetch that page to work out which company it is; name a
-company and it can go looking for what their current screen is. That is the agent doing what you asked. What it finds is written down with its
-sources and the date, purely so the next search can be compared against it: it is
-never used in place of looking again, because this tool ships no claims about any
-company and does not want to start accumulating them. What it must never
+company and it can go looking for what their current screen is. That is the agent doing what you asked. What it finds is reported to you with its
+sources and the date, and nothing about it is kept: this tool ships no claims
+about any company and keeps no cache, so the next search for the same company
+starts from nothing, exactly like the first. What it must never
 do is come back with a company's actual questions. Question text found while
 researching is a signal about format and topic, and copying it would be both
 someone else's property and a worse tool: memorising answers is not practice.
