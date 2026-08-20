@@ -9,7 +9,11 @@ What this skill can do on your machine, why, and where the lines are.
   narrower pattern over the shell string was tried and abandoned: it is not an
   injection boundary (any pattern over a command is satisfiable by
   construction), so the behavioral rule below is the real line, stated
-  honestly instead of scoped cosmetically.
+  honestly instead of scoped cosmetically. Writing a generated question also
+  runs `cp` and `cat` through Bash to lay down and fill its files, and this
+  pattern does not cover either one; those calls run on whatever permission
+  mode you are already in, which is the real reason the skill asks for auto
+  mode before research starts, not only to remove friction.
 - **Fetch and search the web** (`WebFetch`, `WebSearch`): live research into
   what a company's screen currently is. This is the product's core mechanism;
   a version without it is a different tool.
