@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.29.10
+
+**The 0.29.9 doc fixes needed their own second look.** A code review of that
+diff caught six real problems: ETHICS.md still claimed generated questions
+skip the mutation gate and grade less trustworthily, a leftover from before
+generation started clearing that gate at start time; the new SECURITY.md
+sentence about sandboxing overclaimed which subcommands run `reference.py`
+and each mutant while never naming `starter.py`, which the gate does run; the
+write-scope bullet named a vague "session scratchpad" instead of the actual
+OS temp directories the grader and mutation gate use, and said the root
+`./timer` shim is "written once" when it is refreshed every session start;
+the new auto-mode sentence stated its rationale as the definitive one without
+acknowledging the doc already gives a different reason four lines below; and
+`grade.py`'s hardcoded hidden-suite import used a second literal disconnected
+from the existing `HIDDEN_TESTS` constant, so it now derives the module name
+from that constant instead. Left alone on purpose: converting `--execute` to
+a boolean flag means `--execute=value` now hard-errors instead of silently
+accepting a value nothing ever passed; that flag is internal-only
+(`argparse.SUPPRESS`), has exactly one caller, and the caller already uses
+the bare form.
+
 ## 0.29.9
 
 **A security audit found the docs claiming things the code didn't quite do.**
