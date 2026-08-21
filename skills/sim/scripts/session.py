@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.29.11"
+VERSION = "0.29.12"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -3384,6 +3384,11 @@ LED_DIGITS = {
     "8": (" _ ", "|_|", "|_|"), "9": (" _ ", "|_|", " _|"),
     ":": ("   ", " • ", "   "),
 }
+# led_rows() renders these hairline segments as heavy block characters
+# instead ("_" -> lower-half-block, "|" -> full block). Kept thin here
+# because a plain underscore/pipe shape is what's actually easy to eyeball
+# for a wrong segment; the weight is a rendering choice, not a shape one.
+LED_WEIGHT = {"_": "▄", "|": "█", "•": "█"}
 LED_BLANK = ("   ", "   ", "   ")
 PROGRESS_BAR_WIDTH = 24
 
@@ -3465,7 +3470,10 @@ def tint_for(level: str) -> str:
 def led_rows(text: str) -> List[str]:
     """A duration like '45:00' as three rows of chunky block-digit glyphs."""
     glyphs = [LED_DIGITS.get(char, LED_BLANK) for char in text]
-    return [" ".join(glyph[row] for glyph in glyphs) for row in range(3)]
+    rows = [" ".join(glyph[row] for glyph in glyphs) for row in range(3)]
+    for thin, heavy in LED_WEIGHT.items():
+        rows = [row.replace(thin, heavy) for row in rows]
+    return rows
 
 
 def progress_bar(fraction: float, width: int = PROGRESS_BAR_WIDTH) -> str:
@@ -3491,8 +3499,9 @@ def session_subtitle(state: Dict[str, Any]) -> str:
 
 def timer_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     """One rendered frame of the pane."""
-    def paint(text, name):
-        return "%s%s%s" % (ANSI[name], text, ANSI["reset"]) if colour else text
+    def paint(text, name, bold=False):
+        code = (ANSI["bold"] if bold else "") + ANSI[name]
+        return "%s%s%s" % (code, text, ANSI["reset"]) if colour else text
 
     clock = state["clock"]
     ended = clock.get("ended_epoch") is not None
@@ -3516,7 +3525,7 @@ def timer_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     if level == "over":
         lines.append("  " + paint(face, tint))
     else:
-        lines.extend("  " + paint(row, tint) for row in led_rows(face))
+        lines.extend("  " + paint(row, tint, bold=True) for row in led_rows(face))
     lines.append("")
     lines.append("  " + paint(session_subtitle(state), "dim"))
 

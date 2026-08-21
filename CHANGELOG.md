@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.29.12
+
+**0.29.11's digits were thin.** Hairline `_` and `|` characters read as a
+wireframe outline next to the reference's chunky, filled LED look. `led_rows`
+now renders those same segment shapes in heavy block characters instead,
+full block for the vertical strokes and a lower half-block for the
+horizontal bars, plus ANSI bold on top. Same 3-row grid, same width, so it
+is still a narrow-pane fit; just heavier strokes.
+
 ## 0.29.11
 
 **The countdown was a boxed number; now it is a clock.** `timer` renders
