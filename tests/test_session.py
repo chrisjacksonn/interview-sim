@@ -2279,14 +2279,38 @@ class TestTimer(SessionTestCase):
         )
 
     def test_once_renders_the_clock_and_the_questions(self):
+        session = self.module()
         self.run_session("start", "--format", "gca", "--questions", 2, "--now", T0)
         code, out, err = self.run_session(
             "timer", "--once", "--plain", "--now", self.deadline() - 900
         )
         self.assertEqual(code, EXIT_OK, err)
-        self.assertIn("15:00", out)
+        for row in session.led_rows("15:00"):
+            self.assertIn(row, out)
         self.assertIn("q1", out)
         self.assertIn("q2", out)
+
+    def test_the_clock_face_is_block_digits_not_a_boxed_number(self):
+        """`timer_frame` renders '15:00' as chunky glyphs, not literal text."""
+        session = self.module()
+        self.assertNotIn("15:00", "\n".join(session.led_rows("15:00")))
+
+    def test_subtitle_names_round_company_and_question_count(self):
+        session = self.module()
+        self.run_session(
+            "start", "--format", "gca", "--questions", 2,
+            "--company", "Ramp", "--round", "technical screen", "--now", T0,
+        )
+        _, out, _ = self.run_session(
+            "timer", "--once", "--plain", "--now", self.deadline() - 900
+        )
+        self.assertIn("technical screen · ramp · 2 problems", out)
+
+    def test_progress_bar_fills_toward_the_deadline(self):
+        session = self.module()
+        self.assertEqual(session.progress_bar(0.0, 10), "░" * 10)
+        self.assertEqual(session.progress_bar(1.0, 10), "█" * 10)
+        self.assertEqual(session.progress_bar(0.5, 10), "█" * 5 + "░" * 5)
 
     def test_once_says_time_is_up_and_exits_four(self):
         self.run_session("start", "--format", "gca", "--questions", 1, "--now", T0)

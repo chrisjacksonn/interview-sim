@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.29.11
+
+**The countdown was a boxed number; now it is a clock.** `timer` renders
+`45:00` as chunky block-digit glyphs instead of a single line in a bordered
+box, in mint green when the terminal's `COLORTERM` confirms 24-bit support
+and plain ANSI green otherwise, still shifting to amber at ten minutes and
+red at two exactly as before. The border is gone: at this size the glyphs
+read as a clock without one, and dropping it is what keeps the pane narrow
+enough for a split terminal. Underneath, the raw `session_id` path is
+replaced by what it actually is, e.g. `technical screen · ramp · 1 problem`,
+and a fill bar tracks how much of the sitting is behind you. No glow or blur
+around the digits: a terminal cannot render that, so this is flat color, not
+a soft LED halo.
+
 ## 0.29.10
 
 **The 0.29.9 doc fixes needed their own second look.** A code review of that

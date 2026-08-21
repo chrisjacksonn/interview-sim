@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "0.29.10"
+VERSION = "0.29.11"
 SCHEMA_VERSION = 2
 
 # Exit codes. SKILL.md branches on these, so they are a public contract:
@@ -3365,7 +3365,27 @@ SAMPLE_EVERY = 15.0
 ANSI = {
     "reset": "\033[0m", "dim": "\033[2m", "bold": "\033[1m",
     "green": "\033[32m", "yellow": "\033[33m", "red": "\033[31m",
+    # LED-clock palette. Only used where COLORTERM confirms 24-bit support;
+    # the plain 8-color entries above remain the fallback everywhere else.
+    "mint": "\033[38;2;52;211;153m",
+    "amber": "\033[38;2;245;158;11m",
+    "crimson": "\033[38;2;239;68;68m",
 }
+
+# Each digit as a 3-row, 3-column block, in the style of the classic
+# seven-segment terminal clock. Narrow by design: the widest face this ever
+# renders (an hour-plus GCA sitting, "H:MM:SS") is under 30 columns across,
+# so it reads fine in a narrow split pane rather than needing a wide one.
+LED_DIGITS = {
+    "0": (" _ ", "| |", "|_|"), "1": ("   ", "  |", "  |"),
+    "2": (" _ ", " _|", "|_ "), "3": (" _ ", " _|", " _|"),
+    "4": ("   ", "|_|", "  |"), "5": (" _ ", "|_ ", " _|"),
+    "6": (" _ ", "|_ ", "|_|"), "7": (" _ ", "  |", "  |"),
+    "8": (" _ ", "|_|", "|_|"), "9": (" _ ", "|_|", " _|"),
+    ":": ("   ", " • ", "   "),
+}
+LED_BLANK = ("   ", "   ", "   ")
+PROGRESS_BAR_WIDTH = 24
 
 
 def urgency(remaining: float) -> str:
@@ -3421,6 +3441,54 @@ def notify(message: str) -> None:
         pass
 
 
+def truecolor_supported() -> bool:
+    """Best guess at 24-bit color support, the way COLORTERM is meant to be used.
+
+    Getting this wrong the safe way (assuming no) just loses a nicer green;
+    getting it wrong the other way prints raw escape junk into somebody's
+    pane, so an unset or unrecognised COLORTERM says no.
+    """
+    return os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
+
+
+def tint_for(level: str) -> str:
+    """The ANSI key to paint the clock face and progress bar with."""
+    fancy = truecolor_supported()
+    return {
+        "calm": "mint" if fancy else "green",
+        "warning": "amber" if fancy else "yellow",
+        "critical": "crimson" if fancy else "red",
+        "over": "crimson" if fancy else "red",
+    }[level]
+
+
+def led_rows(text: str) -> List[str]:
+    """A duration like '45:00' as three rows of chunky block-digit glyphs."""
+    glyphs = [LED_DIGITS.get(char, LED_BLANK) for char in text]
+    return [" ".join(glyph[row] for glyph in glyphs) for row in range(3)]
+
+
+def progress_bar(fraction: float, width: int = PROGRESS_BAR_WIDTH) -> str:
+    """A filled/unfilled block bar, how much of the sitting is behind you."""
+    fraction = max(0.0, min(1.0, fraction))
+    filled = int(round(fraction * width))
+    return "█" * filled + "░" * (width - filled)
+
+
+def session_subtitle(state: Dict[str, Any]) -> str:
+    """'technical screen · ramp · 1 problem': what this sitting actually is.
+
+    Leaner than printing session_id's timestamped path, and it says more: the
+    round and company are the things a glance at the pane should confirm.
+    """
+    gated = FORMATS[state["format"]]["gated"]
+    count = len(state["questions"])
+    noun = "level" if gated else "problem"
+    parts = [part for part in (state.get("round"), state.get("company")) if part]
+    parts.append("%d %s%s" % (count, noun, "" if count == 1 else "s"))
+    return " · ".join(parts)
+
+
 def timer_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
     """One rendered frame of the pane."""
     def paint(text, name):
@@ -3437,21 +3505,25 @@ def timer_frame(state: Dict[str, Any], now: float, colour: bool = True) -> str:
             if clock.get("end_reason") in (None, END_REASON_TIME)
             else "SESSION ENDED"
         )
-        tint = "red"
     else:
         face = format_duration(remaining)
-        tint = {"calm": "bold", "warning": "yellow", "critical": "red"}[level]
+    tint = tint_for(level)
 
-    width = max(len(face) + 8, 17)
-    pad = (width - len(face)) // 2
-    lines = [
-        "",
-        "  ┌" + "─" * width + "┐",
-        "  │" + " " * pad + paint(face, tint) + " " * (width - pad - len(face)) + "│",
-        "  └" + "─" * width + "┘",
-        "  " + paint(state["session_id"], "dim"),
-        "",
-    ]
+    # No box border: at this size and color the glyphs already read as a
+    # clock without one, and dropping it is what keeps a narrow split pane
+    # from needing to be any wider than the digits themselves.
+    lines = [""]
+    if level == "over":
+        lines.append("  " + paint(face, tint))
+    else:
+        lines.extend("  " + paint(row, tint) for row in led_rows(face))
+    lines.append("")
+    lines.append("  " + paint(session_subtitle(state), "dim"))
+
+    duration = clock["duration_seconds"]
+    fraction = 1.0 if level == "over" else (1 - remaining / duration if duration else 0.0)
+    lines.append("  " + paint(progress_bar(fraction), tint))
+    lines.append("")
 
     # The pane already samples edits, so it knows where the hour is going while
     # there is still time to change it. Waiting for the debrief to say two
